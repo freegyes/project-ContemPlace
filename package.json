@@ -1,0 +1,21 @@
+{
+  "name": "contemplace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openai": "^4",
+    "@supabase/supabase-js": "^2"
+  },
+  "devDependencies": {
+    "wrangler": "^3",
+    "@cloudflare/workers-types": "^4",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}

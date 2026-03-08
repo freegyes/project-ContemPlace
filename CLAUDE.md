@@ -69,7 +69,7 @@ ALLOWED_CHAT_IDS            # comma-separated Telegram chat IDs allowed to use t
 # Configurable — defaults in src/config.ts
 CAPTURE_MODEL               # default: anthropic/claude-haiku-4-5
 EMBED_MODEL                 # default: openai/text-embedding-3-small
-MATCH_THRESHOLD             # default: 0.65 (must be a float between 0 and 1)
+MATCH_THRESHOLD             # default: 0.60 (must be a float between 0 and 1)
 
 # Test-only
 WORKER_URL                  # deployed worker URL, for smoke tests
@@ -121,7 +121,7 @@ npx vitest run
 10. Call capture LLM with system prompt + raw message + related notes + today's date
 11. Parse JSON response, validate fields
 12. Insert note into `notes` with embedding and `raw_input`, insert links into `links`
-13. Send confirmation to Telegram: `[title]\n\n[body]\n\nLinked to: [[A]], [[B]]` (omit linked line if no links)
+13. Send HTML-formatted confirmation to Telegram (`parse_mode: HTML`): bold title, separator line, body, italic type·tags line, optional Linked/Corrections/Source lines
 14. On any error in steps 7–13: send error message to Telegram with context, log structured JSON to console
 
 ## Capture Agent Output Format
@@ -135,6 +135,7 @@ The LLM returns this JSON and nothing else:
   "type": "idea|reflection|source|lookup",
   "tags": ["...", "..."],
   "source_ref": null,
+  "corrections": ["garbled → corrected"] | null,
   "links": [
     { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of" }
   ]
@@ -142,6 +143,10 @@ The LLM returns this JSON and nothing else:
 ```
 
 Type rules: `reflection` = first-person personal insight (explicit signal required); `lookup` = investigative prompt only; `source` = external URL included; `idea` = default.
+
+Link types: `extends` = builds on/deepens; `contradicts` = challenges; `supports` = reinforces or parallel/sibling idea toward same goal; `is-example-of` = concrete instance.
+
+`corrections` = voice dictation or typo fixes applied silently to the output. Logged to Cloudflare and shown in the Telegram reply when present.
 
 ## Registering the Telegram Webhook
 

@@ -1,0 +1,19 @@
+# Copy this file to .dev.vars and fill in real values.
+# .dev.vars is gitignored — never commit it.
+# This is the single source of truth for local dev AND smoke tests.
+
+# Secrets — required
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_WEBHOOK_SECRET=your_webhook_secret_here
+OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key_here
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+
+# Whitelist — comma-separated Telegram chat IDs allowed to use the bot.
+# Find your chat ID: message the bot, then curl
+# https://api.telegram.org/bot{TOKEN}/getUpdates and look at message.chat.id
+ALLOWED_CHAT_IDS=your_chat_id_here
+
+# Test-only — not used by the worker itself
+WORKER_URL=https://contemplace.your-subdomain.workers.dev
+TELEGRAM_CHAT_ID=your_chat_id_here
