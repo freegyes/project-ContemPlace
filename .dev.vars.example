@@ -15,6 +15,10 @@ SUPABASE_DB_PASSWORD=your_database_password_here   # Only needed for `supabase l
 # https://api.telegram.org/bot{TOKEN}/getUpdates and look at message.chat.id
 ALLOWED_CHAT_IDS=your_chat_id_here
 
+# MCP Worker — generate with: openssl rand -hex 32
+MCP_API_KEY=your_mcp_api_key_here
+
 # Test-only — not used by the worker itself
 WORKER_URL=https://contemplace.your-subdomain.workers.dev
 TELEGRAM_CHAT_ID=your_chat_id_here
+MCP_WORKER_URL=https://mcp-contemplace.your-subdomain.workers.dev
