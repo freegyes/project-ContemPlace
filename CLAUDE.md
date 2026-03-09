@@ -249,6 +249,44 @@ The `raw_input` column preserves the user's exact words. The structured note (ti
 
 The system is built for rapid iteration. All behavioral parameters (models, thresholds, prompts) should be changeable without code modifications where practical. When a change requires redeployment, it should be a one-line config change, not a code refactor. The architecture should never prevent the owner from tuning the system's behavior based on real usage.
 
+## Version Control Conventions
+
+This repo uses a branch-per-feature workflow with semantic version tags. **Always follow this pattern.**
+
+**Branching:**
+- `main` is always stable and deployable. Never commit directly to main for feature work.
+- Feature branches: `feat/<short-name>` (e.g. `feat/phase-2-gardening`, `feat/mcp-server`)
+- Hotfix branches: `fix/<short-name>` for urgent production fixes
+- Create a branch, commit there, open a PR, merge to main.
+
+**Pull Requests:**
+- Every non-trivial change goes through a PR, even solo. The PR body documents what changed and why.
+- Include a test plan checklist in the PR body.
+- After merging, delete the feature branch.
+
+**Commit messages (Conventional Commits):**
+- `feat:` — new feature or phase
+- `fix:` — bug fix
+- `chore:` — maintenance (deps, config, tooling)
+- `docs:` — documentation only
+- `refactor:` — no behavior change
+- `test:` — tests only
+
+**Tagging (Semantic Versioning):**
+- `v<major>.<minor>.<patch>` — tagged on `main` after merging a meaningful phase or feature
+- Phase releases: `v1.0.0` (Phase 1), `v1.5.0` (Phase 1.5), `v2.0.0` (Phase 2), etc.
+- Patch tags for hotfixes: `v1.5.1`, etc.
+- Tag immediately after merging, before starting the next branch:
+  ```bash
+  git tag v<version>
+  git push origin v<version>
+  ```
+
+**Issues:**
+- Open a GitHub Issue before starting significant work. Reference it in commit messages with `refs #<n>`.
+- Phase 2 is tracked in issues #2 (gardening pipeline) and #3 (MCP server).
+- Labels: `enhancement` for features, `bug` for bugs, `phase-2` / `phase-3` for roadmap items.
+
 ## Review Trail
 
 Specialist reviews from project bootstrap live in `reviews/`. Read them before making architectural decisions. Key files:
