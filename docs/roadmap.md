@@ -30,33 +30,35 @@ Delivered:
 - **Automated deploy:** `scripts/deploy.sh` runs schema → typecheck → unit tests → Worker deploy → smoke tests
 - **Voice correction:** LLM detects and silently fixes transcription errors, reports in Telegram reply
 
-## Phase 2 — Gardening pipeline and MCP server (next)
+## Phase 2a — MCP server (next)
 
-The capture pipeline stores notes. The gardening pipeline improves them over time. The MCP server makes them accessible to AI agents.
+Expose the note database to AI agents via the Model Context Protocol. The primary client is Claude Code (CLI). The MCP server is a separate Cloudflare Worker with five tools:
 
-### Gardening pipeline
+- **`search_notes`** — semantic search via `match_notes()` with optional type/intent/tag filters
+- **`get_note`** — full note retrieval with linked notes and entity data
+- **`list_recent`** — recent notes with optional facet filtering
+- **`get_related`** — notes connected to a given note via the `links` table
+- **`capture_note`** — full capture pipeline (embed → related lookup → LLM → store), same logic as Telegram but synchronous and source-tagged
 
-A scheduled process (likely a Cloudflare Cron Trigger) that runs nightly to:
+Auth: single API key (Bearer token). Deployment: separate Worker at `mcp-contemplace.<subdomain>.workers.dev`.
 
-**Similarity linking** — Compute pairwise cosine similarity across all notes. Insert `is-similar-to` links for pairs above a threshold (~0.80), with `created_by = 'gardener'` and `confidence` set to the similarity score. This surfaces connections the capture-time LLM missed because the related note didn't exist yet.
+Also in scope once the MCP server is live: import scripts for **ChatGPT memory export** and **Obsidian vault** — standalone Node.js scripts that loop `capture_note` calls with appropriate source tags.
 
-**Tag normalization via SKOS** — Embed each concept's `pref_label + definition`. For each note's tags, find the nearest concept by cosine similarity. Insert into `note_concepts` and populate `refined_tags`. This collapses "bike", "bicycle", and "cycling" into a single concept while preserving the user's original tags.
+See `reviews/13-mcp-plan.md` for the full implementation plan and `reviews/14-16` for specialist reviews.
 
-**Chunk generation** — For notes with raw_input exceeding ~500 tokens, split into overlapping ~300-token chunks. Embed each chunk independently and insert into `note_chunks`. This enables fine-grained RAG retrieval — a long note about three topics can be matched on any one of them.
+## Phase 2b — Gardening pipeline (after MCP)
 
-**Maturity scoring** — Compute `importance_score` from inbound link count, recency, and type weighting. Update `maturity` from `seedling` to `budding` to `evergreen` based on thresholds. This gives downstream agents a signal about which notes are well-connected hubs versus isolated observations.
+A scheduled background process (Cloudflare Cron Trigger) that runs nightly to enrich the note graph without any user action:
 
-### MCP server
+**Similarity linking** — Pairwise cosine similarity across all notes. Insert `is-similar-to` links above a threshold (~0.80) with `created_by = 'gardener'` and `confidence` = similarity score.
 
-An MCP (Model Context Protocol) server that exposes the note database to AI agents as tools:
+**Tag normalization via SKOS** — Embed each concept's `pref_label + definition`. Map note tags to nearest concept by cosine similarity. Populate `note_concepts` and `refined_tags`.
 
-- **Search by similarity** — wraps `match_notes()` and `match_chunks()` with natural-language query embedding
-- **Filter by facets** — type, intent, tags, date range, maturity
-- **Retrieve full notes** — with linked notes and entity graph
+**Chunk generation** — Split notes exceeding ~500 tokens into overlapping ~300-token chunks. Embed each chunk and insert into `note_chunks`. Enables fine-grained RAG via `match_chunks()`.
 
-The MCP server runs as a separate process (not in the Worker). It connects to the same Supabase database using the service role key.
+**Maturity scoring** — Compute `importance_score` from inbound link count, recency, and type weighting. Update `maturity` from `seedling` → `budding` → `evergreen`.
 
-The intended use case: an AI coding assistant, writing partner, or thinking companion that can retrieve relevant prior thinking without the user manually copying notes into prompts.
+Phase 2b is deliberately sequenced after the MCP server so the Obsidian and ChatGPT imports can seed the database first — gardening produces better results with more notes in the corpus.
 
 ### Schema infrastructure already in place
 
