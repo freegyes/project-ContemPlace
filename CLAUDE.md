@@ -51,6 +51,18 @@ src/
   telegram.ts        # Telegram API helpers (sendMessage, sendChatAction)
   db.ts              # Supabase client + DB operations (insertNote, logEnrichments, getCaptureVoice, findRelatedNotes)
   types.ts           # TypeScript interfaces (Telegram, capture result, DB row types, Intent, Modality, Entity)
+mcp/
+  wrangler.toml      # MCP Worker config (name: mcp-contemplace)
+  tsconfig.json
+  src/
+    index.ts         # JSON-RPC 2.0 HTTP handler — routes to 5 tool handlers
+    tools.ts         # Tool definitions + handlers (handleSearchNotes, handleGetNote, etc.)
+    auth.ts          # Bearer token auth (validateAuth)
+    config.ts        # Config loading with secret validation
+    db.ts            # DB read/write functions (fetchNote, listRecentNotes, searchNotes, insertNote, …)
+    embed.ts         # embedText, buildEmbeddingInput (copy of src/embed.ts)
+    capture.ts       # parseCaptureResponse, runCaptureAgent (copy of src/capture.ts)
+    types.ts         # MCP-specific TypeScript interfaces
 scripts/
   deploy.sh          # Automated 5-step deploy pipeline
 supabase/
@@ -60,10 +72,17 @@ supabase/
   seed/
     seed_concepts.sql              # Initial SKOS domain concepts (run manually in SQL Editor)
 tests/
-  smoke.test.ts      # Smoke tests against the deployed worker
-  parser.test.ts     # Unit tests for parseCaptureResponse (runs locally, no network)
+  parser.test.ts         # Unit tests for src/capture.ts parseCaptureResponse (17 tests, no network)
+  smoke.test.ts          # Smoke tests against the live Telegram Worker
+  mcp-auth.test.ts       # Unit tests for mcp/src/auth.ts
+  mcp-config.test.ts     # Unit tests for mcp/src/config.ts
+  mcp-embed.test.ts      # Unit tests for mcp/src/embed.ts + parity with src/embed.ts
+  mcp-parser.test.ts     # Parity tests for mcp/src/capture.ts vs src/capture.ts (17 tests)
+  mcp-tools.test.ts      # Unit tests for all 5 MCP tool handlers (mocked deps, no network)
+  mcp-index.test.ts      # Unit tests for MCP HTTP routing and JSON-RPC protocol
+  mcp-smoke.test.ts      # Smoke tests against the live MCP Worker
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap)
-wrangler.toml        # Cloudflare Worker configuration
+wrangler.toml        # Telegram Worker Cloudflare config
 package.json
 tsconfig.json
 reviews/             # Specialist review notes from project bootstrap (do not delete)
@@ -87,18 +106,23 @@ CAPTURE_MODEL               # default: anthropic/claude-haiku-4-5
 EMBED_MODEL                 # default: openai/text-embedding-3-small
 MATCH_THRESHOLD             # default: 0.60 (must be a float between 0 and 1)
 
+# MCP Worker secrets (set via: wrangler secret put <NAME> -c mcp/wrangler.toml)
+MCP_API_KEY                 # generate with: openssl rand -hex 32
+
 # Test-only
-WORKER_URL                  # deployed worker URL, for smoke tests
+WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
 TELEGRAM_CHAT_ID            # your personal chat ID, for smoke tests
+MCP_WORKER_URL              # deployed MCP Worker URL, for mcp-smoke tests
 ```
 
 ## Key Commands
 
 ```bash
-# Deploy the worker
+# ── Telegram Worker ───────────────────────────────────────────────────────────
+# Deploy the Telegram Worker
 wrangler deploy
 
-# Set a deployed secret
+# Set a Telegram Worker secret
 wrangler secret put TELEGRAM_BOT_TOKEN
 
 # Local dev server
@@ -110,11 +134,24 @@ supabase db push
 # Run parser unit tests (local, no network)
 npx vitest run tests/parser.test.ts
 
-# Run smoke tests (against deployed worker)
+# Run smoke tests (against live Telegram Worker)
 npx vitest run tests/smoke.test.ts
 
 # Typecheck
 npx tsc --noEmit
+
+# ── MCP Worker ────────────────────────────────────────────────────────────────
+# Deploy the MCP Worker
+wrangler deploy -c mcp/wrangler.toml
+
+# Set an MCP Worker secret
+wrangler secret put MCP_API_KEY -c mcp/wrangler.toml
+
+# Run all MCP unit tests (local, no network)
+npx vitest run tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts tests/mcp-parser.test.ts tests/mcp-tools.test.ts tests/mcp-index.test.ts
+
+# Run MCP smoke tests (against live MCP Worker — requires MCP_WORKER_URL + MCP_API_KEY in .dev.vars)
+npx vitest run tests/mcp-smoke.test.ts
 ```
 
 ## Hard Constraints
@@ -213,7 +250,8 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 
 - **Phase 1 (complete):** Schema (notes, links, processed_updates), Telegram bot, Cloudflare Worker with async capture, chat ID whitelist, single capture mode, confirmation replies.
 - **Phase 1.5 (complete):** Schema v2 (8 tables), metadata-augmented embeddings, `intent`/`modality`/`entities` extraction, capture voice in DB, enrichment log, expanded link types, parser unit tests. Deployed and verified via smoke tests.
-- **Phase 2 (next):** Gardening pipeline (nightly similarity links, tag normalization via SKOS, chunk generation, maturity scoring), MCP server.
+- **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 5 tools (`search_notes`, `get_note`, `list_recent`, `get_related`, `capture_note`) over JSON-RPC 2.0. Bearer token auth. 140 local unit tests, plus smoke tests against the live Worker.
+- **Phase 2b (next):** Gardening pipeline — nightly similarity links, tag normalization via SKOS, chunk generation, maturity scoring. Tracked in GitHub issue #2.
 - **Phase 3 (deferred):** Associative trails, type inheritance (`note_types`), location extraction.
 
 ## Deploy
