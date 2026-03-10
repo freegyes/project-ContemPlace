@@ -22,7 +22,7 @@ Input may come from voice dictation or quick typing. Before anything else:
 - \`source\` — from an external source with a URL.
 - \`idea\` — everything else. Default. Neutral voice.
 
-**Tags**: 2–5 lowercase strings, no \`#\` prefix.
+**Tags**: 2–5 lowercase kebab-case strings (e.g., \`laser-cutting\`, \`sound-art\`, \`experience-design\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags.
 
 **source_ref**: URL if the user included one, otherwise null.
 
