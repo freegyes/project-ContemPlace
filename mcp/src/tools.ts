@@ -82,14 +82,14 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'capture_note',
-    description: 'Capture a thought as a permanent note. Pass the user\'s raw input — the server embeds, finds related notes, and automatically generates a structured note (title, body, type, intent, tags, entities, links). Do not pre-structure, summarize, or clean up the text. Voice dictation errors are expected and corrected server-side. Side effect: creates a persistent note.',
+    description: 'Capture a thought as a permanent note. Required parameter: raw_input (the user\'s verbatim words). The server embeds, finds related notes, and automatically generates a structured note (title, body, type, intent, tags, entities, links). Do not pre-structure, summarize, or clean up the input. Voice dictation errors are expected and corrected server-side. Side effect: creates a persistent note.',
     inputSchema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'The user\'s exact words — do not rephrase, summarize, clean up, or add wrapper context. Pass through verbatim as spoken or typed. The server handles all structuring and voice-dictation correction. Max 4000 characters.' },
+        raw_input: { type: 'string', description: 'The user\'s exact words — do not rephrase, summarize, clean up, or add wrapper context. Pass through verbatim as spoken or typed. The server handles all structuring and voice-dictation correction. Max 4000 characters.' },
         source: { type: 'string', description: 'Identifies where this note came from. Default "mcp" is fine. Use a specific label when known — e.g., "claude-code", "obsidian-import". Alphanumeric/hyphens/underscores, max 100 chars.' },
       },
-      required: ['text'],
+      required: ['raw_input'],
     },
   },
   {
@@ -364,9 +364,9 @@ export async function handleCaptureNote(
   openai: OpenAI,
   config: Config,
 ): Promise<object> {
-  const text = args['text'];
-  if (typeof text !== 'string' || text.length === 0) return toolError('text is required');
-  if (text.length > 4000) return toolError('text exceeds 4000 character limit');
+  const text = args['raw_input'];
+  if (typeof text !== 'string' || text.length === 0) return toolError('raw_input is required');
+  if (text.length > 4000) return toolError('raw_input exceeds 4000 character limit');
 
   let source = typeof args['source'] === 'string' ? args['source'] : 'mcp';
   if (source.length > 100 || !SOURCE_RE.test(source)) {

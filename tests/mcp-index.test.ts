@@ -17,7 +17,7 @@ vi.mock('../mcp/src/tools', () => ({
     { name: 'get_note', description: 'Get', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
     { name: 'list_recent', description: 'List', inputSchema: { type: 'object', properties: {} } },
     { name: 'get_related', description: 'Related', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
-    { name: 'capture_note', description: 'Capture', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
+    { name: 'capture_note', description: 'Capture', inputSchema: { type: 'object', properties: { raw_input: { type: 'string' } }, required: ['raw_input'] } },
     { name: 'list_unmatched_tags', description: 'List unmatched', inputSchema: { type: 'object', properties: {} } },
     { name: 'promote_concept', description: 'Promote', inputSchema: { type: 'object', properties: { pref_label: { type: 'string' }, scheme: { type: 'string' } }, required: ['pref_label', 'scheme'] } },
     { name: 'search_chunks', description: 'Search chunks', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
@@ -264,7 +264,7 @@ describe('MCP HTTP handler', () => {
     });
 
     it('dispatches to handleCaptureNote for name="capture_note"', async () => {
-      await rpc('tools/call', { name: 'capture_note', arguments: { text: 'hello' } });
+      await rpc('tools/call', { name: 'capture_note', arguments: { raw_input: 'hello' } });
       expect(vi.mocked(handleCaptureNote)).toHaveBeenCalledOnce();
     });
 

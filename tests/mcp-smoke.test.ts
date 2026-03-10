@@ -190,7 +190,7 @@ describe('MCP Worker — capture_note, get_note, get_related', () => {
 
   it('capture_note creates a note and returns expected fields', async () => {
     const res = await callTool('capture_note', {
-      text: '[MCP-SMOKE] The test of a first-rate intelligence is the ability to hold two opposed ideas in mind at the same time.',
+      raw_input: '[MCP-SMOKE] The test of a first-rate intelligence is the ability to hold two opposed ideas in mind at the same time.',
       source: 'mcp-smoke-test',
     });
     expect(res.status).toBe(200);
@@ -246,8 +246,8 @@ describe('MCP Worker — capture_note, get_note, get_related', () => {
 });
 
 describe('MCP Worker — input validation (live)', () => {
-  it('capture_note with empty text returns isError: true', async () => {
-    const res = await callTool('capture_note', { text: '' });
+  it('capture_note with empty raw_input returns isError: true', async () => {
+    const res = await callTool('capture_note', { raw_input: '' });
     const body = await res.json() as Record<string, unknown>;
     const toolResult = body['result'] as Record<string, unknown>;
     expect(toolResult['isError']).toBe(true);
