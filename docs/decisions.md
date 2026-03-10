@@ -455,3 +455,13 @@ The `metadata` JSONB column on `enrichment_log` (added in `20260310000000_tag_no
 **Decision (2026-03-10):** `CREATE OR REPLACE FUNCTION` cannot change the return type of an existing function. When extending return columns, `DROP FUNCTION IF EXISTS` must precede `CREATE FUNCTION`.
 
 **Why:** Migration `20260310000003_fix_match_chunks.sql` initially used `CREATE OR REPLACE` to add `note_type`, `note_intent`, `note_tags` columns to `match_chunks`. PostgreSQL rejected this with `cannot change return type of existing function (SQLSTATE 42P13)`. Fixed by adding `DROP FUNCTION IF EXISTS match_chunks` before `CREATE FUNCTION`. Safe because `note_chunks` table was empty at migration time.
+
+## Capture tuning from real-world usage testing (2026-03-11)
+
+Three SYSTEM_FRAME changes based on a 6-note test battery using real Obsidian vault content with deliberately degraded voice input.
+
+**1. `duplicate-of` link type added.** When a note covers substantially the same content as an existing note (same topic, detail, angle), the capture agent now links with `duplicate-of` instead of `supports`. The note is still created — deduplication is a gardening concern, not a capture concern. Previously, identical-title notes were linked as `supports`, giving the caller no signal that deduplication might be warranted.
+
+**2. Voice correction strengthened for real-word substitutions.** The hardest class of voice error is a real word that's wrong in context (e.g., "cymbal" when the user means "cimbalom"). The correction instructions now explicitly tell the LLM: if a common word is phonetically similar to a domain-specific term in the related notes, and surrounding context favors the domain term, prefer it. This won't catch every case — Haiku may still miss subtle ones — but the instruction makes the expectation explicit.
+
+**3. Lookup intent clarified.** `lookup` type notes were getting `intent: reference`, but a research question ("look into whether X works") has no URL and isn't saving someone else's work. Added explicit guidance: lookup notes typically get `plan` or `remember` intent, not `reference`.

@@ -117,7 +117,7 @@ The MCP Worker exposes eight tools:
 | `search_chunks` | Search within paragraphs of long notes (body > 1500 chars). Optional: `limit`, `threshold`. |
 | `get_note` | Fetch a single note by UUID — body, raw_input (source of truth), entities, links, corrections. |
 | `list_recent` | Most recent notes, newest first. Optional: `limit`, `filter_type`, `filter_intent`. |
-| `get_related` | Linked notes in both directions with link type glossary (extends, contradicts, supports, is-example-of, is-similar-to). |
+| `get_related` | Linked notes in both directions with link type glossary (extends, contradicts, supports, is-example-of, duplicate-of, is-similar-to). |
 | `capture_note` | Pass the user's raw words — the server runs the full capture pipeline. Do not pre-structure or summarize. |
 | `list_unmatched_tags` | Tags without SKOS concept matches, with frequency. Part of the curation workflow. |
 | `promote_concept` | Add a concept to the SKOS vocabulary. Confirm with the user first; include alt_labels for synonym collapse. |
@@ -295,7 +295,7 @@ npx vitest run tests/gardener-integration.test.ts
 wrangler dev
 ```
 
-~391 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
+~393 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
 
 ## Project layout
 

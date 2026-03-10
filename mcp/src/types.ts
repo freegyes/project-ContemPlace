@@ -16,7 +16,7 @@ export interface Env {
 export type NoteType = 'idea' | 'reflection' | 'source' | 'lookup';
 
 // Capture-time link types (LLM-assigned)
-export type CaptureLinkType = 'extends' | 'contradicts' | 'supports' | 'is-example-of';
+export type CaptureLinkType = 'extends' | 'contradicts' | 'supports' | 'is-example-of' | 'duplicate-of';
 
 // All link types (capture + gardening)
 export type LinkType = CaptureLinkType

@@ -64,7 +64,7 @@ Typed edges between notes. Capture-time links are created by the LLM; gardening-
 | `created_at` | timestamptz | |
 
 **Link types:**
-- Capture-time: `extends`, `contradicts`, `supports`, `is-example-of`
+- Capture-time: `extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`
 - Gardening-time: `is-similar-to` (live), `is-part-of`, `follows`, `is-derived-from`
 
 **Unique constraint:** `(from_id, to_id, link_type)` — prevents duplicate links of the same type between the same pair.

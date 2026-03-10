@@ -118,6 +118,17 @@ describe('parseCaptureResponse', () => {
     expect(result.links[0]!.link_type).toBe('extends');
   });
 
+  it('accepts duplicate-of link type', () => {
+    const result = parseCaptureResponse(make({
+      links: [
+        { to_id: '123', link_type: 'duplicate-of' },
+        { to_id: '456', link_type: 'extends' },
+      ],
+    }));
+    expect(result.links).toHaveLength(2);
+    expect(result.links[0]!.link_type).toBe('duplicate-of');
+  });
+
   it('throws on non-JSON string', () => {
     expect(() => parseCaptureResponse('not json')).toThrow('invalid JSON');
   });
