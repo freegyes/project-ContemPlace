@@ -454,46 +454,46 @@ describe('handleCaptureNote', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   describe('input validation', () => {
-    it('returns error when text is missing', async () => {
+    it('returns error when raw_input is missing', async () => {
       const r = toolResult(await handleCaptureNote({}, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(true);
-      expect(r.content[0]!.text).toMatch(/text is required/);
+      expect(r.content[0]!.text).toMatch(/raw_input is required/);
     });
 
-    it('returns error when text is empty string', async () => {
-      const r = toolResult(await handleCaptureNote({ text: '' }, mockDb, mockOpenAI, MOCK_CONFIG));
+    it('returns error when raw_input is empty string', async () => {
+      const r = toolResult(await handleCaptureNote({ raw_input: '' }, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(true);
     });
 
-    it('returns error when text exceeds 4000 characters', async () => {
-      const r = toolResult(await handleCaptureNote({ text: 'a'.repeat(4001) }, mockDb, mockOpenAI, MOCK_CONFIG));
+    it('returns error when raw_input exceeds 4000 characters', async () => {
+      const r = toolResult(await handleCaptureNote({ raw_input: 'a'.repeat(4001) }, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(true);
       expect(r.content[0]!.text).toMatch(/4000 character/);
     });
 
     it('defaults source to "mcp" when not provided', async () => {
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
         mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
       );
     });
 
     it('defaults source to "mcp" when source fails SOURCE_RE pattern', async () => {
-      await handleCaptureNote({ text: 'hello', source: 'bad source!' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello', source: 'bad source!' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
         mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
       );
     });
 
     it('defaults source to "mcp" when source exceeds 100 characters', async () => {
-      await handleCaptureNote({ text: 'hello', source: 'a'.repeat(101) }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello', source: 'a'.repeat(101) }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
         mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
       );
     });
 
     it('uses the provided source when valid', async () => {
-      await handleCaptureNote({ text: 'hello', source: 'obsidian' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello', source: 'obsidian' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
         mockDb, expect.any(Object), expect.any(Array), 'hello', 'obsidian',
       );
@@ -502,45 +502,45 @@ describe('handleCaptureNote', () => {
 
   describe('capture pipeline', () => {
     it('embeds text and fetches capture voice (calls both)', async () => {
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(embedText)).toHaveBeenCalled();
       expect(vi.mocked(getCaptureVoice)).toHaveBeenCalled();
     });
 
     it('calls findRelatedNotes with raw embedding and config threshold', async () => {
       vi.mocked(embedText).mockResolvedValueOnce([0.1, 0.2]);
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(findRelatedNotes)).toHaveBeenCalledWith(mockDb, [0.1, 0.2], MOCK_CONFIG.matchThreshold);
     });
 
     it('calls runCaptureAgent with text and related notes and capture voice', async () => {
       vi.mocked(getCaptureVoice).mockResolvedValueOnce('## Voice rules');
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(runCaptureAgent)).toHaveBeenCalledWith(
         mockOpenAI, MOCK_CONFIG, 'hello', [], '## Voice rules',
       );
     });
 
     it('calls embedText a second time for augmented embedding', async () => {
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(embedText)).toHaveBeenCalledTimes(2);
     });
 
     it('calls insertNote with augmented embedding', async () => {
       vi.mocked(embedText).mockResolvedValueOnce([0.1]).mockResolvedValueOnce([0.9]);
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
         mockDb, expect.any(Object), [0.9], 'hello', 'mcp',
       );
     });
 
     it('calls insertLinks after inserting note', async () => {
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertLinks)).toHaveBeenCalledWith(mockDb, VALID_UUID, []);
     });
 
     it('calls logEnrichments with capture and augmented enrichment types', async () => {
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(logEnrichments)).toHaveBeenCalledWith(mockDb, VALID_UUID, [
         { enrichment_type: 'capture', model_used: MOCK_CONFIG.captureModel },
         { enrichment_type: 'augmented', model_used: MOCK_CONFIG.embedModel },
@@ -548,7 +548,7 @@ describe('handleCaptureNote', () => {
     });
 
     it('returns toolSuccess with note details', async () => {
-      const r = toolResult(await handleCaptureNote({ text: 'hello', source: 'obsidian' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      const r = toolResult(await handleCaptureNote({ raw_input: 'hello', source: 'obsidian' }, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(false);
       const body = JSON.parse(r.content[0]!.text);
       expect(body.id).toBe(VALID_UUID);
@@ -563,7 +563,7 @@ describe('handleCaptureNote', () => {
       vi.mocked(embedText)
         .mockResolvedValueOnce([0.1, 0.2]) // raw embed — success
         .mockRejectedValueOnce(new Error('embed failed')); // augmented embed — fail
-      const r = toolResult(await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      const r = toolResult(await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
       // Should still succeed — note not lost
       expect(r.isError).toBe(false);
       // insertNote called with raw embedding [0.1, 0.2]
@@ -576,7 +576,7 @@ describe('handleCaptureNote', () => {
       vi.mocked(embedText)
         .mockResolvedValueOnce([0.1])
         .mockRejectedValueOnce(new Error('embed failed'));
-      await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(logEnrichments)).toHaveBeenCalledWith(mockDb, expect.any(String), [
         { enrichment_type: 'capture', model_used: MOCK_CONFIG.captureModel },
         { enrichment_type: 'raw_fallback', model_used: MOCK_CONFIG.embedModel },
@@ -587,19 +587,19 @@ describe('handleCaptureNote', () => {
   describe('error handling', () => {
     it('returns toolError when first embedText throws', async () => {
       vi.mocked(embedText).mockRejectedValueOnce(new Error('API down'));
-      const r = toolResult(await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      const r = toolResult(await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(true);
     });
 
     it('returns toolError when runCaptureAgent throws', async () => {
       vi.mocked(runCaptureAgent).mockRejectedValueOnce(new Error('LLM error'));
-      const r = toolResult(await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      const r = toolResult(await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(true);
     });
 
     it('returns toolError when insertNote throws', async () => {
       vi.mocked(insertNote).mockRejectedValueOnce(new Error('DB error'));
-      const r = toolResult(await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      const r = toolResult(await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(true);
     });
   });
