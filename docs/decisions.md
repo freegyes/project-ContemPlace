@@ -281,6 +281,12 @@ The four independent thresholds:
 
 **Why:** `model_used` has an established semantic contract (AI model identifier or null). Storing tag names in it would create ambiguity and break future queries filtering on model names. A JSONB `metadata` column is extensible — future enrichment types can store arbitrary structured data without another migration. Unmatched tags are stored as `{"tag": "the-tag-string"}`.
 
+## Batch concept embedding updates (CF Workers subrequest limit)
+
+**Decision (2026-03-10):** Batch all concept embedding updates into a single `upsert` call instead of individual `update` calls per concept.
+
+**Why:** Cloudflare Workers has a 50-subrequest limit on the free plan. With 32 seed concepts needing embeddings on first run, individual `updateConceptEmbedding` calls consumed 32 of the 50 budget before the rest of the pipeline (tag normalization per-note + similarity linker per-note) even started. A single `upsert` with all concept rows reduces 32 calls to 1. This also applies to future concept promotion — any number of newly promoted concepts get their embeddings written in one round-trip.
+
 ## Phase 2c OAuth: opaque tokens, not JWTs
 
 **Decision (2026-03-10):** Use the `workers-oauth-provider` library's opaque token format rather than JWTs. Reversing the original plan's assumption of "signed JWTs."
