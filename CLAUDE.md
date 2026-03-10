@@ -110,6 +110,11 @@ MATCH_THRESHOLD             # default: 0.60 (must be a float between 0 and 1)
 # MCP Worker secrets (set via: wrangler secret put <NAME> -c mcp/wrangler.toml)
 MCP_API_KEY                 # generate with: openssl rand -hex 32
 
+# MCP Worker configurable — defaults in mcp/src/config.ts
+MCP_SEARCH_THRESHOLD        # default: 0.35 — used only by search_notes. Lower than MATCH_THRESHOLD
+                             # because stored embeddings are metadata-augmented; bare query vectors
+                             # score 0.41–0.49 against them, well below the 0.60 capture threshold.
+
 # Test-only
 WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
 TELEGRAM_CHAT_ID            # your personal chat ID, for smoke tests
