@@ -8,6 +8,7 @@ export interface Config {
   captureModel: string;
   embedModel: string;
   matchThreshold: number;
+  searchThreshold: number;
 }
 
 export function loadConfig(env: Env): Config {
@@ -18,7 +19,8 @@ export function loadConfig(env: Env): Config {
     supabaseServiceRoleKey: requireSecret(env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY'),
     captureModel: env.CAPTURE_MODEL || 'anthropic/claude-haiku-4-5',
     embedModel: env.EMBED_MODEL || 'openai/text-embedding-3-small',
-    matchThreshold: parseAndValidateThreshold(env.MATCH_THRESHOLD),
+    matchThreshold: parseAndValidateThreshold(env.MATCH_THRESHOLD, 0.60, 'MATCH_THRESHOLD'),
+    searchThreshold: parseAndValidateThreshold(env.MCP_SEARCH_THRESHOLD, 0.35, 'MCP_SEARCH_THRESHOLD'),
   };
 }
 
@@ -27,10 +29,10 @@ function requireSecret(value: string | undefined, name: string): string {
   return value;
 }
 
-function parseAndValidateThreshold(value: string | undefined): number {
-  const parsed = parseFloat(value || '0.60');
+function parseAndValidateThreshold(value: string | undefined, defaultValue: number, varName: string): number {
+  const parsed = parseFloat(value || String(defaultValue));
   if (isNaN(parsed) || parsed < 0 || parsed > 1) {
-    throw new Error(`Invalid MATCH_THRESHOLD: "${value}" — must be a float between 0 and 1`);
+    throw new Error(`Invalid ${varName}: "${value}" — must be a float between 0 and 1`);
   }
   return parsed;
 }

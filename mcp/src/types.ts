@@ -8,6 +8,7 @@ export interface Env {
   CAPTURE_MODEL: string;
   EMBED_MODEL: string;
   MATCH_THRESHOLD: string;
+  MCP_SEARCH_THRESHOLD: string;
 }
 
 // ── Note Types ──────────────────────────────────────────────────────────────

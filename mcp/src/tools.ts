@@ -104,7 +104,7 @@ export async function handleSearchNotes(
   if (query.length > 1000) return toolError('query exceeds 1000 character limit');
 
   const limit = clamp(args['limit'] as number | undefined, 1, 20, 5);
-  const threshold = clamp(args['threshold'] as number | undefined, 0, 1, config.matchThreshold);
+  const threshold = clamp(args['threshold'] as number | undefined, 0, 1, config.searchThreshold);
 
   const filterType = args['filter_type'] as string | undefined;
   if (filterType && !(VALID_TYPES as readonly string[]).includes(filterType)) {

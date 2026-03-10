@@ -8,10 +8,10 @@
  * LLM, DB — and checks that the system organises things usefully.
  *
  * Fixtures are grouped into 4 topic clusters:
- *   A: Journaling / reflection habit
- *   B: Deep work / focus
- *   C: Creativity and constraints
- *   D: Python async programming
+ *   A: Voice capture workflow
+ *   B: Kit synthesizer building
+ *   C: Creative philosophy
+ *   D: Laser fabrication technique
  *   E: Standalone (URL note, typo correction)
  *
  * Related notes within a cluster are captured in order so the second note
@@ -110,32 +110,32 @@ interface SearchResult {
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const FIXTURES = {
-  // Cluster A: Journaling — plan then reflection, should link
-  A1_journaling_plan: `I've been thinking about starting a daily journaling habit. The idea is to spend 10 minutes every morning writing down whatever is on my mind before I start work. No structure, no prompt — just raw stream of consciousness.`,
+  // Cluster A: Voice capture workflow — plan then reflection, should link
+  A1_voice_capture_plan: `Been wanting to set up a proper pipeline for capturing ideas by voice — speak a thought out loud, have it land in the notes system as an atomic note with tags and semantic links, no typing required. The key upgrade is connecting the speech-to-text layer to a real semantic search so the agent can find conceptually related notes during capture, not just keyword matches. Low-friction enough that I'd actually reach for it mid-walk rather than losing the idea.`,
 
-  A2_journaling_reflection: `Tried journaling this morning for the first time. It actually helped me realize I was anxious about a meeting I had been avoiding thinking about. The act of writing made the feeling visible. Genuinely surprised by how useful it was.`,
+  A2_voice_capture_reflection: `The voice capture pipeline has been running for about a week and it's already doing something I didn't expect — the vault is linking things I didn't consciously connect. I spoke something about the plotter station while pacing around and it landed next to three notes I'd forgotten existed. The friction is low enough that I'm actually reaching for it. That's the whole game: capture that actually happens versus a system you're always meaning to use.`,
 
-  // Cluster B: Deep work — concept then plan, should link
-  B1_deep_work_concept: `Cal Newport's concept of deep work: long protected blocks of uninterrupted time spent on cognitively demanding tasks. The idea is that this kind of focused work is increasingly rare and increasingly valuable — most people never do it.`,
+  // Cluster B: Kit synthesizer building — concept then plan, should link
+  B1_kit_synth_concept: `Kit synthesizers — the Plinky, the Synth UX Touch2, and similar board-level instruments — offer a way into embedded sound design without having to design circuits from scratch. The learning is in the assembly and programming: soldering, understanding signal flow, writing or modifying firmware. The point isn't the kit itself but the fluency it builds toward more custom builds like the Daisy Seed synth.`,
 
-  B2_deep_work_plan: `Going to block 9-11am every weekday for focused coding. No Slack, no meetings scheduled. Treating it like an external meeting — it shows on the calendar and cannot be moved.`,
+  B2_kit_synth_plan: `Going to order a Plinky kit as the first real soldering project — it's compact, well-documented, and produces genuinely interesting sounds. The goal isn't just a finished instrument but getting comfortable with iron and flux before tackling more complex boards. Once the Plinky is working, the Daisy Seed ecosystem is the natural next step.`,
 
-  // Cluster C: Creativity and constraints — three linked notes, C3 is a source URL
-  C1_constraints_reflection: `The best design work I've done always had constraints. When you have unlimited budget and time, you spend most of it second-guessing yourself. The limits were never the obstacle — they were the brief.`,
+  // Cluster C: Creative philosophy — three linked notes, C3 is a source URL
+  C1_making_devotion_reflection: `There's something about the way Rick Rubin frames creativity as a spiritual practice that lands differently than most creative advice. It's not productivity talk or craft technique — it's about devotion, presence, and listening. The reason it resonates is that it gives creative work the same weight I'd want to give to living itself — not the side thing, but the main thing, practiced daily, without needing it to arrive anywhere in particular.`,
 
-  C2_constraints_idea: `Constraints are not just limitations — they are generative. They force you to find solutions inside a bounded space, which often leads to more interesting outcomes than pure open-ended exploration. Less freedom, more creativity.`,
+  C2_make_yourself_idea: `Make it for yourself first. When there's no audience to please, you make decisions from taste rather than anticipation — the work gets sharper and more honest. You stop second-guessing what other people want and start finding out what you actually think. The audience, if it comes at all, finds something real rather than something optimized for them.`,
 
-  C3_oblique_strategies_source: `Oblique Strategies by Brian Eno — a deck of cards with provocative constraints designed to break creative blocks. Each card is a prompt like "Use an old idea" or "Abandon normal instruments." A practical artifact of constraint-based creativity. https://www.enoshop.co.uk/product/oblique-strategies.html`,
+  C3_do_the_thing_source: `Don't get caught up in being someone — the maker, the artist, the creative. Focus on doing the thing. The title is a side effect of the work, not the other way around. When identity leads, you end up performing rather than producing; when the work leads, the identity takes care of itself. https://www.youtube.com/watch?v=xWQ_b5LQx_A`,
 
-  // Cluster D: Python async — concept then log, should link
-  D1_asyncio_concept: `Python asyncio: the event loop runs coroutines cooperatively. await suspends the current coroutine until the awaited thing resolves. Key primitives: coroutine, task, future, event loop. Concurrency without threading.`,
+  // Cluster D: Laser fabrication technique — concept then log, should link
+  D1_laser_alignment_concept: `Locator holes for glue-up layer alignment: laser-cut small registration holes into every layer of a multi-layer build at consistent positions, then thread toothpicks through to keep all layers perfectly registered while clamping. Pull the toothpicks before the glue sets and plug the holes afterward if needed. A zero-cost fix to the alignment problem in any stacked plywood build.`,
 
-  D2_asyncio_log: `Used asyncio.gather() to fire three Supabase queries at the same time instead of awaiting them sequentially. Brought total query latency from 480ms down to 170ms. The queries were independent, so gather was the right primitive.`,
+  D2_laser_alignment_log: `Used the locator hole technique on the Blue Trail album cover today — four 2mm registration holes per layer, toothpicks threaded through all six layers before clamping. Night and day compared to previous glue-ups where everything would skew slightly under pressure. The covers came out clean and flush; no sanding down proud edges.`,
 
   // Cluster E: Standalone notes
-  E1_url_source: `This paper by Lewis et al. introduced retrieval-augmented generation (RAG) — combining a parametric language model with a non-parametric retrieval component over a dense vector index. Foundational for modern AI memory systems. https://arxiv.org/abs/2005.11401`,
+  E1_naturalearthdata_source: `Natural Earth: free, public domain vector and raster map data at 1:10m, 1:50m, and 1:110m scales — the standard starting point for any project that needs clean world geography without licensing headaches. https://www.naturalearthdata.com`,
 
-  E2_typo_correction: `I want to reed more non-fiction this year, specifically around behavioral economics and decision-making. Books like Thinking Fast and Slow or Predictably Irrational. Want to understand why people make the choices they do.`,
+  E2_field_notebook_typo: `I want to start keeping a physical field notebook alongside the digital notes — a sown binding so the pages lay flat, with dot grid paper for sketching circuit layouts and plotter paths before committing to the machine. Probably just a small A5 format to start.`,
 } as const;
 
 // ── Captured results (populated in beforeAll) ─────────────────────────────────
@@ -183,148 +183,148 @@ async function isLinked(fromId: string, toId: string): Promise<boolean> {
   return Array.isArray(data) && data.length > 0;
 }
 
-// ── Cluster A: Journaling ─────────────────────────────────────────────────────
+// ── Cluster A: Voice capture workflow ────────────────────────────────────────
 
-describe('Cluster A — Journaling habit', () => {
-  it('A1 journaling plan: type is idea', () => {
-    expect(notes.A1_journaling_plan.type).toBe('idea');
+describe('Cluster A — Voice capture workflow', () => {
+  it('A1 voice capture plan: type is idea', () => {
+    expect(notes.A1_voice_capture_plan.type).toBe('idea');
   });
 
-  it('A1 journaling plan: intent is plan', () => {
-    expect(notes.A1_journaling_plan.intent).toBe('plan');
+  it('A1 voice capture plan: intent is plan', () => {
+    expect(notes.A1_voice_capture_plan.intent).toBe('plan');
   });
 
-  it('A1 journaling plan: tags include journaling-related term', () => {
-    expect(hasAnyTag(notes.A1_journaling_plan, ['journal', 'habit', 'morning', 'routine', 'writing'])).toBe(true);
+  it('A1 voice capture plan: tags include capture-related term', () => {
+    expect(hasAnyTag(notes.A1_voice_capture_plan, ['capture', 'workflow', 'obsidian', 'voice', 'notes', 'automation'])).toBe(true);
   });
 
-  it('A2 journaling reflection: type is reflection', () => {
-    expect(notes.A2_journaling_reflection.type).toBe('reflection');
+  it('A2 voice capture reflection: type is reflection', () => {
+    expect(notes.A2_voice_capture_reflection.type).toBe('reflection');
   });
 
-  it('A2 journaling reflection: intent is reflect', () => {
-    expect(notes.A2_journaling_reflection.intent).toBe('reflect');
+  it('A2 voice capture reflection: intent is reflect', () => {
+    expect(notes.A2_voice_capture_reflection.intent).toBe('reflect');
   });
 
-  it('A2 journaling reflection: tags include journaling-related term', () => {
-    expect(hasAnyTag(notes.A2_journaling_reflection, ['journal', 'awareness', 'anxiety', 'emotion', 'feeling', 'writing', 'habit'])).toBe(true);
+  it('A2 voice capture reflection: tags include capture-related term', () => {
+    expect(hasAnyTag(notes.A2_voice_capture_reflection, ['capture', 'workflow', 'obsidian', 'vault', 'notes', 'voice'])).toBe(true);
   });
 
   it('A2 is linked to A1 (capture-time linking)', async () => {
-    const linked = await isLinked(notes.A2_journaling_reflection.id, notes.A1_journaling_plan.id);
+    const linked = await isLinked(notes.A2_voice_capture_reflection.id, notes.A1_voice_capture_plan.id);
     expect(linked).toBe(true);
   });
 });
 
-// ── Cluster B: Deep work ──────────────────────────────────────────────────────
+// ── Cluster B: Kit synthesizer building ──────────────────────────────────────
 
-describe('Cluster B — Deep work / focus', () => {
-  it('B1 deep work concept: type is idea', () => {
-    expect(notes.B1_deep_work_concept.type).toBe('idea');
+describe('Cluster B — Kit synthesizer building', () => {
+  it('B1 kit synth concept: type is idea', () => {
+    expect(notes.B1_kit_synth_concept.type).toBe('idea');
   });
 
-  it('B1 deep work concept: intent is remember', () => {
-    expect(notes.B1_deep_work_concept.intent).toBe('remember');
+  it('B1 kit synth concept: intent is remember', () => {
+    expect(notes.B1_kit_synth_concept.intent).toBe('remember');
   });
 
-  it('B1 deep work concept: tags include focus-related term', () => {
-    expect(hasAnyTag(notes.B1_deep_work_concept, ['deep-work', 'deep work', 'focus', 'productivity', 'cal-newport', 'cal newport', 'concentration'])).toBe(true);
+  it('B1 kit synth concept: tags include electronics-related term', () => {
+    expect(hasAnyTag(notes.B1_kit_synth_concept, ['synth', 'electronics', 'instrument', 'diy', 'soldering', 'hardware'])).toBe(true);
   });
 
-  it('B2 deep work plan: type is idea', () => {
-    expect(notes.B2_deep_work_plan.type).toBe('idea');
+  it('B2 kit synth plan: type is idea', () => {
+    expect(notes.B2_kit_synth_plan.type).toBe('idea');
   });
 
-  it('B2 deep work plan: intent is plan', () => {
-    expect(notes.B2_deep_work_plan.intent).toBe('plan');
+  it('B2 kit synth plan: intent is plan', () => {
+    expect(notes.B2_kit_synth_plan.intent).toBe('plan');
   });
 
-  it('B2 deep work plan: tags include focus or scheduling term', () => {
-    expect(hasAnyTag(notes.B2_deep_work_plan, ['deep-work', 'focus', 'time-blocking', 'time blocking', 'schedule', 'productivity', 'calendar'])).toBe(true);
+  it('B2 kit synth plan: tags include electronics or instrument term', () => {
+    expect(hasAnyTag(notes.B2_kit_synth_plan, ['synth', 'electronics', 'instrument', 'diy', 'kit', 'plinky'])).toBe(true);
   });
 
   it('B2 is linked to B1 (capture-time linking)', async () => {
-    const linked = await isLinked(notes.B2_deep_work_plan.id, notes.B1_deep_work_concept.id);
+    const linked = await isLinked(notes.B2_kit_synth_plan.id, notes.B1_kit_synth_concept.id);
     expect(linked).toBe(true);
   });
 });
 
-// ── Cluster C: Creativity and constraints ────────────────────────────────────
+// ── Cluster C: Creative philosophy ───────────────────────────────────────────
 
-describe('Cluster C — Creativity and constraints', () => {
-  it('C1 constraints reflection: type is reflection', () => {
-    expect(notes.C1_constraints_reflection.type).toBe('reflection');
+describe('Cluster C — Creative philosophy', () => {
+  it('C1 making devotion reflection: type is reflection', () => {
+    expect(notes.C1_making_devotion_reflection.type).toBe('reflection');
   });
 
-  it('C1 constraints reflection: intent is reflect', () => {
-    expect(notes.C1_constraints_reflection.intent).toBe('reflect');
+  it('C1 making devotion reflection: intent is reflect', () => {
+    expect(notes.C1_making_devotion_reflection.intent).toBe('reflect');
   });
 
-  it('C1 constraints reflection: tags include design or creativity term', () => {
-    expect(hasAnyTag(notes.C1_constraints_reflection, ['design', 'creativity', 'constraint', 'creative'])).toBe(true);
+  it('C1 making devotion reflection: tags include creativity or practice term', () => {
+    expect(hasAnyTag(notes.C1_making_devotion_reflection, ['creativity', 'philosophy', 'making', 'devotion', 'practice'])).toBe(true);
   });
 
-  it('C2 constraints idea: type is idea', () => {
-    expect(notes.C2_constraints_idea.type).toBe('idea');
+  it('C2 make for yourself idea: type is idea', () => {
+    expect(notes.C2_make_yourself_idea.type).toBe('idea');
   });
 
-  it('C2 constraints idea: tags include creativity or constraint term', () => {
-    expect(hasAnyTag(notes.C2_constraints_idea, ['creativity', 'constraint', 'creative', 'design', 'exploration'])).toBe(true);
+  it('C2 make for yourself idea: tags include creativity or motivation term', () => {
+    expect(hasAnyTag(notes.C2_make_yourself_idea, ['creativity', 'philosophy', 'making', 'audience', 'motivation'])).toBe(true);
   });
 
   it('C2 is linked to C1 (capture-time linking)', async () => {
-    const linked = await isLinked(notes.C2_constraints_idea.id, notes.C1_constraints_reflection.id);
+    const linked = await isLinked(notes.C2_make_yourself_idea.id, notes.C1_making_devotion_reflection.id);
     expect(linked).toBe(true);
   });
 
-  it('C3 Oblique Strategies: type is source (has URL)', () => {
-    expect(notes.C3_oblique_strategies_source.type).toBe('source');
+  it('C3 do the thing source: type is source (has URL)', () => {
+    expect(notes.C3_do_the_thing_source.type).toBe('source');
   });
 
-  it('C3 Oblique Strategies: intent is reference', () => {
-    expect(notes.C3_oblique_strategies_source.intent).toBe('reference');
+  it('C3 do the thing source: intent is reference', () => {
+    expect(notes.C3_do_the_thing_source.intent).toBe('reference');
   });
 
-  it('C3 Oblique Strategies: tags include creativity-related term', () => {
-    expect(hasAnyTag(notes.C3_oblique_strategies_source, ['creativity', 'oblique', 'eno', 'constraint', 'creative', 'tools'])).toBe(true);
+  it('C3 do the thing source: tags include creativity-related term', () => {
+    expect(hasAnyTag(notes.C3_do_the_thing_source, ['creativity', 'philosophy', 'making', 'identity', 'practice'])).toBe(true);
   });
 
   it('C3 is linked to C1 or C2 (capture-time linking)', async () => {
-    const linkedToC1 = await isLinked(notes.C3_oblique_strategies_source.id, notes.C1_constraints_reflection.id);
-    const linkedToC2 = await isLinked(notes.C3_oblique_strategies_source.id, notes.C2_constraints_idea.id);
+    const linkedToC1 = await isLinked(notes.C3_do_the_thing_source.id, notes.C1_making_devotion_reflection.id);
+    const linkedToC2 = await isLinked(notes.C3_do_the_thing_source.id, notes.C2_make_yourself_idea.id);
     expect(linkedToC1 || linkedToC2).toBe(true);
   });
 });
 
-// ── Cluster D: Python async ───────────────────────────────────────────────────
+// ── Cluster D: Laser fabrication technique ───────────────────────────────────
 
-describe('Cluster D — Python asyncio', () => {
-  it('D1 asyncio concept: type is idea', () => {
-    expect(notes.D1_asyncio_concept.type).toBe('idea');
+describe('Cluster D — Laser fabrication technique', () => {
+  it('D1 laser alignment concept: type is idea', () => {
+    expect(notes.D1_laser_alignment_concept.type).toBe('idea');
   });
 
-  it('D1 asyncio concept: intent is remember', () => {
-    expect(notes.D1_asyncio_concept.intent).toBe('remember');
+  it('D1 laser alignment concept: intent is remember', () => {
+    expect(notes.D1_laser_alignment_concept.intent).toBe('remember');
   });
 
-  it('D1 asyncio concept: tags include Python/async term', () => {
-    expect(hasAnyTag(notes.D1_asyncio_concept, ['python', 'asyncio', 'async', 'concurrency', 'event-loop', 'event loop'])).toBe(true);
+  it('D1 laser alignment concept: tags include laser/fabrication term', () => {
+    expect(hasAnyTag(notes.D1_laser_alignment_concept, ['laser', 'fabrication', 'technique', 'alignment', 'plywood', 'woodworking'])).toBe(true);
   });
 
-  it('D2 asyncio log: type is idea', () => {
-    expect(notes.D2_asyncio_log.type).toBe('idea');
+  it('D2 laser alignment log: type is idea', () => {
+    expect(notes.D2_laser_alignment_log.type).toBe('idea');
   });
 
-  it('D2 asyncio log: intent is log', () => {
-    expect(notes.D2_asyncio_log.intent).toBe('log');
+  it('D2 laser alignment log: intent is log', () => {
+    expect(notes.D2_laser_alignment_log.intent).toBe('log');
   });
 
-  it('D2 asyncio log: tags include Python/performance term', () => {
-    expect(hasAnyTag(notes.D2_asyncio_log, ['python', 'asyncio', 'async', 'performance', 'gather', 'concurrency'])).toBe(true);
+  it('D2 laser alignment log: tags include laser/fabrication term', () => {
+    expect(hasAnyTag(notes.D2_laser_alignment_log, ['laser', 'fabrication', 'technique', 'plywood', 'alignment', 'glue-up'])).toBe(true);
   });
 
   it('D2 is linked to D1 (capture-time linking)', async () => {
-    const linked = await isLinked(notes.D2_asyncio_log.id, notes.D1_asyncio_concept.id);
+    const linked = await isLinked(notes.D2_laser_alignment_log.id, notes.D1_laser_alignment_concept.id);
     expect(linked).toBe(true);
   });
 });
@@ -332,111 +332,111 @@ describe('Cluster D — Python asyncio', () => {
 // ── Standalone notes ──────────────────────────────────────────────────────────
 
 describe('Standalone — URL/source note', () => {
-  it('E1 RAG paper: type is source (contains URL)', () => {
-    expect(notes.E1_url_source.type).toBe('source');
+  it('E1 Natural Earth: type is source (contains URL)', () => {
+    expect(notes.E1_naturalearthdata_source.type).toBe('source');
   });
 
-  it('E1 RAG paper: intent is reference', () => {
-    expect(notes.E1_url_source.intent).toBe('reference');
+  it('E1 Natural Earth: intent is reference', () => {
+    expect(notes.E1_naturalearthdata_source.intent).toBe('reference');
   });
 
-  it('E1 RAG paper: tags include AI/retrieval term', () => {
-    expect(hasAnyTag(notes.E1_url_source, ['rag', 'retrieval', 'ai', 'machine-learning', 'machine learning', 'nlp', 'vector', 'language-model'])).toBe(true);
+  it('E1 Natural Earth: tags include mapping/geodata term', () => {
+    expect(hasAnyTag(notes.E1_naturalearthdata_source, ['maps', 'geodata', 'cartography', 'open-source', 'data', 'natural-earth'])).toBe(true);
   });
 });
 
 describe('Standalone — typo correction', () => {
   it('E2 typo: captures successfully', () => {
-    expect(typeof notes.E2_typo_correction.id).toBe('string');
-    expect(notes.E2_typo_correction.id.length).toBeGreaterThan(0);
+    expect(typeof notes.E2_field_notebook_typo.id).toBe('string');
+    expect(notes.E2_field_notebook_typo.id.length).toBeGreaterThan(0);
   });
 
-  it('E2 typo: intent is plan (expressed future reading goal)', () => {
-    expect(notes.E2_typo_correction.intent).toBe('plan');
+  it('E2 typo: intent is plan (expressed future making goal)', () => {
+    expect(notes.E2_field_notebook_typo.intent).toBe('plan');
   });
 
-  it('E2 typo: tags include reading-related term', () => {
-    expect(hasAnyTag(notes.E2_typo_correction, ['reading', 'books', 'non-fiction', 'nonfiction', 'economics', 'decision', 'behavioral'])).toBe(true);
+  it('E2 typo: tags include bookbinding or craft term', () => {
+    expect(hasAnyTag(notes.E2_field_notebook_typo, ['bookbinding', 'paper', 'notebook', 'stationery', 'craft', 'binding'])).toBe(true);
   });
 });
 
 // ── Search quality: recall ────────────────────────────────────────────────────
 
 describe('Search — recall (relevant query → relevant notes)', () => {
-  it('journaling query returns at least one A-cluster note', async () => {
-    const results = await search('daily journaling habit morning routine');
+  it('voice capture query returns at least one A-cluster note', async () => {
+    const results = await search('voice capture pipeline obsidian notes workflow');
     const ids = results.map(r => r.id);
-    const clusterA = [notes.A1_journaling_plan.id, notes.A2_journaling_reflection.id];
+    const clusterA = [notes.A1_voice_capture_plan.id, notes.A2_voice_capture_reflection.id];
     expect(ids.some(id => clusterA.includes(id))).toBe(true);
   });
 
-  it('python async query returns at least one D-cluster note', async () => {
-    const results = await search('python asyncio concurrent event loop');
+  it('laser alignment query returns at least one D-cluster note', async () => {
+    const results = await search('laser cut plywood layer alignment registration');
     const ids = results.map(r => r.id);
-    const clusterD = [notes.D1_asyncio_concept.id, notes.D2_asyncio_log.id];
+    const clusterD = [notes.D1_laser_alignment_concept.id, notes.D2_laser_alignment_log.id];
     expect(ids.some(id => clusterD.includes(id))).toBe(true);
   });
 
-  it('creativity constraints query returns at least one C-cluster note', async () => {
-    const results = await search('creativity constraints design thinking');
+  it('creative philosophy query returns at least one C-cluster note', async () => {
+    const results = await search('creativity devotion making practice for yourself');
     const ids = results.map(r => r.id);
     const clusterC = [
-      notes.C1_constraints_reflection.id,
-      notes.C2_constraints_idea.id,
-      notes.C3_oblique_strategies_source.id,
+      notes.C1_making_devotion_reflection.id,
+      notes.C2_make_yourself_idea.id,
+      notes.C3_do_the_thing_source.id,
     ];
     expect(ids.some(id => clusterC.includes(id))).toBe(true);
   });
 
-  it('deep work focus query returns at least one B-cluster note', async () => {
-    const results = await search('deep work focused time blocking productivity');
+  it('kit synthesizer query returns at least one B-cluster note', async () => {
+    const results = await search('kit synthesizer Plinky soldering electronics instrument');
     const ids = results.map(r => r.id);
-    const clusterB = [notes.B1_deep_work_concept.id, notes.B2_deep_work_plan.id];
+    const clusterB = [notes.B1_kit_synth_concept.id, notes.B2_kit_synth_plan.id];
     expect(ids.some(id => clusterB.includes(id))).toBe(true);
   });
 
-  it('RAG paper query returns E1', async () => {
-    const results = await search('retrieval augmented generation language model dense vector');
+  it('Natural Earth query returns E1', async () => {
+    const results = await search('natural earth map data cartography public domain');
     const ids = results.map(r => r.id);
-    expect(ids).toContain(notes.E1_url_source.id);
+    expect(ids).toContain(notes.E1_naturalearthdata_source.id);
   });
 });
 
 // ── Search quality: cross-cluster isolation ───────────────────────────────────
 
 describe('Search — isolation (topic query should NOT cross into unrelated cluster)', () => {
-  it('python async query does NOT return journaling notes', async () => {
-    const results = await search('python asyncio concurrent event loop', 5);
+  it('laser alignment query does NOT return voice capture notes', async () => {
+    const results = await search('laser cut plywood layer alignment registration', 5);
     const ids = results.map(r => r.id);
-    const journalingIds = [notes.A1_journaling_plan.id, notes.A2_journaling_reflection.id];
-    expect(ids.some(id => journalingIds.includes(id))).toBe(false);
+    const voiceCaptureIds = [notes.A1_voice_capture_plan.id, notes.A2_voice_capture_reflection.id];
+    expect(ids.some(id => voiceCaptureIds.includes(id))).toBe(false);
   });
 
-  it('journaling query does NOT return python asyncio notes', async () => {
-    const results = await search('daily journaling morning reflection habit', 5);
+  it('voice capture query does NOT return laser fabrication notes', async () => {
+    const results = await search('voice capture workflow obsidian notes', 5);
     const ids = results.map(r => r.id);
-    const asyncIds = [notes.D1_asyncio_concept.id, notes.D2_asyncio_log.id];
-    expect(ids.some(id => asyncIds.includes(id))).toBe(false);
+    const laserIds = [notes.D1_laser_alignment_concept.id, notes.D2_laser_alignment_log.id];
+    expect(ids.some(id => laserIds.includes(id))).toBe(false);
   });
 });
 
 // ── Cross-cluster non-linking ─────────────────────────────────────────────────
 
 describe('Cross-cluster isolation — no spurious links', () => {
-  it('journaling notes are NOT linked to Python notes', async () => {
+  it('voice capture notes are NOT linked to laser fabrication notes', async () => {
     const db = supabase();
-    const journalingIds = [notes.A1_journaling_plan.id, notes.A2_journaling_reflection.id];
-    const asyncIds = [notes.D1_asyncio_concept.id, notes.D2_asyncio_log.id];
+    const voiceCaptureIds = [notes.A1_voice_capture_plan.id, notes.A2_voice_capture_reflection.id];
+    const laserIds = [notes.D1_laser_alignment_concept.id, notes.D2_laser_alignment_log.id];
     const { data } = await db
       .from('links')
       .select('from_id, to_id')
-      .in('from_id', [...journalingIds, ...asyncIds])
-      .in('to_id', [...journalingIds, ...asyncIds]);
+      .in('from_id', [...voiceCaptureIds, ...laserIds])
+      .in('to_id', [...voiceCaptureIds, ...laserIds]);
     // Any results here mean cross-cluster links exist — should be empty
     const crossCluster = (data ?? []).filter(
       (l: { from_id: string; to_id: string }) =>
-        (journalingIds.includes(l.from_id) && asyncIds.includes(l.to_id)) ||
-        (asyncIds.includes(l.from_id) && journalingIds.includes(l.to_id)),
+        (voiceCaptureIds.includes(l.from_id) && laserIds.includes(l.to_id)) ||
+        (laserIds.includes(l.from_id) && voiceCaptureIds.includes(l.to_id)),
     );
     expect(crossCluster.length).toBe(0);
   });
