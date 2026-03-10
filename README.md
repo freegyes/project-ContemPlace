@@ -233,7 +233,13 @@ Then add the MCP server to your Claude Code config as shown above.
 | `MATCH_THRESHOLD` | `0.60` | Threshold for related-note lookup inside `capture_note` |
 | `MCP_SEARCH_THRESHOLD` | `0.35` | Default threshold for `search_notes` (lower to compensate for embedding space mismatch) |
 
-Defaults live in `src/config.ts` and `mcp/src/config.ts`. Override via `wrangler.toml` vars.
+### Gardener Worker
+
+| Variable | Default | Description |
+|---|---|---|
+| `GARDENER_SIMILARITY_THRESHOLD` | `0.70` | Cosine similarity floor for `is-similar-to` links (augmented-vs-augmented comparison) |
+
+Defaults live in `src/config.ts`, `mcp/src/config.ts`, and `gardener/src/config.ts`. Override via `wrangler.toml` vars.
 
 ## Tuning capture behavior
 
@@ -260,7 +266,7 @@ npx vitest run tests/mcp-smoke.test.ts     # MCP Worker
 wrangler dev
 ```
 
-174 tests total (157 MCP unit tests, 17 parser unit tests). Smoke tests create and clean up test notes automatically.
+199 tests total (157 MCP unit tests, 17 parser unit tests, 13 gardener similarity tests, 12 gardener config tests). Smoke tests create and clean up test notes automatically.
 
 ## Project layout
 
@@ -284,8 +290,16 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
     capture.ts    Capture pipeline (copy of src/capture.ts)
     types.ts      MCP-specific TypeScript interfaces
   wrangler.toml
+gardener/         Gardener Worker (nightly enrichment pipeline)
+  src/
+    index.ts      Cron-triggered entry point (scheduled export)
+    similarity.ts Link context builder (shared tags, entities)
+    db.ts         Supabase operations (clean-slate delete, fetch, insert)
+    config.ts     Config loading with threshold validation
+    types.ts      TypeScript interfaces
+  wrangler.toml
 scripts/
-  deploy.sh       Automated 5-step deploy pipeline
+  deploy.sh       Automated 6-step deploy pipeline
 supabase/
   migrations/     Schema migrations (v2 is current — 8 tables)
   seed/           SKOS domain concept seeds
@@ -299,6 +313,8 @@ tests/
   mcp-tools.test.ts       Unit tests: all 5 tool handlers (61)
   mcp-index.test.ts       Unit tests: HTTP routing + JSON-RPC protocol (32)
   mcp-smoke.test.ts       Smoke tests: live MCP Worker
+  gardener-similarity.test.ts  Unit tests: buildContext + UUID dedup (13)
+  gardener-config.test.ts      Unit tests: gardener config loading (12)
 docs/             Architecture, schema, decisions, roadmap
 reviews/          Specialist review notes from project bootstrap
 ```
