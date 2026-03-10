@@ -410,6 +410,13 @@ Each layer owns a specific type of information. **Never duplicate across layers*
 2. **GitHub is the single source of truth for status.** Phase progress → milestones. Open questions → issues. Never mirror these into a file.
 3. **ADRs are immutable.** Add a new entry when a decision changes; never update old ones. The timestamp matters.
 4. **When something comes up during a session** — bug, question, idea, concern — open an issue immediately, then keep going. Never defer to "I'll note that later."
+5. **Proactive housekeeping at every organic breakpoint.** After completing a PR, merging, closing an issue, or finishing a logical chunk of work — automatically do the documentation sweep before moving on:
+   - Comment on relevant GitHub issues with outcomes or status updates
+   - Record any new decisions in `docs/decisions.md`
+   - Close resolved issues with a resolution comment
+   - Update `README.md` if the status table or quick start is stale
+   - Clean up stale branches
+   - Do not ask whether to do this. It is always expected.
 
 ### Phase-close ritual
 

@@ -14,7 +14,7 @@ The system is **modular**. The database and MCP server are the stable core. Ever
 |---|---|
 | Telegram capture bot | ✅ Live |
 | MCP server | ✅ Live — `v2.0.0` |
-| Gardening pipeline | 🔜 [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
+| Gardening pipeline | 🔨 In progress — similarity linker live, tag normalization next · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
 | OAuth 2.1 (Claude.ai web) | 🔜 [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
 | Dashboard | 💡 Planned — [#12](https://github.com/freegyes/project-ContemPlace/issues/12) |
 | Import tools | 💡 Planned — [#13](https://github.com/freegyes/project-ContemPlace/issues/13), [#14](https://github.com/freegyes/project-ContemPlace/issues/14) |
@@ -214,6 +214,20 @@ wrangler deploy -c mcp/wrangler.toml
 
 Then add the MCP server to your Claude Code config as shown above.
 
+### 7. Deploy the Gardener Worker
+
+```bash
+wrangler secret put SUPABASE_URL -c gardener/wrangler.toml
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c gardener/wrangler.toml
+wrangler secret put TELEGRAM_BOT_TOKEN -c gardener/wrangler.toml        # optional — failure alerts
+wrangler secret put TELEGRAM_ALERT_CHAT_ID -c gardener/wrangler.toml    # optional — failure alerts
+wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml          # optional — enables POST /trigger
+
+wrangler deploy -c gardener/wrangler.toml
+```
+
+The gardener runs nightly at 02:00 UTC via cron trigger. You can also trigger it manually via `POST /trigger` with Bearer auth if `GARDENER_API_KEY` is set.
+
 ## Configuration
 
 ### Telegram capture Worker
@@ -266,7 +280,7 @@ npx vitest run tests/mcp-smoke.test.ts     # MCP Worker
 wrangler dev
 ```
 
-209 tests total (157 MCP unit tests, 17 parser unit tests, 13 gardener similarity tests, 12 gardener config tests, 10 gardener alert tests). Smoke tests create and clean up test notes automatically.
+232 tests total (157 MCP unit tests, 17 parser unit tests, 13 gardener similarity tests, 12 gardener config tests, 10 gardener alert tests, 13 gardener trigger tests, 6 gardener integration tests, 4 smoke suites). Smoke and integration tests create and clean up test notes automatically.
 
 ## Project layout
 
@@ -317,8 +331,9 @@ tests/
   gardener-similarity.test.ts  Unit tests: buildContext + UUID dedup (13)
   gardener-config.test.ts      Unit tests: gardener config loading (12)
   gardener-alert.test.ts       Unit tests: Telegram failure alerting (10)
+  gardener-trigger.test.ts     Unit tests: /trigger endpoint auth + routing (13)
+  gardener-integration.test.ts Integration test: capture → gardener → get_related (6)
 docs/             Architecture, schema, decisions, roadmap
-reviews/          Specialist review notes from project bootstrap
 ```
 
 ## Documentation
