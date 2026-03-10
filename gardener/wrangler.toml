@@ -18,3 +18,5 @@ crons = ["0 2 * * *"]
 # Secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml):
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
+# TELEGRAM_BOT_TOKEN         (optional — enables failure alerts to Telegram)
+# TELEGRAM_ALERT_CHAT_ID     (optional — chat ID to receive failure alerts)

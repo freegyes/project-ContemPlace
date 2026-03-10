@@ -4,6 +4,9 @@ export interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   GARDENER_SIMILARITY_THRESHOLD: string;
+  // Optional — alerting degrades gracefully if not set
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_ALERT_CHAT_ID?: string;
 }
 
 // ── Domain types ─────────────────────────────────────────────────────────────
