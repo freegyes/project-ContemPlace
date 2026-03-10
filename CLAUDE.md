@@ -98,6 +98,7 @@ tests/
   gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig (12 tests)
   gardener-alert.test.ts      # Unit tests for sendAlert() — Telegram alerting (10 tests)
   gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing (13 tests)
+  gardener-integration.test.ts # Integration test: capture → gardener /trigger → get_related (live stack)
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap)
 wrangler.toml        # Telegram Worker Cloudflare config
 package.json
@@ -145,6 +146,7 @@ GARDENER_SIMILARITY_THRESHOLD  # default: 0.70 — augmented-vs-augmented cosine
 WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
 TELEGRAM_CHAT_ID            # your personal chat ID, for smoke tests
 MCP_WORKER_URL              # deployed MCP Worker URL, for mcp-smoke tests
+GARDENER_WORKER_URL         # deployed Gardener Worker URL, for gardener-integration tests
 ```
 
 ## Key Commands
@@ -204,6 +206,10 @@ npx tsc --noEmit -p gardener/tsconfig.json
 
 # Run Gardener unit tests (local, no network)
 npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
+
+# Run Gardener integration test (live stack — captures notes, triggers gardener, checks get_related)
+# Requires MCP_WORKER_URL, MCP_API_KEY, GARDENER_WORKER_URL, GARDENER_API_KEY in .dev.vars
+npx vitest run tests/gardener-integration.test.ts
 
 # Trigger a gardener run locally against the live DB (symlink gardener/.dev.vars → .dev.vars first)
 # ln -s ../.dev.vars gardener/.dev.vars
@@ -404,6 +410,13 @@ Each layer owns a specific type of information. **Never duplicate across layers*
 2. **GitHub is the single source of truth for status.** Phase progress → milestones. Open questions → issues. Never mirror these into a file.
 3. **ADRs are immutable.** Add a new entry when a decision changes; never update old ones. The timestamp matters.
 4. **When something comes up during a session** — bug, question, idea, concern — open an issue immediately, then keep going. Never defer to "I'll note that later."
+5. **Proactive housekeeping at every organic breakpoint.** After completing a PR, merging, closing an issue, or finishing a logical chunk of work — automatically do the documentation sweep before moving on:
+   - Comment on relevant GitHub issues with outcomes or status updates
+   - Record any new decisions in `docs/decisions.md`
+   - Close resolved issues with a resolution comment
+   - Update `README.md` if the status table or quick start is stale
+   - Clean up stale branches
+   - Do not ask whether to do this. It is always expected.
 
 ### Phase-close ritual
 
