@@ -4,8 +4,12 @@
 -- The original match_chunks used bare <=> which may fail through PostgREST's
 -- connection pooler context. Also adds note_type, note_intent, note_tags to
 -- the return set so the MCP tool can display note metadata alongside chunks.
+--
+-- Must DROP first because CREATE OR REPLACE cannot change return type.
 
-CREATE OR REPLACE FUNCTION match_chunks(
+DROP FUNCTION IF EXISTS match_chunks;
+
+CREATE FUNCTION match_chunks(
   query_embedding  extensions.vector(1536),
   match_threshold  float   DEFAULT 0.5,
   match_count      int     DEFAULT 20
