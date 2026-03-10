@@ -1,5 +1,5 @@
 import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes, insertSimilarityLinks, logEnrichments,
-         fetchConcepts, updateConceptEmbedding, fetchNotesForTagNorm, deleteGardenerNoteConcepts,
+         fetchConcepts, batchUpdateConceptEmbeddings, fetchNotesForTagNorm, deleteGardenerNoteConcepts,
          insertNoteConcepts, updateRefinedTags, deleteUnmatchedTagLogs, logUnmatchedTags, logTagNormEnrichments } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
@@ -51,17 +51,17 @@ export async function runTagNormalization(env: Env): Promise<TagNormResult> {
       const texts = conceptsNeedingEmbedding.map(c => buildConceptEmbeddingInput(c));
       const embeddings = await batchEmbedTexts(openai, { openrouterApiKey: config.openrouterApiKey, embedModel: config.embedModel }, texts);
 
+      // Prepare batch update (single round-trip instead of N individual calls)
+      const updates: Array<{ id: string; scheme: string; pref_label: string; embedding: number[] }> = [];
       for (let i = 0; i < conceptsNeedingEmbedding.length; i++) {
         const concept = conceptsNeedingEmbedding[i]!;
         const emb = embeddings[i]!;
-        try {
-          await updateConceptEmbedding(db, concept.id, emb);
-          concept.embedding = emb;
-          conceptsEmbedded++;
-        } catch (err) {
-          errors.push(`concept embed update ${concept.pref_label}: ${String(err)}`);
-        }
+        concept.embedding = emb;
+        updates.push({ id: concept.id, scheme: concept.scheme, pref_label: concept.pref_label, embedding: emb });
       }
+
+      await batchUpdateConceptEmbeddings(db, updates);
+      conceptsEmbedded = updates.length;
     } catch (err) {
       errors.push(`batch concept embedding failed: ${String(err)}`);
     }

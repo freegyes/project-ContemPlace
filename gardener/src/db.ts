@@ -168,6 +168,30 @@ export async function updateConceptEmbedding(
   }
 }
 
+// Batch-update concept embeddings via upsert (single round-trip).
+// Each row must include the full concept data for the upsert to work.
+export async function batchUpdateConceptEmbeddings(
+  db: SupabaseClient,
+  updates: Array<{ id: string; scheme: string; pref_label: string; embedding: number[] }>,
+): Promise<void> {
+  if (updates.length === 0) return;
+
+  const rows = updates.map(u => ({
+    id: u.id,
+    scheme: u.scheme,
+    pref_label: u.pref_label,
+    embedding: u.embedding,
+  }));
+
+  const { error } = await db
+    .from('concepts')
+    .upsert(rows, { onConflict: 'id' });
+
+  if (error) {
+    throw new Error(`Failed to batch update concept embeddings: ${error.message}`);
+  }
+}
+
 // Fetch all active notes with tags for tag normalization.
 export async function fetchNotesForTagNorm(db: SupabaseClient): Promise<NoteForTagNorm[]> {
   const { data, error } = await db
