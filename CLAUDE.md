@@ -322,54 +322,56 @@ This repo uses a branch-per-feature workflow with semantic version tags. **Alway
 
 **Issues:**
 - Open a GitHub Issue before starting significant work. Reference it in commit messages with `refs #<n>`.
-- Active phase tracking: #2 (gardening pipeline / Phase 2b), #5 (OAuth / Phase 2c).
-- See Issue Management section below for the full label taxonomy and issue index.
+- Phase progress is tracked via GitHub Milestones — not in this file.
+  - [Phase 2b — Gardening pipeline](https://github.com/freegyes/project-ContemPlace/milestone/1)
+  - [Phase 2c — OAuth 2.1](https://github.com/freegyes/project-ContemPlace/milestone/2)
 
-## Issue Management
+## Documentation Framework
 
-GitHub Issues are the primary layer for tracking everything: bugs, design questions, module ideas, product thinking, test plans, security concerns. The rule is simple: **when something comes up during a session, open an issue immediately, then keep going.** Never "I'll remember to note that later."
+Each layer owns a specific type of information. **Never duplicate across layers** — that's how things go stale.
 
-### Label taxonomy
+### What lives where
+
+| Layer | Owns | Updated when |
+|---|---|---|
+| **GitHub Issues** | Everything in-flight: bugs, questions, ideas, design explorations. When resolved, close with a comment explaining the outcome. | Continuously — during every session |
+| **GitHub Milestones** | Phase-level progress. Issues attach to the milestone they belong to. Real-time view without any file needing updating. | When issues open/close |
+| **`docs/decisions.md`** | Architecture Decision Records (ADRs). Timestamped, immutable. When a decision changes, add a new entry — never edit old ones. | At decision time |
+| **`docs/roadmap.md`** | Narrative of what each phase delivered. Updated once at phase completion, not continuously. | At phase close |
+| **`CLAUDE.md`** | Stable AI context: architecture, hard constraints, key files, conventions. No current state, no issue indexes, no phase status. | When architecture or conventions change |
+| **`README.md`** | Front door: what it is, status table (links out to milestones/issues), quick start. Almost never changes. | At phase close |
+
+### Rules
+
+1. **Repo files describe stable facts.** Architecture, constraints, conventions. Not "what's currently open" or "what's next."
+2. **GitHub is the single source of truth for status.** Phase progress → milestones. Open questions → issues. Never mirror these into a file.
+3. **ADRs are immutable.** Add a new entry when a decision changes; never update old ones. The timestamp matters.
+4. **When something comes up during a session** — bug, question, idea, concern — open an issue immediately, then keep going. Never defer to "I'll note that later."
+
+### Phase-close ritual
+
+When a phase PR merges:
+1. Update `docs/roadmap.md` — add a "Delivered" section for the phase
+2. Update the README status table — move the phase from 🔜 to ✅
+3. Close the GitHub milestone
+4. Tag `main` with the version (`v2.0.0`, `v2.5.0`, etc.)
+5. Open a new milestone for the next phase, attach relevant issues
+
+### Issue label taxonomy
 
 | Label | When to use |
 |---|---|
 | `bug` | Something is broken or wrong |
 | `enhancement` | New feature or improvement |
-| `question` | Open design decision, unknown, thing to think through — not necessarily actionable yet |
-| `test` | Test cases to write, behavioral validation, quality verification |
+| `question` | Open design decision — not necessarily actionable yet |
+| `test` | Test cases, behavioral validation, quality verification |
 | `security` | Auth, privacy, data exposure concerns |
 | `product` | Product vision, principles, what-is-this questions |
 | `module` | A new optional interaction layer or import tool |
 | `docs` | Documentation, README, contributor guide |
-| `phase-2a/2b/2c/phase-3` | Phase scoping |
+| `phase-2b` / `phase-2c` / `phase-3` | Phase scoping |
 
-### Workflow during a session
-
-1. Bug discovered during testing → `gh issue create` or create via Claude Code → label `bug` → keep going
-2. Design question surfaces → create issue with `question` label → keep going
-3. New module idea → create issue with `module` + `enhancement` → keep going
-4. At the end of a session: review open issues, close anything resolved, tag new ones with phase labels
-
-### Open issues (as of 2026-03-10)
-
-| # | Title | Labels |
-|---|---|---|
-| #2 | Gardening pipeline | enhancement, phase-2 |
-| #5 | OAuth 2.1 for Claude.ai web connector | enhancement, phase-2 |
-| #7 | Semantic correctness test suite | test, enhancement, phase-2 |
-| #8 | Multi-idea inputs | question |
-| #9 | Bare link capture | question |
-| #10 | Brain dump capture | question |
-| #11 | Capture pipeline variation by source | question |
-| #12 | Dashboard module | module, enhancement |
-| #13 | Obsidian import module | module, enhancement |
-| #14 | ChatGPT memory import module | module, enhancement |
-| #15 | Onboarding: personal context seeding | enhancement, question |
-| #16 | MCP data access privacy | security |
-| #17 | Open source deploy guide + contributor onboarding | docs, enhancement |
-| #18 | Product vision: modular open PKM | product |
-
-Closed: #3 (MCP server, merged v2.0.0), #6 (Phase 2a PR).
+Labels are managed via `gh label create` — no UI required.
 
 ## Review Trail
 

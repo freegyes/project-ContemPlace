@@ -4,7 +4,18 @@ A personal memory system. Send raw thoughts to a Telegram bot — they come back
 
 The stored notes form a semantic context layer. The primary use: an AI agent (via MCP) that already knows your accumulated thinking, retrieves relevant notes by similarity, and acts as a creative partner without you ever copying prior work into a prompt.
 
-**Live:** Telegram capture Worker + MCP server, both deployed to Cloudflare.
+## Status
+
+| Component | State |
+|---|---|
+| Telegram capture bot | ✅ Live |
+| MCP server | ✅ Live — `v2.0.0` |
+| Gardening pipeline | 🔜 [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
+| OAuth 2.1 (Claude.ai web) | 🔜 [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
+| Dashboard | 💡 Planned — [#12](https://github.com/freegyes/project-ContemPlace/issues/12) |
+| Import tools | 💡 Planned — [#13](https://github.com/freegyes/project-ContemPlace/issues/13), [#14](https://github.com/freegyes/project-ContemPlace/issues/14) |
+
+→ [All open issues](https://github.com/freegyes/project-ContemPlace/issues) · [Roadmap](docs/roadmap.md) · [Decisions](docs/decisions.md)
 
 ## How it works
 
