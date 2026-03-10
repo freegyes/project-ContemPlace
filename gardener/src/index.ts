@@ -2,9 +2,20 @@ import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimil
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
 import { sendAlert } from './alert';
+import { validateTriggerAuth } from './auth';
 import type { Env, SimilarityLink } from './types';
 
-async function runSimilarityLinker(env: Env): Promise<void> {
+export interface GardenerRunResult {
+  event: 'gardener_run_complete';
+  notes_processed: number;
+  links_deleted: number;
+  links_created: number;
+  enriched_notes: number;
+  duration_ms: number;
+  errors: string[];
+}
+
+export async function runSimilarityLinker(env: Env): Promise<GardenerRunResult> {
   const startTime = Date.now();
   const errors: string[] = [];
 
@@ -63,8 +74,7 @@ async function runSimilarityLinker(env: Env): Promise<void> {
   // 4. Log enrichment entries for notes that received new outbound links.
   await logEnrichments(db, [...enrichedNoteIds]);
 
-  // 5. Structured run summary — queryable via: wrangler tail --name contemplace-gardener
-  console.log(JSON.stringify({
+  const result: GardenerRunResult = {
     event: 'gardener_run_complete',
     notes_processed: notes.length,
     links_deleted: linksDeleted,
@@ -72,11 +82,16 @@ async function runSimilarityLinker(env: Env): Promise<void> {
     enriched_notes: enrichedNoteIds.size,
     duration_ms: Date.now() - startTime,
     errors,
-  }));
+  };
+
+  // 5. Structured run summary — queryable via: wrangler tail --name contemplace-gardener
+  console.log(JSON.stringify(result));
 
   if (errors.length > 0) {
     throw new Error(`Gardener run completed with ${errors.length} error(s) — see logs above`);
   }
+
+  return result;
 }
 
 export default {
@@ -89,6 +104,42 @@ export default {
         error: String(err),
       }));
       await sendAlert(env, err);
+    }
+  },
+
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname !== '/trigger') {
+      return new Response('Not Found', { status: 404 });
+    }
+
+    if (request.method !== 'POST') {
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    const authError = validateTriggerAuth(request, env);
+    if (authError) return authError;
+
+    try {
+      const result = await runSimilarityLinker(env);
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (err) {
+      console.error(JSON.stringify({
+        event: 'gardener_run_failed',
+        error: String(err),
+      }));
+      await sendAlert(env, err);
+      return new Response(JSON.stringify({
+        event: 'gardener_run_failed',
+        error: String(err),
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
   },
 };

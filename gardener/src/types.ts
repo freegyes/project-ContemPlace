@@ -7,6 +7,8 @@ export interface Env {
   // Optional — alerting degrades gracefully if not set
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_ALERT_CHAT_ID?: string;
+  // Optional — enables POST /trigger endpoint for manual runs and smoke tests
+  GARDENER_API_KEY?: string;
 }
 
 // ── Domain types ─────────────────────────────────────────────────────────────

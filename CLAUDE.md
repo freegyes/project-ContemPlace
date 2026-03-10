@@ -67,12 +67,13 @@ gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
   src/
-    index.ts         # scheduled() export only — no fetch handler
+    index.ts         # scheduled() + fetch() exports — cron handler + POST /trigger endpoint
     config.ts        # Config loading (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GARDENER_SIMILARITY_THRESHOLD)
     db.ts            # deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes,
                      # insertSimilarityLinks, logEnrichments
     similarity.ts    # buildContext() — auto-generates link context from shared tags + entities
     alert.ts         # sendAlert() — best-effort Telegram failure notification
+    auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
     types.ts         # Gardener-specific TypeScript interfaces
 scripts/
   deploy.sh          # Automated 6-step deploy pipeline (schema → typecheck → unit tests → Telegram Worker → Gardener Worker → smoke tests)
@@ -96,6 +97,7 @@ tests/
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
   gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig (12 tests)
   gardener-alert.test.ts      # Unit tests for sendAlert() — Telegram alerting (10 tests)
+  gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing (13 tests)
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap)
 wrangler.toml        # Telegram Worker Cloudflare config
 package.json
@@ -133,6 +135,7 @@ MCP_SEARCH_THRESHOLD        # default: 0.35 — used only by search_notes. Lower
 # SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are shared with the Telegram Worker above.
 TELEGRAM_BOT_TOKEN            # optional — same as capture Worker; enables failure alerts to Telegram
 TELEGRAM_ALERT_CHAT_ID        # optional — chat ID to receive failure alerts (same as ALLOWED_CHAT_IDS)
+GARDENER_API_KEY              # optional — enables POST /trigger endpoint (generate with: openssl rand -hex 32)
 
 # Gardener Worker configurable — defaults in gardener/wrangler.toml [vars]
 GARDENER_SIMILARITY_THRESHOLD  # default: 0.70 — augmented-vs-augmented cosine similarity.
@@ -195,12 +198,13 @@ wrangler secret put SUPABASE_URL -c gardener/wrangler.toml
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c gardener/wrangler.toml
 wrangler secret put TELEGRAM_BOT_TOKEN -c gardener/wrangler.toml        # optional — failure alerts
 wrangler secret put TELEGRAM_ALERT_CHAT_ID -c gardener/wrangler.toml    # optional — failure alerts
+wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml          # optional — enables /trigger endpoint
 
 # Typecheck the Gardener Worker
 npx tsc --noEmit -p gardener/tsconfig.json
 
 # Run Gardener unit tests (local, no network)
-npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts
+npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
 
 # Trigger a gardener run locally against the live DB (symlink gardener/.dev.vars → .dev.vars first)
 # ln -s ../.dev.vars gardener/.dev.vars

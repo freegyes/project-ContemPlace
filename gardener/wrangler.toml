@@ -20,3 +20,4 @@ crons = ["0 2 * * *"]
 # SUPABASE_SERVICE_ROLE_KEY
 # TELEGRAM_BOT_TOKEN         (optional — enables failure alerts to Telegram)
 # TELEGRAM_ALERT_CHAT_ID     (optional — chat ID to receive failure alerts)
+# GARDENER_API_KEY           (optional — enables POST /trigger endpoint for manual runs)
