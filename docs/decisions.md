@@ -230,3 +230,29 @@ At personal scale, the cost of "wasted" runs on days with no new notes is zero �
 **Why not a second bot or email?** Low-friction means one gateway. The user doesn't want multiple bots in Telegram (one for alerts, one for capture, one for something else). The capture bot is already the primary interaction point. Adding error alerts to it is a minor extension, not a new system.
 
 **Silence means healthy.** No nightly success heartbeat. If you stop getting error messages, the system is working. Success details are logged to Cloudflare console for debugging when needed (`wrangler tail`).
+
+## Phase 2c OAuth: enable DCR, not skip it
+
+**Decision (2026-03-10):** Enable Dynamic Client Registration (RFC 7591) on the MCP OAuth server, reversing the original plan to skip it.
+
+**Why the original plan was wrong:** The plan assumed Claude.ai was the only interactive client and that manually entering `client_id`/`client_secret` in its UI was sufficient. Research showed: ChatGPT has no UI for manual credentials (DCR required), Claude Code CLI errors without DCR ("Incompatible auth server"), and Cursor relies on DCR for connection. Skipping DCR would have locked out 3 of 4 target clients.
+
+**Why it's safe:** `@cloudflare/workers-oauth-provider` handles DCR automatically — one config line. Clients register their own redirect URIs, which eliminates the need to hardcode a redirect URI allowlist. Client registrations are stored in KV with the same hash-based security as tokens.
+
+## Phase 2c OAuth: keep static Bearer token permanently
+
+**Decision (2026-03-10):** The static `MCP_API_KEY` Bearer token must remain as a permanent auth path alongside OAuth, not a temporary migration crutch.
+
+**Why:** API/SDK callers (Anthropic API `authorization_token`, OpenAI Responses API, Claude Code CLI `--header`) use static tokens directly. They never perform browser-based OAuth flows. Removing the static path would break machine-to-machine access with no alternative. OAuth serves browser-based connectors (Claude.ai web, Cursor, ChatGPT web). Static tokens serve programmatic callers. These are two distinct audiences requiring two auth mechanisms.
+
+## Phase 2c OAuth: two-layer discovery (RFC 9728 + RFC 8414)
+
+**Decision (2026-03-10):** Implement both `/.well-known/oauth-protected-resource` (RFC 9728) and `/.well-known/oauth-authorization-server` (RFC 8414), not just RFC 8414.
+
+**Why:** The MCP spec changed in June 2025. The MCP server is now classified as an OAuth resource server, not an authorization server. Clients discover the authorization server via Protected Resource Metadata first, then fetch AS metadata from the URL found there. Claude.ai supports both old and new flows today, but Cursor follows the new spec. ChatGPT has a known bug where it skips PRM and goes straight to RFC 8414 — having both endpoints means both clients work. The `workers-oauth-provider` library serves both automatically.
+
+## Phase 2c OAuth: opaque tokens, not JWTs
+
+**Decision (2026-03-10):** Use the `workers-oauth-provider` library's opaque token format rather than JWTs. Reversing the original plan's assumption of "signed JWTs."
+
+**Why:** The library stores token hashes in KV and validates via hash lookup. This means token validation requires a KV read per request (~sub-ms cached). The tradeoff vs JWTs: revocation is immediate (delete from KV), no signing key management, and the library handles everything. For a single-user system, the KV read latency is negligible. JWTs would require either forking the library or building a parallel validation path — unnecessary complexity.
