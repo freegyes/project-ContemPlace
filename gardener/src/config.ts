@@ -14,8 +14,8 @@ export function loadConfig(env: Env): Config {
   return {
     supabaseUrl: requireSecret(env.SUPABASE_URL, 'SUPABASE_URL'),
     supabaseServiceRoleKey: requireSecret(env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY'),
-    similarityThreshold: parseThreshold(env.GARDENER_SIMILARITY_THRESHOLD, 0.70),
-    tagMatchThreshold: parseThreshold(env.GARDENER_TAG_MATCH_THRESHOLD, 0.55),
+    similarityThreshold: parseThreshold(env.GARDENER_SIMILARITY_THRESHOLD, 0.70, 'GARDENER_SIMILARITY_THRESHOLD'),
+    tagMatchThreshold: parseThreshold(env.GARDENER_TAG_MATCH_THRESHOLD, 0.55, 'GARDENER_TAG_MATCH_THRESHOLD'),
     openrouterApiKey: env.OPENROUTER_API_KEY || null,
     embedModel: env.EMBED_MODEL || 'openai/text-embedding-3-small',
   };
@@ -26,10 +26,10 @@ function requireSecret(value: string | undefined, name: string): string {
   return value;
 }
 
-function parseThreshold(value: string | undefined, defaultValue: number): number {
+function parseThreshold(value: string | undefined, defaultValue: number, varName: string): number {
   const parsed = parseFloat(value || String(defaultValue));
   if (isNaN(parsed) || parsed < 0 || parsed > 1) {
-    throw new Error(`Invalid GARDENER_SIMILARITY_THRESHOLD: "${value}" — must be a float between 0 and 1`);
+    throw new Error(`Invalid ${varName}: "${value}" — must be a float between 0 and 1`);
   }
   return parsed;
 }
