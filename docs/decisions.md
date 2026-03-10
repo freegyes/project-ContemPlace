@@ -218,3 +218,15 @@ At personal scale, the cost of "wasted" runs on days with no new notes is zero �
 **Why:** At 14 notes (~700ms), and realistically up to ~200 notes (~10s), the per-note RPC approach is within the 30s Cloudflare Worker CPU limit and reuses the existing `match_notes` function with no new SQL migrations. In-memory pairwise computation breaks at ~100–300 notes due to the O(N²) operation count against the 30s CPU wall.
 
 **Scale ceiling:** ~200–300 notes. When the note corpus approaches this size, `findSimilarNotes()` in `gardener/src/db.ts` should be replaced with a single SQL self-join function (`find_similar_pairs(threshold, offset, limit)`) — one round-trip instead of N. A TODO comment marks this location in the code. No other code changes are required.
+
+## Push vs. pull notification pattern
+
+**Decision (2026-03-10):** Two communication patterns, one boundary rule: if it can wait for the user to ask, it goes through MCP. If it shouldn't wait, it's a Telegram message.
+
+**Push (urgent, don't wait) → Telegram bot.** Error alerts — gardener failures, Worker crashes, anything that needs human attention and shouldn't sit until the next MCP session. Sent through the existing capture bot to the same chat. No second bot, no email, no separate channel. Error messages are rare and actionable; they don't pollute the capture conversation.
+
+**Pull (at your pace) → MCP.** Curation work — reviewing unmatched tags from gardening, enrichment decisions, graph browsing, note editing. The user brings their own agent and interface. The data waits in the database until they choose to engage.
+
+**Why not a second bot or email?** Low-friction means one gateway. The user doesn't want multiple bots in Telegram (one for alerts, one for capture, one for something else). The capture bot is already the primary interaction point. Adding error alerts to it is a minor extension, not a new system.
+
+**Silence means healthy.** No nightly success heartbeat. If you stop getting error messages, the system is working. Success details are logged to Cloudflare console for debugging when needed (`wrangler tail`).
