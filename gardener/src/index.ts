@@ -1,6 +1,6 @@
-import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes, insertSimilarityLinks, logEnrichments,
+import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarPairs, insertSimilarityLinks, logEnrichments,
          fetchConcepts, batchUpdateConceptEmbeddings, fetchNotesForTagNorm, deleteGardenerNoteConcepts,
-         insertNoteConcepts, updateRefinedTags, deleteUnmatchedTagLogs, logUnmatchedTags, logTagNormEnrichments } from './db';
+         insertNoteConcepts, batchUpdateRefinedTags, deleteUnmatchedTagLogs, logUnmatchedTags, logTagNormEnrichments } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
 import { buildConceptEmbeddingInput, lexicalMatch, resolveNoteTags } from './normalize';
@@ -129,6 +129,7 @@ export async function runTagNormalization(env: Env): Promise<TagNormResult> {
   let totalUnmatched = 0;
   const allNoteConcepts: Array<{ note_id: string; concept_id: string }> = [];
   const allUnmatchedEntries: Array<{ note_id: string; tag: string }> = [];
+  const allRefinedTags: Array<{ id: string; refined_tags: string[] }> = [];
   const processedNoteIds: string[] = [];
 
   for (const note of notes) {
@@ -137,9 +138,8 @@ export async function runTagNormalization(env: Env): Promise<TagNormResult> {
         note, concepts, conceptsWithEmbeddings, tagEmbeddings, config.tagMatchThreshold,
       );
 
-      // Collect refined_tags update
-      const refinedTags = matched.map(m => m.prefLabel);
-      await updateRefinedTags(db, note.id, refinedTags);
+      // Collect refined_tags for batch update
+      allRefinedTags.push({ id: note.id, refined_tags: matched.map(m => m.prefLabel) });
 
       // Collect note_concepts rows
       for (const m of matched) {
@@ -160,6 +160,14 @@ export async function runTagNormalization(env: Env): Promise<TagNormResult> {
   }
 
   // 7. Batch writes
+  if (allRefinedTags.length > 0) {
+    try {
+      await batchUpdateRefinedTags(db, allRefinedTags);
+    } catch (err) {
+      errors.push(`refined_tags batch update: ${String(err)}`);
+    }
+  }
+
   if (allNoteConcepts.length > 0) {
     try {
       await insertNoteConcepts(db, allNoteConcepts);
@@ -197,37 +205,44 @@ export async function runSimilarityLinker(env: Env): Promise<{
   const config = loadConfig(env);
   const db = createSupabaseClient(config);
 
+  // 1. Clean slate
   const linksDeleted = await deleteGardenerSimilarityLinks(db);
-  const notes = await fetchNotesForSimilarity(db);
 
-  let linksCreated = 0;
+  // 2. Fetch notes (for tags/entities needed by buildContext) and similar pairs in parallel
+  const [notes, pairs] = await Promise.all([
+    fetchNotesForSimilarity(db),
+    findSimilarPairs(db, config.similarityThreshold),
+  ]);
+
+  // 3. Index notes by ID for fast lookup during context building
+  const noteMap = new Map(notes.map(n => [n.id, n]));
+
+  // 4. Build all links from pairs
+  const allLinks: SimilarityLink[] = [];
   const enrichedNoteIds = new Set<string>();
 
-  for (const noteA of notes) {
+  for (const pair of pairs) {
+    const noteA = noteMap.get(pair.note_a);
+    const noteB = noteMap.get(pair.note_b);
+    if (!noteA || !noteB) continue;
+
+    const context = buildContext(noteA, noteB, pair.similarity);
+    allLinks.push({
+      fromId: pair.note_a,
+      toId: pair.note_b,
+      confidence: pair.similarity,
+      context,
+    });
+    enrichedNoteIds.add(pair.note_a);
+    enrichedNoteIds.add(pair.note_b);
+  }
+
+  // 5. Batch insert all links in one call
+  if (allLinks.length > 0) {
     try {
-      const similar = await findSimilarNotes(db, noteA.embedding, config.similarityThreshold);
-      const linksToInsert: SimilarityLink[] = [];
-
-      for (const noteB of similar) {
-        if (noteA.id === noteB.id) continue;
-        if (noteA.id >= noteB.id) continue;
-
-        const context = buildContext(noteA, noteB, noteB.similarity);
-        linksToInsert.push({
-          fromId: noteA.id,
-          toId: noteB.id,
-          confidence: noteB.similarity,
-          context,
-        });
-      }
-
-      if (linksToInsert.length > 0) {
-        await insertSimilarityLinks(db, linksToInsert);
-        linksCreated += linksToInsert.length;
-        enrichedNoteIds.add(noteA.id);
-      }
+      await insertSimilarityLinks(db, allLinks);
     } catch (err) {
-      errors.push(`note ${noteA.id}: ${String(err)}`);
+      errors.push(`similarity links insert: ${String(err)}`);
     }
   }
 
@@ -236,7 +251,7 @@ export async function runSimilarityLinker(env: Env): Promise<{
   return {
     notes_processed: notes.length,
     links_deleted: linksDeleted,
-    links_created: linksCreated,
+    links_created: allLinks.length,
     enriched_notes: enrichedNoteIds.size,
     errors,
   };

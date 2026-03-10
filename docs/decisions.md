@@ -292,3 +292,47 @@ The four independent thresholds:
 **Decision (2026-03-10):** Use the `workers-oauth-provider` library's opaque token format rather than JWTs. Reversing the original plan's assumption of "signed JWTs."
 
 **Why:** The library stores token hashes in KV and validates via hash lookup. This means token validation requires a KV read per request (~sub-ms cached). The tradeoff vs JWTs: revocation is immediate (delete from KV), no signing key management, and the library handles everything. For a single-user system, the KV read latency is negligible. JWTs would require either forking the library or building a parallel validation path — unnecessary complexity.
+
+## Maturity/importance scoring: deferred until real graph patterns emerge
+
+**Decision (2026-03-10):** Defer maturity and importance scoring from Phase 2b. Build chunk generation instead.
+
+**Why:** The user's mental model of maturity is emergent and graph-driven, not per-note threshold scoring. Notes accumulate links naturally. When a cluster reaches critical mass, a "map of content" (MOC) emerges as a gravitational center — a concept from the Zettelkasten/PKM tradition. Freshness means a note was recently linked to new notes (currently on the user's mind). Density means many relations. MOCs eventually split when they grow too large and get linked together.
+
+This model is closer to community detection in graph theory than to a formula like `if links > 3 and age > 7 days then budding`. Designing the algorithm requires observing real graph evolution — what link densities emerge naturally, what cluster sizes trigger the "gravitational" effect, when splitting feels right. These patterns don't exist yet with ~30 notes.
+
+The "revisit count" signal from the original issue (#2) is also deferred. No tracking mechanism exists, and adding counters to read paths would produce noisy data (agent iteration inflates counts meaninglessly). If engagement tracking is needed later, it should be a separate analytics layer, not a column on `notes`.
+
+## Chunk generation: paragraph-boundary splitting for brain dumps
+
+**Decision (2026-03-10):** Build chunk generation in the gardener to support brain dump inputs. Paragraph-boundary splitting, ~500-800 character chunks, 1500-character minimum body length to qualify.
+
+**Why:** The user is starting to experiment with brain dumps (multi-paragraph inputs via Telegram), which are chunkier than the current 1-5 sentence notes. Schema (`note_chunks`, `match_chunks` RPC) already exists. Building the infrastructure now means brain dumps work end-to-end immediately.
+
+**Design choices:**
+- **Splitting strategy:** Paragraph boundaries (double newlines). If a single paragraph exceeds the chunk size cap, fall back to sentence-boundary splitting within that paragraph. No overlap — ContemPlace notes are personal notes, not long technical documents. Paragraphs are natural semantic units.
+- **Chunk content:** Store raw chunk text in `note_chunks.content`. At embed time, prepend `{note.title}: {chunk_text}` for context anchoring. Do not embed type/intent/tags metadata into chunks — those are note-level, not chunk-level.
+- **Idempotency:** Skip-if-body-unchanged. Check `enrichment_log` timestamp for `enrichment_type = 'chunking'` vs `notes.updated_at`. If chunks exist and note hasn't changed, skip. If note was updated, delete existing chunks and re-chunk. Avoids re-embedding the entire corpus nightly.
+- **Embedding:** Use `batchEmbedTexts` for all chunks in one API call (1 subrequest). The OpenAI batch limit is 2048 inputs — well above expected volume.
+
+**Prerequisite:** Batch `updateRefinedTags` in tag normalization to free subrequest budget. Currently makes one Supabase call per note (~30 calls), which combined with the similarity linker's per-note RPCs already strains the 50-subrequest free tier limit.
+
+## Supabase RPC functions: OPERATOR(extensions.<=>) required for pgvector
+
+**Decision (2026-03-10):** RPC functions that use pgvector's `<=>` operator must use the explicit `OPERATOR(extensions.<=>)` syntax, not the bare `<=>` operator, even when `extensions` is in the function's `SET search_path`.
+
+**Why:** PostgREST's execution context cannot resolve operators via `search_path` alone. The bare `<=>` operator fails with `operator does not exist: extensions.vector <=> extensions.vector` — PostgreSQL identifies the types correctly but cannot find the operator. The existing `match_notes` function works with bare `<=>` because it was created in the initial schema migration (different execution context). Functions created via later migrations through the connection pooler require explicit operator qualification.
+
+Tables must also use explicit `public.notes` references rather than bare `notes` for the same reason.
+
+This applies to any new RPC function that uses pgvector operators (`<=>`, `<->`, `<#>`). Use `OPERATOR(extensions.<=>)` and `public.table_name` to be safe.
+
+## Similarity linker: find_similar_pairs replaces per-note RPC calls
+
+**Decision (2026-03-10):** Replace the per-note `findSimilarNotes` RPC calls (N subrequests) with a single `find_similar_pairs` SQL self-join function (1 subrequest).
+
+**Why:** The per-note approach made N Supabase RPC calls, one per note, consuming N subrequests. At 30 notes this was ~30 subrequests just for the similarity linker. Combined with tag normalization, the total exceeded the 50-subrequest free tier limit. The self-join computes all pairs above threshold in a single query using `a.id < b.id` ordering (each pair appears once). At 300 notes this is ~45,000 cosine distance comparisons — well under a second in Postgres. Combined with batching `insertSimilarityLinks` (all links in one INSERT instead of per-note batches), the entire similarity linker now uses ~5 fixed subrequests regardless of corpus size.
+
+**Scale ceiling:** The brute-force self-join is O(N²). At 1000+ notes, consider an ANN-based approach or pagination.
+
+**Imports context:** Future Obsidian/ChatGPT imports would be agent-driven via MCP `capture_note` in small batches, not bulk automated. No heading-aware splitting needed yet — brain dumps are prose, not structured markdown. Can add heading-awareness later if import content structure demands it.

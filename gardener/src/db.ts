@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
-import type { Concept, Entity, NoteForSimilarity, NoteForTagNorm, SimilarNote, SimilarityLink } from './types';
+import type { Concept, Entity, NoteForSimilarity, NoteForTagNorm, SimilarityLink } from './types';
 
 export function createSupabaseClient(config: Config): SupabaseClient {
   return createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -55,42 +55,27 @@ export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteF
   }));
 }
 
-// Find notes similar to the given embedding above the threshold via match_notes RPC.
-// match_notes does not filter the query note itself — self-similarity (score 1.0)
-// must be filtered by the caller.
-// match_count=50 is generous; at threshold 0.70 a personal corpus is very unlikely
-// to have more than 50 similar neighbors per note.
-export async function findSimilarNotes(
+// Find all note pairs above a similarity threshold in a single round-trip.
+// Uses the find_similar_pairs RPC (self-join with a.id < b.id ordering).
+// Replaces per-note findSimilarNotes calls — 1 subrequest instead of N.
+export async function findSimilarPairs(
   db: SupabaseClient,
-  embedding: number[],
   threshold: number,
-): Promise<SimilarNote[]> {
-  const { data, error } = await db.rpc('match_notes', {
-    query_embedding: embedding,
-    match_threshold: threshold,
-    match_count: 50,
-    filter_type: null,
-    filter_source: null,
-    filter_tags: null,
-    filter_intent: null,
-    search_text: null,
+): Promise<Array<{ note_a: string; note_b: string; similarity: number }>> {
+  const { data, error } = await db.rpc('find_similar_pairs', {
+    similarity_threshold: threshold,
+    max_pairs: 10000,
   });
 
   if (error) {
-    throw new Error(`match_notes RPC failed: ${error.message}`);
+    throw new Error(`find_similar_pairs RPC failed: ${error.message}`);
   }
 
   return ((data as Array<{
-    id: string;
-    tags: string[] | null;
-    entities: unknown;
+    note_a: string;
+    note_b: string;
     similarity: number;
-  }>) ?? []).map(row => ({
-    id: row.id,
-    tags: row.tags ?? [],
-    entities: row.entities,
-    similarity: row.similarity,
-  }));
+  }>) ?? []);
 }
 
 // Bulk insert similarity links.
@@ -150,22 +135,6 @@ export async function fetchConcepts(db: SupabaseClient): Promise<Concept[]> {
         ? (JSON.parse(row.embedding) as number[])
         : row.embedding,
   }));
-}
-
-// Update a concept's embedding.
-export async function updateConceptEmbedding(
-  db: SupabaseClient,
-  conceptId: string,
-  embedding: number[],
-): Promise<void> {
-  const { error } = await db
-    .from('concepts')
-    .update({ embedding })
-    .eq('id', conceptId);
-
-  if (error) {
-    throw new Error(`Failed to update concept embedding ${conceptId}: ${error.message}`);
-  }
 }
 
 // Batch-update concept embeddings via upsert (single round-trip).
@@ -239,19 +208,23 @@ export async function insertNoteConcepts(
   }
 }
 
-// Update refined_tags for a single note.
-export async function updateRefinedTags(
+// Batch-update refined_tags for multiple notes in a single round-trip.
+// Uses the batch_update_refined_tags RPC function (single UPDATE ... FROM join).
+export async function batchUpdateRefinedTags(
   db: SupabaseClient,
-  noteId: string,
-  refinedTags: string[],
+  updates: Array<{ id: string; refined_tags: string[] }>,
 ): Promise<void> {
-  const { error } = await db
-    .from('notes')
-    .update({ refined_tags: refinedTags })
-    .eq('id', noteId);
+  if (updates.length === 0) return;
+
+  const { error } = await db.rpc('batch_update_refined_tags', {
+    updates: updates.map(u => ({
+      id: u.id,
+      refined_tags: u.refined_tags,
+    })),
+  });
 
   if (error) {
-    throw new Error(`Failed to update refined_tags for ${noteId}: ${error.message}`);
+    throw new Error(`Failed to batch update refined_tags: ${error.message}`);
   }
 }
 

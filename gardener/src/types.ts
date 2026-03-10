@@ -31,14 +31,6 @@ export interface NoteForSimilarity {
   embedding: number[];
 }
 
-// A note returned by match_notes RPC — includes similarity score.
-export interface SimilarNote {
-  id: string;
-  tags: string[];
-  entities: unknown; // jsonb from DB — cast via toEntityArray in similarity.ts
-  similarity: number;
-}
-
 // A link to be inserted into the links table.
 export interface SimilarityLink {
   fromId: string;
