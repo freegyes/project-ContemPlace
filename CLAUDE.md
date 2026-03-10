@@ -274,7 +274,7 @@ The LLM returns this JSON and nothing else:
   "modality": "text|link|list|mixed",
   "entities": [{"name": "...", "type": "person|place|tool|project|concept"}],
   "links": [
-    { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of" }
+    { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of|duplicate-of" }
   ]
 }
 ```
@@ -285,7 +285,7 @@ The LLM returns this JSON and nothing else:
 
 **Type and intent are independent facets** — a `source` note can have `plan` intent, a `reflection` can have `remember` intent.
 
-**Link types:** `extends` = builds on/deepens; `contradicts` = challenges; `supports` = reinforces or parallel/sibling idea toward same goal; `is-example-of` = concrete instance.
+**Link types:** `extends` = builds on/deepens; `contradicts` = challenges; `supports` = reinforces or parallel/sibling idea toward same goal; `is-example-of` = concrete instance; `duplicate-of` = covers substantially the same content as an existing note (note is still created; deduplication is a gardening concern).
 
 **Entity extraction:** proper nouns only, explicitly in the input — not from related notes, not from training data. Use corrected name from `corrections` field if applicable.
 
@@ -293,7 +293,7 @@ The LLM returns this JSON and nothing else:
 
 8 tables total:
 - `notes` — core notes with 9 new v2 columns (intent, modality, entities, corrections, summary, refined_tags, categories, metadata, importance_score, maturity, archived_at, embedding, embedded_at, content_tsv)
-- `links` — 8 link types (4 capture-time + 4 gardening-time); includes context, confidence, created_by
+- `links` — 9 link types (5 capture-time + 4 gardening-time); includes context, confidence, created_by
 - `concepts` — SKOS controlled vocabulary (scheme, pref_label, alt_labels, definition, embedding)
 - `note_concepts` — junction: notes ↔ concepts
 - `note_chunks` — RAG chunks for long notes (deferred to gardening pipeline)

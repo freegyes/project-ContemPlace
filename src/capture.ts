@@ -11,7 +11,7 @@ const SYSTEM_FRAME = `You are a knowledge capture agent. Transform raw input int
 
 Input may come from voice dictation or quick typing. Before anything else:
 1. Scan for misspellings and out-of-place words — phonetically plausible but wrong in context, or simply misspelled.
-2. Cross-reference related notes for proper nouns, tool names, project names.
+2. Cross-reference related notes for proper nouns, tool names, project names. If a common word in the input is phonetically similar to a domain-specific term that appears in the related notes, and the surrounding context (other entities, materials, techniques) matches the related note better than the common word, prefer the domain-specific term.
 3. Silently correct in the output. Report in the \`corrections\` field (e.g., \`["cattle stitch → kettle stitch"]\`, \`["caleidoscope → kaleidoscope"]\`). Use null if nothing was corrected.
 
 ## Classification rules
@@ -34,6 +34,7 @@ Input may come from voice dictation or quick typing. Before anything else:
 - \`reference\` — saving external content: articles, links, quotes, or bookmarks. Use when a URL is present or the user is explicitly saving someone else's work.
 - \`log\` — recording what happened (events, completions, milestones)
 If the input could be \`remember\` or \`reference\`, use \`remember\` when no URL is present, \`reference\` when a URL is present.
+For \`lookup\` type notes, the intent is typically \`plan\` (research to inform a future action) or \`remember\` (storing a question for later). It is not \`reference\` unless a URL is present.
 
 **Type and intent are independent.** Type describes the *form* of the note (is it an idea, a reflection, a source reference, or a research prompt?). Intent describes *what the user is doing* (planning, reflecting, creating, remembering, etc.). A \`source\` type note can have \`plan\` intent (saving a link to act on later). A \`reflection\` type note can have \`remember\` intent (recording a personal realization for future reference). Do not assume they must match.
 
@@ -53,11 +54,12 @@ Each entity has a name and type:
 Return an empty array if no clear named entities appear in the input.
 
 **Links**: for each related note provided, decide if a typed relationship applies.
-Types: \`extends | contradicts | supports | is-example-of\`
+Types: \`extends | contradicts | supports | is-example-of | duplicate-of\`
 - \`extends\` — builds on, deepens, or expands the other note's idea
 - \`contradicts\` — challenges or is in tension with it
 - \`supports\` — provides evidence, reinforces, or is a parallel/sibling idea toward the same goal
 - \`is-example-of\` — a concrete instance of the other note's concept
+- \`duplicate-of\` — the new note covers substantially the same content as the related note. Use when the topic, detail level, and angle are the same, not merely related. Still create the note — deduplication is a gardening concern, not a capture concern.
 Prefer more links over fewer. It is fine to link to zero notes.
 
 If the input is too short to form a full note, do your best. Do not ask for clarification.
@@ -74,7 +76,7 @@ Return valid JSON only. No text outside the JSON object.
   "modality": "text|link|list|mixed",
   "entities": [{"name": "...", "type": "person|place|tool|project|concept"}],
   "links": [
-    { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of" }
+    { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of|duplicate-of" }
   ]
 }`;
 
@@ -88,7 +90,7 @@ function buildSystemPrompt(captureVoice: string): string {
 }
 
 const VALID_NOTE_TYPES: readonly NoteType[] = ['idea', 'reflection', 'source', 'lookup'];
-const VALID_LINK_TYPES: readonly CaptureLinkType[] = ['extends', 'contradicts', 'supports', 'is-example-of'];
+const VALID_LINK_TYPES: readonly CaptureLinkType[] = ['extends', 'contradicts', 'supports', 'is-example-of', 'duplicate-of'];
 const VALID_INTENTS: readonly Intent[] = ['reflect', 'plan', 'create', 'remember', 'reference', 'log'];
 const VALID_MODALITIES: readonly Modality[] = ['text', 'link', 'list', 'mixed'];
 const VALID_ENTITY_TYPES = ['person', 'place', 'tool', 'project', 'concept'] as const;

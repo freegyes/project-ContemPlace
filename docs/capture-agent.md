@@ -53,6 +53,7 @@ The agent receives the top 5 semantically related notes (with their titles, bodi
 | `contradicts` | Challenges or stands in tension with a prior note |
 | `supports` | Reinforces, provides evidence for, or runs parallel toward the same goal |
 | `is-example-of` | A concrete instance of a more abstract prior note |
+| `duplicate-of` | Covers substantially the same content as an existing note — same topic, detail, angle. The note is still created; deduplication is a gardening concern. |
 
 `supports` was broadened after real usage showed that sibling projects (e.g., two kitchen improvement ideas) weren't being linked because none of the original four types fit cleanly. Now `supports` covers both "provides evidence for" and "is a parallel effort toward the same goal."
 
@@ -74,7 +75,7 @@ Four additional types are assigned by the gardener Worker, not the capture agent
 The system prompt instructs the LLM to:
 
 1. Scan for words that are likely voice transcription errors (wrong homophones, out-of-place words)
-2. Cross-reference proper nouns against the related notes provided as context
+2. Cross-reference proper nouns against the related notes provided as context. If a common word in the input is phonetically similar to a domain-specific term in the related notes, and the surrounding context (entities, materials, techniques) favors the domain term, prefer it.
 3. Silently apply corrections in the title and body
 4. Report all corrections in the `corrections` field as `"garbled → corrected"` pairs
 

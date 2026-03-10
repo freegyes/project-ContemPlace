@@ -70,7 +70,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'get_related',
-    description: 'Get all notes linked to a given note, in both directions. Link types: extends (builds on), contradicts (challenges), supports (reinforces or parallel effort), is-example-of (concrete instance), is-similar-to (auto-detected by gardener). The direction field shows whether the queried note is source (outbound) or target (inbound). created_by distinguishes capture-time links from gardener-detected ones.',
+    description: 'Get all notes linked to a given note, in both directions. Link types: extends (builds on), contradicts (challenges), supports (reinforces or parallel effort), is-example-of (concrete instance), duplicate-of (same content as existing note), is-similar-to (auto-detected by gardener). The direction field shows whether the queried note is source (outbound) or target (inbound). created_by distinguishes capture-time links from gardener-detected ones.',
     inputSchema: {
       type: 'object',
       properties: {
