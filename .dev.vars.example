@@ -18,6 +18,10 @@ ALLOWED_CHAT_IDS=your_chat_id_here
 # MCP Worker — generate with: openssl rand -hex 32
 MCP_API_KEY=your_mcp_api_key_here
 
+# Gardener Worker secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml)
+# SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are shared with the main Worker above.
+# GARDENER_SIMILARITY_THRESHOLD is set in gardener/wrangler.toml [vars] — default 0.70.
+
 # Test-only — not used by the worker itself
 WORKER_URL=https://contemplace.your-subdomain.workers.dev
 TELEGRAM_CHAT_ID=your_chat_id_here
