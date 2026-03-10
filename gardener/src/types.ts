@@ -71,3 +71,24 @@ export interface TagNormResult {
   concepts_embedded: number;
   errors: string[];
 }
+
+// ── Chunk generation types ──────────────────────────────────────────────────
+
+// A note as fetched for chunk generation — includes body, title, tags for splitting and embedding.
+export interface NoteForChunking {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  updated_at: string;
+}
+
+// Result of a chunk generation run.
+export interface ChunkGenResult {
+  event: 'chunk_generation_complete';
+  notes_eligible: number;
+  notes_chunked: number;
+  notes_skipped: number;
+  chunks_created: number;
+  errors: string[];
+}

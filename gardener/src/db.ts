@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
-import type { Concept, Entity, NoteForSimilarity, NoteForTagNorm, SimilarityLink } from './types';
+import type { Concept, Entity, NoteForSimilarity, NoteForTagNorm, NoteForChunking, SimilarityLink } from './types';
 
 export function createSupabaseClient(config: Config): SupabaseClient {
   return createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -311,6 +311,136 @@ export async function logEnrichments(
       event: 'enrichment_log_error',
       error: error.message,
       noteCount: noteIds.length,
+    }));
+  }
+}
+
+// ── Chunk generation DB functions ─────────────────────────────────────────────
+
+// Fetch all active notes with body length > minLength for chunk generation.
+// Also fetches title and tags (needed for embedding prefix).
+export async function fetchNotesForChunking(
+  db: SupabaseClient,
+  minLength: number,
+): Promise<NoteForChunking[]> {
+  const { data, error } = await db
+    .from('notes')
+    .select('id, title, body, tags, updated_at')
+    .is('archived_at', null)
+    .not('body', 'is', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch notes for chunking: ${error.message}`);
+  }
+
+  // Filter by body length in JS — PostgREST doesn't support length filters
+  return ((data as Array<{
+    id: string;
+    title: string;
+    body: string;
+    tags: string[] | null;
+    updated_at: string;
+  }>) ?? [])
+    .filter(row => row.body.length > minLength)
+    .map(row => ({
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      tags: row.tags ?? [],
+      updated_at: row.updated_at,
+    }));
+}
+
+// Fetch existing chunking enrichment_log entries with body hashes.
+// Returns a map of note_id → body_hash for idempotency checks.
+export async function fetchChunkingHashes(
+  db: SupabaseClient,
+): Promise<Map<string, string>> {
+  const { data, error } = await db
+    .from('enrichment_log')
+    .select('note_id, metadata')
+    .eq('enrichment_type', 'chunking');
+
+  if (error) {
+    throw new Error(`Failed to fetch chunking hashes: ${error.message}`);
+  }
+
+  const result = new Map<string, string>();
+  for (const row of (data ?? []) as Array<{ note_id: string; metadata: { body_hash?: string } | null }>) {
+    const hash = row.metadata?.body_hash;
+    if (hash) result.set(row.note_id, hash);
+  }
+  return result;
+}
+
+// Delete existing chunks for specific notes (before re-chunking).
+export async function deleteChunksForNotes(
+  db: SupabaseClient,
+  noteIds: string[],
+): Promise<void> {
+  if (noteIds.length === 0) return;
+
+  const { error } = await db
+    .from('note_chunks')
+    .delete()
+    .in('note_id', noteIds);
+
+  if (error) {
+    throw new Error(`Failed to delete chunks: ${error.message}`);
+  }
+}
+
+// Delete existing chunking enrichment_log entries for specific notes.
+export async function deleteChunkingLogs(
+  db: SupabaseClient,
+  noteIds: string[],
+): Promise<void> {
+  if (noteIds.length === 0) return;
+
+  const { error } = await db
+    .from('enrichment_log')
+    .delete()
+    .eq('enrichment_type', 'chunking')
+    .in('note_id', noteIds);
+
+  if (error) {
+    throw new Error(`Failed to delete chunking logs: ${error.message}`);
+  }
+}
+
+// Batch insert chunks with embeddings.
+export async function insertChunks(
+  db: SupabaseClient,
+  chunks: Array<{ note_id: string; chunk_index: number; content: string; embedding: number[] }>,
+): Promise<void> {
+  if (chunks.length === 0) return;
+
+  const { error } = await db.from('note_chunks').insert(chunks);
+  if (error) {
+    throw new Error(`Failed to insert chunks: ${error.message}`);
+  }
+}
+
+// Log chunking enrichment entries with body hashes for idempotency.
+export async function logChunkingEnrichments(
+  db: SupabaseClient,
+  entries: Array<{ note_id: string; body_hash: string; model_used: string }>,
+): Promise<void> {
+  if (entries.length === 0) return;
+
+  const rows = entries.map(e => ({
+    note_id: e.note_id,
+    enrichment_type: 'chunking',
+    model_used: e.model_used,
+    metadata: { body_hash: e.body_hash },
+  }));
+
+  const { error } = await db.from('enrichment_log').insert(rows);
+  if (error) {
+    console.error(JSON.stringify({
+      event: 'chunking_enrichment_log_error',
+      error: error.message,
+      count: entries.length,
     }));
   }
 }

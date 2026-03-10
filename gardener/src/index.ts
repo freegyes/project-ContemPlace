@@ -1,13 +1,15 @@
 import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarPairs, insertSimilarityLinks, logEnrichments,
          fetchConcepts, batchUpdateConceptEmbeddings, fetchNotesForTagNorm, deleteGardenerNoteConcepts,
-         insertNoteConcepts, batchUpdateRefinedTags, deleteUnmatchedTagLogs, logUnmatchedTags, logTagNormEnrichments } from './db';
+         insertNoteConcepts, batchUpdateRefinedTags, deleteUnmatchedTagLogs, logUnmatchedTags, logTagNormEnrichments,
+         fetchNotesForChunking, fetchChunkingHashes, deleteChunksForNotes, deleteChunkingLogs, insertChunks, logChunkingEnrichments } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
 import { buildConceptEmbeddingInput, lexicalMatch, resolveNoteTags } from './normalize';
+import { splitIntoChunks, buildChunkEmbeddingInput, MIN_BODY_LENGTH } from './chunk';
 import { createOpenAIClient, batchEmbedTexts } from './embed';
 import { sendAlert } from './alert';
 import { validateTriggerAuth } from './auth';
-import type { Env, SimilarityLink, TagNormResult, Concept } from './types';
+import type { Env, SimilarityLink, TagNormResult, ChunkGenResult, Concept } from './types';
 
 export interface GardenerRunResult {
   event: 'gardener_run_complete';
@@ -19,6 +21,7 @@ export interface GardenerRunResult {
     errors: string[];
   };
   tag_normalization: TagNormResult | { event: 'tag_normalization_skipped'; reason: string };
+  chunk_generation: ChunkGenResult | { event: 'chunk_generation_skipped'; reason: string };
   duration_ms: number;
 }
 
@@ -192,6 +195,197 @@ export async function runTagNormalization(env: Env): Promise<TagNormResult> {
   return result;
 }
 
+// ── Chunk generation ──────────────────────────────────────────────────────────
+
+// SHA-256 hash using Web Crypto API (available in CF Workers).
+async function hashBody(body: string): Promise<string> {
+  const data = new TextEncoder().encode(body);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Max inputs per batchEmbedTexts call (OpenAI limit is 2048).
+const EMBED_BATCH_LIMIT = 2000;
+
+export async function runChunkGeneration(env: Env): Promise<ChunkGenResult> {
+  const errors: string[] = [];
+  const config = loadConfig(env);
+
+  if (!config.openrouterApiKey) {
+    return {
+      event: 'chunk_generation_complete',
+      notes_eligible: 0,
+      notes_chunked: 0,
+      notes_skipped: 0,
+      chunks_created: 0,
+      errors: ['OPENROUTER_API_KEY not configured — cannot embed chunks'],
+    };
+  }
+
+  const db = createSupabaseClient(config);
+  const openai = createOpenAIClient({ openrouterApiKey: config.openrouterApiKey, embedModel: config.embedModel });
+  const embedConfig = { openrouterApiKey: config.openrouterApiKey, embedModel: config.embedModel };
+
+  // 1. Fetch eligible notes and existing body hashes in parallel
+  const [notes, existingHashes] = await Promise.all([
+    fetchNotesForChunking(db, MIN_BODY_LENGTH),
+    fetchChunkingHashes(db),
+  ]);
+
+  if (notes.length === 0) {
+    return {
+      event: 'chunk_generation_complete',
+      notes_eligible: 0,
+      notes_chunked: 0,
+      notes_skipped: 0,
+      chunks_created: 0,
+      errors,
+    };
+  }
+
+  // 2. Compute body hashes and determine which notes need (re-)chunking
+  const notesToProcess: Array<{ note: typeof notes[0]; bodyHash: string; chunks: ReturnType<typeof splitIntoChunks> }> = [];
+  let skipped = 0;
+
+  for (const note of notes) {
+    const bodyHash = await hashBody(note.body);
+    const existingHash = existingHashes.get(note.id);
+
+    if (existingHash === bodyHash) {
+      skipped++;
+      continue;
+    }
+
+    const chunks = splitIntoChunks(note.body);
+    if (chunks.length === 0) {
+      skipped++;
+      continue;
+    }
+
+    notesToProcess.push({ note, bodyHash, chunks });
+  }
+
+  if (notesToProcess.length === 0) {
+    return {
+      event: 'chunk_generation_complete',
+      notes_eligible: notes.length,
+      notes_chunked: 0,
+      notes_skipped: skipped,
+      chunks_created: 0,
+      errors,
+    };
+  }
+
+  // 3. Delete existing chunks and enrichment logs for notes being (re-)processed
+  const noteIdsToProcess = notesToProcess.map(n => n.note.id);
+  await Promise.all([
+    deleteChunksForNotes(db, noteIdsToProcess),
+    deleteChunkingLogs(db, noteIdsToProcess),
+  ]);
+
+  // 4. Build all chunk embedding inputs
+  const allChunkTexts: string[] = [];
+  const chunkMetadata: Array<{ noteIdx: number; chunkIdx: number }> = [];
+
+  for (let ni = 0; ni < notesToProcess.length; ni++) {
+    const { note, chunks } = notesToProcess[ni]!;
+    for (const chunk of chunks) {
+      allChunkTexts.push(buildChunkEmbeddingInput(note.title, note.tags, chunk.content));
+      chunkMetadata.push({ noteIdx: ni, chunkIdx: chunk.index });
+    }
+  }
+
+  // 5. Batch embed (with batch size guard)
+  let allEmbeddings: number[][] = [];
+  try {
+    if (allChunkTexts.length <= EMBED_BATCH_LIMIT) {
+      allEmbeddings = await batchEmbedTexts(openai, embedConfig, allChunkTexts);
+    } else {
+      // Split into batches
+      for (let i = 0; i < allChunkTexts.length; i += EMBED_BATCH_LIMIT) {
+        const batch = allChunkTexts.slice(i, i + EMBED_BATCH_LIMIT);
+        const batchEmbeddings = await batchEmbedTexts(openai, embedConfig, batch);
+        allEmbeddings.push(...batchEmbeddings);
+      }
+    }
+  } catch (err) {
+    errors.push(`batch chunk embedding failed: ${String(err)}`);
+    const result: ChunkGenResult = {
+      event: 'chunk_generation_complete',
+      notes_eligible: notes.length,
+      notes_chunked: 0,
+      notes_skipped: skipped,
+      chunks_created: 0,
+      errors,
+    };
+    console.log(JSON.stringify(result));
+    return result;
+  }
+
+  // 6. Build insert rows and enrichment log entries
+  const chunkRows: Array<{ note_id: string; chunk_index: number; content: string; embedding: number[] }> = [];
+  const enrichmentEntries: Array<{ note_id: string; body_hash: string; model_used: string }> = [];
+  let notesChunked = 0;
+
+  // Track per-note success for error isolation
+  const noteSuccess = new Set<number>();
+
+  for (let i = 0; i < chunkMetadata.length; i++) {
+    const meta = chunkMetadata[i]!;
+    const entry = notesToProcess[meta.noteIdx]!;
+    const embedding = allEmbeddings[i];
+    if (!embedding) {
+      errors.push(`missing embedding for chunk ${meta.chunkIdx} of note ${entry.note.id}`);
+      continue;
+    }
+    chunkRows.push({
+      note_id: entry.note.id,
+      chunk_index: meta.chunkIdx,
+      content: entry.chunks[meta.chunkIdx]!.content,
+      embedding,
+    });
+    noteSuccess.add(meta.noteIdx);
+  }
+
+  // Build enrichment entries only for notes with all chunks embedded
+  for (const ni of noteSuccess) {
+    const entry = notesToProcess[ni]!;
+    enrichmentEntries.push({
+      note_id: entry.note.id,
+      body_hash: entry.bodyHash,
+      model_used: config.embedModel,
+    });
+    notesChunked++;
+  }
+
+  // 7. Batch insert chunks + log enrichments
+  if (chunkRows.length > 0) {
+    try {
+      await insertChunks(db, chunkRows);
+    } catch (err) {
+      errors.push(`chunk insert failed: ${String(err)}`);
+      notesChunked = 0;
+    }
+  }
+
+  if (notesChunked > 0) {
+    await logChunkingEnrichments(db, enrichmentEntries);
+  }
+
+  const result: ChunkGenResult = {
+    event: 'chunk_generation_complete',
+    notes_eligible: notes.length,
+    notes_chunked: notesChunked,
+    notes_skipped: skipped,
+    chunks_created: chunkRows.length,
+    errors,
+  };
+
+  console.log(JSON.stringify(result));
+  return result;
+}
+
 // ── Similarity linker ─────────────────────────────────────────────────────────
 
 export async function runSimilarityLinker(env: Env): Promise<{
@@ -275,19 +469,31 @@ async function runGardener(env: Env): Promise<GardenerRunResult> {
   // Phase 2: Similarity linking
   const simResult = await runSimilarityLinker(env);
 
+  // Phase 3: Chunk generation
+  let chunkGenResult: ChunkGenResult | { event: 'chunk_generation_skipped'; reason: string };
+  try {
+    chunkGenResult = await runChunkGeneration(env);
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'chunk_generation_failed', error: String(err) }));
+    chunkGenResult = { event: 'chunk_generation_skipped', reason: String(err) };
+    // Continue — independent step
+  }
+
   const result: GardenerRunResult = {
     event: 'gardener_run_complete',
     similarity: simResult,
     tag_normalization: tagNormResult,
+    chunk_generation: chunkGenResult,
     duration_ms: Date.now() - startTime,
   };
 
   console.log(JSON.stringify(result));
 
-  // Check for errors in either phase
+  // Check for errors in any phase
   const allErrors = [
     ...simResult.errors,
     ...('errors' in tagNormResult ? tagNormResult.errors : []),
+    ...('errors' in chunkGenResult ? chunkGenResult.errors : []),
   ];
   if (allErrors.length > 0) {
     throw new Error(`Gardener run completed with ${allErrors.length} error(s) — see logs above`);

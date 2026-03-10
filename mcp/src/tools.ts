@@ -4,7 +4,7 @@ import type { Config } from './config';
 import { embedText, buildEmbeddingInput } from './embed';
 import { runCaptureAgent } from './capture';
 import { getCaptureVoice, findRelatedNotes, insertNote, insertLinks, logEnrichments,
-         fetchNote, fetchNoteLinks, listRecentNotes, searchNotes,
+         fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, searchChunks,
          listUnmatchedTags, insertConcept } from './db';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -115,6 +115,19 @@ export const TOOL_DEFINITIONS = [
         definition: { type: 'string', description: 'Short definition (max 500 chars). Helps semantic matching.' },
       },
       required: ['pref_label', 'scheme'],
+    },
+  },
+  {
+    name: 'search_chunks',
+    description: 'Search within note paragraphs by semantic similarity. Unlike search_notes (which matches whole notes), this finds specific passages within long notes. Each chunk is a paragraph or section from a note with body > 1500 characters. Use search_notes first for broad discovery, then search_chunks when you need to locate a specific passage. Returns chunks with their parent note metadata.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Natural language search query, max 1000 characters' },
+        limit: { type: 'number', description: 'Number of results to return (default 10, max 50)' },
+        threshold: { type: 'number', description: 'Minimum similarity score (default 0.35, range 0.0–1.0)' },
+      },
+      required: ['query'],
     },
   },
 ];
@@ -306,6 +319,42 @@ export async function handlePromoteConcept(
     }
     console.error(JSON.stringify({ event: 'promote_concept_error', error: msg }));
     return toolError('Database error. Try again.');
+  }
+}
+
+export async function handleSearchChunks(
+  args: Record<string, unknown>,
+  db: SupabaseClient,
+  openai: OpenAI,
+  config: Config,
+): Promise<object> {
+  const query = args['query'];
+  if (typeof query !== 'string' || query.length === 0) return toolError('query is required');
+  if (query.length > 1000) return toolError('query exceeds 1000 character limit');
+
+  const limit = clamp(args['limit'] as number | undefined, 1, 50, 10);
+  const threshold = clamp(args['threshold'] as number | undefined, 0, 1, config.searchThreshold);
+
+  try {
+    const embedding = await embedText(openai, config, query);
+    const results = await searchChunks(db, embedding, threshold, limit);
+    return toolSuccess({
+      results: results.map(c => ({
+        chunk_id: c.chunk_id,
+        note_id: c.note_id,
+        note_title: c.note_title,
+        note_type: c.note_type,
+        note_intent: c.note_intent,
+        note_tags: c.note_tags,
+        chunk_index: c.chunk_index,
+        content: c.content,
+        score: c.similarity,
+      })),
+      count: results.length,
+    });
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'search_chunks_error', error: String(err) }));
+    return toolError('Chunk search failed. Try again.');
   }
 }
 

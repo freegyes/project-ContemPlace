@@ -21,6 +21,7 @@ vi.mock('../mcp/src/db', () => ({
   logEnrichments: vi.fn().mockResolvedValue(undefined),
   listUnmatchedTags: vi.fn().mockResolvedValue([]),
   insertConcept: vi.fn().mockResolvedValue({ id: 'cccccccc-0000-0000-0000-000000000001', scheme: 'domains', pref_label: 'test-concept' }),
+  searchChunks: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../mcp/src/embed', () => ({
@@ -54,9 +55,11 @@ import {
   handleCaptureNote,
   handleListUnmatchedTags,
   handlePromoteConcept,
+  handleSearchChunks,
 } from '../mcp/src/tools';
 import {
   searchNotes,
+  searchChunks,
   fetchNote,
   fetchNoteLinks,
   listRecentNotes,
@@ -770,6 +773,100 @@ describe('handlePromoteConcept', () => {
       const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'domains' }, mockDb));
       expect(r.isError).toBe(true);
       expect(r.content[0]!.text).toMatch(/Database error/);
+    });
+  });
+});
+
+// ── handleSearchChunks ────────────────────────────────────────────────────────
+
+describe('handleSearchChunks', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const MOCK_CHUNK = {
+    chunk_id: 'dddddddd-0000-0000-0000-000000000001',
+    note_id: VALID_UUID,
+    chunk_index: 0,
+    content: 'Some paragraph text from a long note.',
+    note_title: 'A Long Note',
+    note_type: 'idea',
+    note_intent: 'remember',
+    note_tags: ['cooking', 'project'],
+    similarity: 0.72,
+  };
+
+  describe('validation', () => {
+    it('rejects missing query', async () => {
+      const r = toolResult(await handleSearchChunks({}, mockDb, mockOpenAI, MOCK_CONFIG));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/query is required/);
+    });
+
+    it('rejects empty query', async () => {
+      const r = toolResult(await handleSearchChunks({ query: '' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      expect(r.isError).toBe(true);
+    });
+
+    it('rejects query over 1000 characters', async () => {
+      const r = toolResult(await handleSearchChunks({ query: 'x'.repeat(1001) }, mockDb, mockOpenAI, MOCK_CONFIG));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/1000 character/);
+    });
+  });
+
+  describe('success path', () => {
+    it('returns chunk results with note metadata', async () => {
+      vi.mocked(searchChunks).mockResolvedValueOnce([MOCK_CHUNK]);
+      const r = toolResult(await handleSearchChunks({ query: 'cooking recipes' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      expect(r.isError).toBe(false);
+      const data = JSON.parse(r.content[0]!.text);
+      expect(data.count).toBe(1);
+      expect(data.results[0].chunk_id).toBe(MOCK_CHUNK.chunk_id);
+      expect(data.results[0].note_id).toBe(VALID_UUID);
+      expect(data.results[0].note_title).toBe('A Long Note');
+      expect(data.results[0].note_type).toBe('idea');
+      expect(data.results[0].note_tags).toEqual(['cooking', 'project']);
+      expect(data.results[0].content).toBe(MOCK_CHUNK.content);
+      expect(data.results[0].score).toBe(0.72);
+    });
+
+    it('uses default limit of 10', async () => {
+      vi.mocked(searchChunks).mockResolvedValueOnce([]);
+      await handleSearchChunks({ query: 'test' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      expect(vi.mocked(searchChunks)).toHaveBeenCalledWith(mockDb, [0.1, 0.2, 0.3], 0.35, 10);
+    });
+
+    it('clamps limit to 1–50', async () => {
+      vi.mocked(searchChunks).mockResolvedValueOnce([]);
+      await handleSearchChunks({ query: 'test', limit: 100 }, mockDb, mockOpenAI, MOCK_CONFIG);
+      expect(vi.mocked(searchChunks)).toHaveBeenCalledWith(mockDb, [0.1, 0.2, 0.3], 0.35, 50);
+    });
+
+    it('uses config searchThreshold as default', async () => {
+      vi.mocked(searchChunks).mockResolvedValueOnce([]);
+      await handleSearchChunks({ query: 'test' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      expect(vi.mocked(searchChunks)).toHaveBeenCalledWith(mockDb, expect.any(Array), 0.35, 10);
+    });
+
+    it('allows custom threshold', async () => {
+      vi.mocked(searchChunks).mockResolvedValueOnce([]);
+      await handleSearchChunks({ query: 'test', threshold: 0.5 }, mockDb, mockOpenAI, MOCK_CONFIG);
+      expect(vi.mocked(searchChunks)).toHaveBeenCalledWith(mockDb, expect.any(Array), 0.5, 10);
+    });
+  });
+
+  describe('error handling', () => {
+    it('returns error on embed failure', async () => {
+      vi.mocked(embedText).mockRejectedValueOnce(new Error('API down'));
+      const r = toolResult(await handleSearchChunks({ query: 'test' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/failed/i);
+    });
+
+    it('returns error on RPC failure', async () => {
+      vi.mocked(searchChunks).mockRejectedValueOnce(new Error('match_chunks RPC failed'));
+      const r = toolResult(await handleSearchChunks({ query: 'test' }, mockDb, mockOpenAI, MOCK_CONFIG));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/failed/i);
     });
   });
 });

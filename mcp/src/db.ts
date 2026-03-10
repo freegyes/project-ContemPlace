@@ -377,3 +377,38 @@ export async function searchNotes(
 
   return (data as MatchedNote[]) ?? [];
 }
+
+// ── Chunk search ─────────────────────────────────────────────────────────────
+
+export interface ChunkResult {
+  chunk_id: string;
+  note_id: string;
+  chunk_index: number;
+  content: string;
+  note_title: string;
+  note_type: string;
+  note_intent: string | null;
+  note_tags: string[];
+  similarity: number;
+}
+
+// Semantic search via match_chunks RPC.
+export async function searchChunks(
+  db: SupabaseClient,
+  embedding: number[],
+  threshold: number,
+  limit: number,
+): Promise<ChunkResult[]> {
+  const { data, error } = await db.rpc('match_chunks', {
+    query_embedding: embedding,
+    match_threshold: threshold,
+    match_count: limit,
+  });
+
+  if (error) {
+    console.error(JSON.stringify({ event: 'search_chunks_rpc_error', error: error.message }));
+    throw new Error(`match_chunks RPC failed: ${error.message}`);
+  }
+
+  return (data as ChunkResult[]) ?? [];
+}
