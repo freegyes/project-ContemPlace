@@ -336,3 +336,25 @@ This applies to any new RPC function that uses pgvector operators (`<=>`, `<->`,
 **Scale ceiling:** The brute-force self-join is O(N²). At 1000+ notes, consider an ANN-based approach or pagination.
 
 **Imports context:** Future Obsidian/ChatGPT imports would be agent-driven via MCP `capture_note` in small batches, not bulk automated. No heading-aware splitting needed yet — brain dumps are prose, not structured markdown. Can add heading-awareness later if import content structure demands it.
+
+## Chunk generation: body hash idempotency, not updated_at
+
+**Decision (2026-03-10):** Use SHA-256 hash of `notes.body` stored in `enrichment_log.metadata` for chunk generation idempotency, not `notes.updated_at` comparison.
+
+**Why:** `notes.updated_at` fires on ANY row update via a `BEFORE UPDATE` trigger. The gardener's own tag normalization phase calls `batchUpdateRefinedTags`, which bumps `updated_at` for every processed note on every run. Using `updated_at` would re-chunk the entire corpus nightly. The body hash is deterministic — only changes when the body text actually changes.
+
+The `metadata` JSONB column on `enrichment_log` (added in `20260310000000_tag_normalization_prereqs.sql`) stores `{ body_hash: "sha256..." }` alongside the `enrichment_type = 'chunking'` entry. This is consistent with the existing `{ tag: "..." }` pattern for unmatched tags.
+
+## Chunk generation vs capture-time splitting: different problems
+
+**Decision (2026-03-10):** Build chunk generation first. Defer capture-time splitting of multi-thought inputs to a future `decompose_note` MCP tool or gardener step.
+
+**Why:** Chunk generation fixes retrieval granularity (a long note about 3 topics gets one diluted embedding — chunks give each paragraph its own vector). Capture-time splitting fixes graph identity (one note gets one title, one type, one set of tags). These are complementary, not interchangeable. Chunk generation is ready to ship (schema exists, gardener infrastructure exists, zero changes to capture path). Capture-time splitting changes SYSTEM_FRAME, parseCaptureResponse, DB insert logic, Telegram reply format, dedup semantics, and both capture.ts copies — large blast radius. Chunk generation provides data to evaluate whether splitting is even needed in practice.
+
+**Observation from validation:** The capture agent condenses long inputs — a 1918-char raw input produced a 901-char body. The body rules ("1-5 sentences, atomic") inherently limit body length. Chunk generation will mostly apply to future imported notes or manually edited notes with longer bodies, not Telegram captures. This reinforces the decision to defer capture-time splitting.
+
+## match_chunks RPC: must DROP before CREATE when changing return type
+
+**Decision (2026-03-10):** `CREATE OR REPLACE FUNCTION` cannot change the return type of an existing function. When extending return columns, `DROP FUNCTION IF EXISTS` must precede `CREATE FUNCTION`.
+
+**Why:** Migration `20260310000003_fix_match_chunks.sql` initially used `CREATE OR REPLACE` to add `note_type`, `note_intent`, `note_tags` columns to `match_chunks`. PostgreSQL rejected this with `cannot change return type of existing function (SQLSTATE 42P13)`. Fixed by adding `DROP FUNCTION IF EXISTS match_chunks` before `CREATE FUNCTION`. Safe because `note_chunks` table was empty at migration time.
