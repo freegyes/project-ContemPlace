@@ -442,6 +442,14 @@ The `metadata` JSONB column on `enrichment_log` (added in `20260310000000_tag_no
 
 **What this leaves for later:** Issue #47 (publishing SYSTEM_FRAME as a public spec) and issue #45 (formal input quality contract) remain open as potential Level 2/3 escalations if the tool descriptions prove insufficient.
 
+## capture_note parameter: raw_input, not text
+
+**Decision (2026-03-11):** Renamed the `capture_note` parameter from `text` to `raw_input`. The tool description now explicitly names the required parameter: "Required parameter: raw_input (the user's verbatim words)."
+
+**Why:** Real-world testing with Claude Code CLI showed the agent pattern-matched on the description ("Pass the user's raw input") and guessed `raw_input` as the parameter name. The parameter was actually called `text`, so the first call failed. The name `raw_input` is strictly better: it tells the agent what to put in (verbatim user words), matches the `notes.raw_input` DB column, and aligns with the description language. Parameter names are documentation — they should be self-describing.
+
+**Lesson:** Description language and parameter names must reinforce each other. When an agent sees a tool for the first time, it reads the description to infer parameter names before loading the full schema. If the description says "raw input" but the parameter is called "text", the agent will guess wrong.
+
 ## match_chunks RPC: must DROP before CREATE when changing return type
 
 **Decision (2026-03-10):** `CREATE OR REPLACE FUNCTION` cannot change the return type of an existing function. When extending return columns, `DROP FUNCTION IF EXISTS` must precede `CREATE FUNCTION`.
