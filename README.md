@@ -14,7 +14,7 @@ The system is **modular**. The database and MCP server are the irreducible core 
 |---|---|
 | Telegram capture bot | ✅ Live |
 | MCP server | ✅ Live — 8 tools |
-| Gardening pipeline | 🔨 In progress — similarity linker, tag normalization, chunk generation live; maturity scoring deferred · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
+| Gardening pipeline | ✅ Complete — similarity linker, tag normalization, chunk generation · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
 | OAuth 2.1 (Claude.ai web) | 🔜 [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
 | Dashboard | 💡 Planned — [#12](https://github.com/freegyes/project-ContemPlace/issues/12) |
 | Smart capture router | 💡 Design phase — input-type detection + specialized handlers · [#27](https://github.com/freegyes/project-ContemPlace/issues/27) |
@@ -44,7 +44,7 @@ The core — database + MCP server — is the only required piece. Everything el
 |---|---|---|
 | **MCP server** | Exposes the note graph to any MCP-capable agent. Eight tools: search notes, search chunks, retrieve, browse, get related, capture, list unmatched tags, promote concept. | ✅ Live |
 | **Telegram capture bot** | Zero-friction note capture. Message the bot in any format — voice, text, link — and get a structured note back. | ✅ Live |
-| **Gardening pipeline** | Nightly background enrichment: similarity links, SKOS tag normalization, chunk generation. Runs at 02:00 UTC, also triggerable via POST /trigger. | 🔨 In progress |
+| **Gardening pipeline** | Nightly background enrichment: similarity links, SKOS tag normalization, chunk generation. Runs at 02:00 UTC, also triggerable via POST /trigger. | ✅ Complete |
 | **Dashboard** | Browser-based view of your notes — search, browse, follow links, see the graph. | 💡 Planned |
 | **Obsidian import** | Pull an existing Obsidian vault into the database — making years of prior notes semantically accessible. | 💡 Planned |
 | **ChatGPT memory import** | Import your ChatGPT memory export — rescuing accumulated context from a proprietary format. | 💡 Planned |

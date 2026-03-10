@@ -321,7 +321,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **Phase 1 (complete):** Schema (notes, links, processed_updates), Telegram bot, Cloudflare Worker with async capture, chat ID whitelist, single capture mode, confirmation replies.
 - **Phase 1.5 (complete):** Schema v2 (8 tables), metadata-augmented embeddings, `intent`/`modality`/`entities` extraction, capture voice in DB, enrichment log, expanded link types, parser unit tests. Deployed and verified via smoke tests.
 - **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 8 tools (`search_notes`, `search_chunks`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Bearer token auth. Tagged `v2.0.0`.
-- **Phase 2b (in progress):** Gardening pipeline — nightly similarity linker (deployed), SKOS tag normalization (implemented), chunk generation (implemented), maturity scoring (deferred). Tracked in GitHub issue #2.
+- **Phase 2b (complete):** Gardening pipeline — nightly similarity linker, SKOS tag normalization, chunk generation. Maturity scoring deferred. Tagged `v2.5.0`.
 - **Phase 3 (deferred):** Associative trails, type inheritance (`note_types`), location extraction.
 
 ## Deploy
