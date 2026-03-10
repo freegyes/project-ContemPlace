@@ -355,6 +355,8 @@ The `raw_input` column preserves the user's exact words. The structured note (ti
 
 The system is built for rapid iteration. All behavioral parameters (models, thresholds, prompts) should be changeable without code modifications where practical. When a change requires redeployment, it should be a one-line config change, not a code refactor. The architecture should never prevent the owner from tuning the system's behavior based on real usage.
 
+**Validate against reality before declaring done.** Unit tests passing is necessary but not sufficient. Before a feature is considered ready to merge, deploy to the live stack and run an end-to-end simulation that approximates real-world usage — capture real notes, trigger real pipelines, verify real DB state. This catches things unit tests cannot: platform limits (CF Workers subrequest budget), missing runtime dependencies (seed data, secrets), schema mismatches, and integration failures between Workers. If a feature touches the gardener or MCP tools, write or extend an integration test that exercises the full cycle against the deployed Workers.
+
 ## Version Control Conventions
 
 This repo uses a branch-per-feature workflow with semantic version tags. **Always follow this pattern.**
