@@ -19,6 +19,8 @@ vi.mock('../mcp/src/db', () => ({
   insertNote: vi.fn().mockResolvedValue('aaaaaaaa-0000-0000-0000-000000000001'),
   insertLinks: vi.fn().mockResolvedValue(undefined),
   logEnrichments: vi.fn().mockResolvedValue(undefined),
+  listUnmatchedTags: vi.fn().mockResolvedValue([]),
+  insertConcept: vi.fn().mockResolvedValue({ id: 'cccccccc-0000-0000-0000-000000000001', scheme: 'domains', pref_label: 'test-concept' }),
 }));
 
 vi.mock('../mcp/src/embed', () => ({
@@ -50,6 +52,8 @@ import {
   handleListRecent,
   handleGetRelated,
   handleCaptureNote,
+  handleListUnmatchedTags,
+  handlePromoteConcept,
 } from '../mcp/src/tools';
 import {
   searchNotes,
@@ -61,6 +65,8 @@ import {
   insertNote,
   insertLinks,
   logEnrichments,
+  listUnmatchedTags,
+  insertConcept,
 } from '../mcp/src/db';
 import { embedText } from '../mcp/src/embed';
 import { runCaptureAgent } from '../mcp/src/capture';
@@ -592,6 +598,178 @@ describe('handleCaptureNote', () => {
       vi.mocked(insertNote).mockRejectedValueOnce(new Error('DB error'));
       const r = toolResult(await handleCaptureNote({ text: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG));
       expect(r.isError).toBe(true);
+    });
+  });
+});
+
+// ── handleListUnmatchedTags ─────────────────────────────────────────────────
+
+describe('handleListUnmatchedTags', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  describe('input handling', () => {
+    it('defaults min_count to 1 when not provided', async () => {
+      await handleListUnmatchedTags({}, mockDb);
+      expect(vi.mocked(listUnmatchedTags)).toHaveBeenCalledWith(mockDb, 1);
+    });
+
+    it('clamps min_count below 1 up to 1', async () => {
+      await handleListUnmatchedTags({ min_count: 0 }, mockDb);
+      expect(vi.mocked(listUnmatchedTags)).toHaveBeenCalledWith(mockDb, 1);
+    });
+
+    it('clamps min_count above 100 down to 100', async () => {
+      await handleListUnmatchedTags({ min_count: 999 }, mockDb);
+      expect(vi.mocked(listUnmatchedTags)).toHaveBeenCalledWith(mockDb, 100);
+    });
+
+    it('passes valid min_count through', async () => {
+      await handleListUnmatchedTags({ min_count: 5 }, mockDb);
+      expect(vi.mocked(listUnmatchedTags)).toHaveBeenCalledWith(mockDb, 5);
+    });
+  });
+
+  describe('happy path', () => {
+    it('returns empty array when no unmatched tags exist', async () => {
+      vi.mocked(listUnmatchedTags).mockResolvedValueOnce([]);
+      const r = toolResult(await handleListUnmatchedTags({}, mockDb));
+      expect(r.isError).toBe(false);
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.tags).toEqual([]);
+      expect(body.count).toBe(0);
+    });
+
+    it('returns tag list with count', async () => {
+      vi.mocked(listUnmatchedTags).mockResolvedValueOnce([
+        { tag: 'plywood', count: 3, first_seen: '2026-03-09T00:00:00Z', last_seen: '2026-03-10T00:00:00Z' },
+        { tag: 'cnc', count: 2, first_seen: '2026-03-10T00:00:00Z', last_seen: '2026-03-10T12:00:00Z' },
+      ]);
+      const r = toolResult(await handleListUnmatchedTags({}, mockDb));
+      expect(r.isError).toBe(false);
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.tags).toHaveLength(2);
+      expect(body.tags[0].tag).toBe('plywood');
+      expect(body.count).toBe(2);
+    });
+  });
+
+  describe('error handling', () => {
+    it('returns toolError on DB exception', async () => {
+      vi.mocked(listUnmatchedTags).mockRejectedValueOnce(new Error('DB error'));
+      const r = toolResult(await handleListUnmatchedTags({}, mockDb));
+      expect(r.isError).toBe(true);
+    });
+  });
+});
+
+// ── handlePromoteConcept ────────────────────────────────────────────────────
+
+describe('handlePromoteConcept', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  describe('input validation', () => {
+    it('returns error when pref_label is missing', async () => {
+      const r = toolResult(await handlePromoteConcept({ scheme: 'domains' }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/pref_label/);
+    });
+
+    it('returns error when pref_label is empty', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: '', scheme: 'domains' }, mockDb));
+      expect(r.isError).toBe(true);
+    });
+
+    it('returns error when pref_label exceeds 100 chars', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'a'.repeat(101), scheme: 'domains' }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/100 character/);
+    });
+
+    it('returns error when scheme is missing', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test' }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/scheme/);
+    });
+
+    it('returns error when scheme is invalid', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'invalid' }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/Invalid scheme/);
+    });
+
+    it('normalizes pref_label to kebab-case', async () => {
+      await handlePromoteConcept({ pref_label: 'Laser Cutting', scheme: 'domains' }, mockDb);
+      expect(vi.mocked(insertConcept)).toHaveBeenCalledWith(
+        mockDb, 'domains', 'laser-cutting', expect.any(Array), null,
+      );
+    });
+
+    it('returns error for pref_label that normalizes to empty string', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: '!!!', scheme: 'domains' }, mockDb));
+      expect(r.isError).toBe(true);
+    });
+
+    it('returns error when alt_labels exceeds 20 elements', async () => {
+      const altLabels = Array.from({ length: 21 }, (_, i) => `label-${i}`);
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'domains', alt_labels: altLabels }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/20 element/);
+    });
+
+    it('returns error when an alt_label is not a string', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'domains', alt_labels: [123] }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/string/);
+    });
+
+    it('returns error when definition exceeds 500 chars', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'domains', definition: 'x'.repeat(501) }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/500 char/);
+    });
+
+    it('defaults alt_labels to empty array', async () => {
+      await handlePromoteConcept({ pref_label: 'test', scheme: 'domains' }, mockDb);
+      expect(vi.mocked(insertConcept)).toHaveBeenCalledWith(mockDb, 'domains', 'test', [], null);
+    });
+
+    it('deduplicates and lowercases alt_labels', async () => {
+      await handlePromoteConcept({
+        pref_label: 'test',
+        scheme: 'domains',
+        alt_labels: ['Foo', 'foo', 'Bar'],
+      }, mockDb);
+      expect(vi.mocked(insertConcept)).toHaveBeenCalledWith(
+        mockDb, 'domains', 'test', ['foo', 'bar'], null,
+      );
+    });
+  });
+
+  describe('happy path', () => {
+    it('returns the created concept on success', async () => {
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'domains' }, mockDb));
+      expect(r.isError).toBe(false);
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.id).toBe('cccccccc-0000-0000-0000-000000000001');
+      expect(body.scheme).toBe('domains');
+      expect(body.pref_label).toBe('test-concept');
+      expect(body.message).toMatch(/gardener run/);
+    });
+  });
+
+  describe('error handling', () => {
+    it('returns descriptive error on duplicate concept', async () => {
+      vi.mocked(insertConcept).mockRejectedValueOnce(new Error("DUPLICATE: Concept 'test' already exists in scheme 'domains'"));
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'domains' }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/already exists/);
+    });
+
+    it('returns generic error on other DB exceptions', async () => {
+      vi.mocked(insertConcept).mockRejectedValueOnce(new Error('Connection refused'));
+      const r = toolResult(await handlePromoteConcept({ pref_label: 'test', scheme: 'domains' }, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/Database error/);
     });
   });
 });

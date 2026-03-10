@@ -55,8 +55,8 @@ mcp/
   wrangler.toml      # MCP Worker config (name: mcp-contemplace)
   tsconfig.json
   src/
-    index.ts         # JSON-RPC 2.0 HTTP handler — routes to 5 tool handlers
-    tools.ts         # Tool definitions + handlers (handleSearchNotes, handleGetNote, etc.)
+    index.ts         # JSON-RPC 2.0 HTTP handler — routes to 7 tool handlers
+    tools.ts         # Tool definitions + handlers (search, get, list, capture, list_unmatched_tags, promote_concept)
     auth.ts          # Bearer token auth (validateAuth)
     config.ts        # Config loading with secret validation
     db.ts            # DB read/write functions (fetchNote, listRecentNotes, searchNotes, insertNote, …)
@@ -67,14 +67,15 @@ gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
   src/
-    index.ts         # scheduled() + fetch() exports — cron handler + POST /trigger endpoint
-    config.ts        # Config loading (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GARDENER_SIMILARITY_THRESHOLD)
-    db.ts            # deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes,
-                     # insertSimilarityLinks, logEnrichments
+    index.ts         # scheduled() + fetch() exports — orchestrates tag normalization + similarity linking
+    config.ts        # Config loading (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, thresholds, optional OPENROUTER_API_KEY)
+    db.ts            # Similarity DB ops + tag normalization DB ops (fetchConcepts, updateRefinedTags, etc.)
+    embed.ts         # embedText, batchEmbedTexts — OpenRouter via openai SDK (copy of src/embed.ts pattern)
+    normalize.ts     # Tag matching logic: lexicalMatch, semanticMatch, cosineSimilarity, resolveNoteTags
     similarity.ts    # buildContext() — auto-generates link context from shared tags + entities
     alert.ts         # sendAlert() — best-effort Telegram failure notification
     auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
-    types.ts         # Gardener-specific TypeScript interfaces
+    types.ts         # Gardener-specific TypeScript interfaces (Concept, NoteForTagNorm, TagMatch, etc.)
 scripts/
   deploy.sh          # Automated 6-step deploy pipeline (schema → typecheck → unit tests → Telegram Worker → Gardener Worker → smoke tests)
 supabase/
@@ -95,6 +96,8 @@ tests/
   mcp-smoke.test.ts           # Smoke tests against the live MCP Worker
   semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (45 tests, hits live stack)
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
+  gardener-normalize.test.ts  # Unit tests for tag matching: lexicalMatch, semanticMatch, resolveNoteTags (23 tests)
+  gardener-embed.test.ts      # Parity tests for gardener/src/embed.ts vs src/embed.ts + mcp/src/embed.ts (3 tests)
   gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig (12 tests)
   gardener-alert.test.ts      # Unit tests for sendAlert() — Telegram alerting (10 tests)
   gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing (13 tests)
@@ -141,6 +144,8 @@ GARDENER_API_KEY              # optional — enables POST /trigger endpoint (gen
 GARDENER_SIMILARITY_THRESHOLD  # default: 0.70 — augmented-vs-augmented cosine similarity.
                                 # Distinct from MATCH_THRESHOLD (0.60, raw query vs. augmented store)
                                 # and MCP_SEARCH_THRESHOLD (0.35, bare NL query vs. augmented store).
+GARDENER_TAG_MATCH_THRESHOLD   # default: 0.55 — bare tag string vs. concept definition embedding.
+                                # Fourth independent threshold. Tune via unmatched_tag log feedback.
 
 # Test-only
 WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
@@ -205,7 +210,7 @@ wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml          # option
 npx tsc --noEmit -p gardener/tsconfig.json
 
 # Run Gardener unit tests (local, no network)
-npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
+npx vitest run tests/gardener-similarity.test.ts tests/gardener-normalize.test.ts tests/gardener-embed.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
 
 # Run Gardener integration test (live stack — captures notes, triggers gardener, checks get_related)
 # Requires MCP_WORKER_URL, MCP_API_KEY, GARDENER_WORKER_URL, GARDENER_API_KEY in .dev.vars
@@ -313,8 +318,8 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 
 - **Phase 1 (complete):** Schema (notes, links, processed_updates), Telegram bot, Cloudflare Worker with async capture, chat ID whitelist, single capture mode, confirmation replies.
 - **Phase 1.5 (complete):** Schema v2 (8 tables), metadata-augmented embeddings, `intent`/`modality`/`entities` extraction, capture voice in DB, enrichment log, expanded link types, parser unit tests. Deployed and verified via smoke tests.
-- **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 5 tools (`search_notes`, `get_note`, `list_recent`, `get_related`, `capture_note`) over JSON-RPC 2.0. Bearer token auth. 157 local unit tests + 24 smoke tests, all passing. Tagged `v2.0.0`.
-- **Phase 2b (in progress):** Gardening pipeline — nightly similarity linker (deployed), SKOS tag normalization (designed, not yet implemented), chunk generation, maturity scoring. Tracked in GitHub issue #2.
+- **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 7 tools (`search_notes`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Bearer token auth. Tagged `v2.0.0`.
+- **Phase 2b (in progress):** Gardening pipeline — nightly similarity linker (deployed), SKOS tag normalization (implemented), chunk generation, maturity scoring. Tracked in GitHub issue #2.
 - **Phase 3 (deferred):** Associative trails, type inheritance (`note_types`), location extraction.
 
 ## Deploy

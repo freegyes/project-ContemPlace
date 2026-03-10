@@ -4,13 +4,16 @@ import type { Config } from './config';
 import { embedText, buildEmbeddingInput } from './embed';
 import { runCaptureAgent } from './capture';
 import { getCaptureVoice, findRelatedNotes, insertNote, insertLinks, logEnrichments,
-         fetchNote, fetchNoteLinks, listRecentNotes, searchNotes } from './db';
+         fetchNote, fetchNoteLinks, listRecentNotes, searchNotes,
+         listUnmatchedTags, insertConcept } from './db';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALID_TYPES = ['idea', 'reflection', 'source', 'lookup'] as const;
 const VALID_INTENTS = ['reflect', 'plan', 'create', 'remember', 'reference', 'log'] as const;
+const VALID_SCHEMES = ['domains', 'tools', 'people', 'places'] as const;
 const SOURCE_RE = /^[a-zA-Z0-9_-]+$/;
+const PREF_LABEL_RE = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 function toolSuccess(result: unknown): object {
   return { content: [{ type: 'text', text: JSON.stringify(result) }], isError: false };
@@ -87,6 +90,31 @@ export const TOOL_DEFINITIONS = [
         source: { type: 'string', description: 'Provenance label (default "mcp"), alphanumeric and hyphens/underscores only, max 100 chars' },
       },
       required: ['text'],
+    },
+  },
+  {
+    name: 'list_unmatched_tags',
+    description: 'List tags from captured notes that don\'t match any concept in the controlled vocabulary. Use this to identify recurring tags that should be promoted to concepts. Tags are ordered by frequency — high-count tags are strong candidates for new concepts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        min_count: { type: 'number', description: 'Only show tags that appear on at least this many notes (default 1, max 100)' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'promote_concept',
+    description: 'Add a new concept to the controlled vocabulary. The concept becomes available for tag normalization on the next gardener run. Embedding is populated automatically. Use this after reviewing unmatched tags to promote recurring tag clusters into canonical concepts with alt_labels for synonym collapse.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pref_label: { type: 'string', description: 'Canonical label in kebab-case (e.g. "laser-cutting"), max 100 chars' },
+        scheme: { type: 'string', enum: ['domains', 'tools', 'people', 'places'], description: 'Vocabulary scheme' },
+        alt_labels: { type: 'array', items: { type: 'string' }, description: 'Synonym labels (max 20, each max 100 chars)' },
+        definition: { type: 'string', description: 'Short definition (max 500 chars). Helps semantic matching.' },
+      },
+      required: ['pref_label', 'scheme'],
     },
   },
 ];
@@ -195,6 +223,88 @@ export async function handleGetRelated(
     return toolSuccess({ source_id: id, links: links.slice(0, limit), count: Math.min(links.length, limit) });
   } catch (err) {
     console.error(JSON.stringify({ event: 'get_related_error', error: String(err), id }));
+    return toolError('Database error. Try again.');
+  }
+}
+
+// Normalize a label to kebab-case: lowercase, trim, spaces→hyphens, strip invalid chars.
+function normalizeLabel(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export async function handleListUnmatchedTags(
+  args: Record<string, unknown>,
+  db: SupabaseClient,
+): Promise<object> {
+  const minCount = clamp(args['min_count'] as number | undefined, 1, 100, 1);
+
+  try {
+    const tags = await listUnmatchedTags(db, minCount);
+    return toolSuccess({ tags, count: tags.length });
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'list_unmatched_tags_error', error: String(err) }));
+    return toolError('Database error. Try again.');
+  }
+}
+
+export async function handlePromoteConcept(
+  args: Record<string, unknown>,
+  db: SupabaseClient,
+): Promise<object> {
+  // Validate scheme
+  const scheme = args['scheme'];
+  if (typeof scheme !== 'string') return toolError('scheme is required');
+  if (!(VALID_SCHEMES as readonly string[]).includes(scheme)) {
+    return toolError(`Invalid scheme: "${scheme}". Must be one of: ${VALID_SCHEMES.join(', ')}`);
+  }
+
+  // Validate and normalize pref_label
+  const rawLabel = args['pref_label'];
+  if (typeof rawLabel !== 'string' || rawLabel.trim().length === 0) return toolError('pref_label is required');
+  if (rawLabel.length > 100) return toolError('pref_label exceeds 100 character limit');
+  const prefLabel = normalizeLabel(rawLabel);
+  if (!PREF_LABEL_RE.test(prefLabel)) return toolError(`Invalid pref_label after normalization: "${prefLabel}"`);
+
+  // Validate alt_labels
+  let altLabels: string[] = [];
+  if (Array.isArray(args['alt_labels'])) {
+    if (args['alt_labels'].length > 20) return toolError('alt_labels exceeds 20 element limit');
+    for (const label of args['alt_labels']) {
+      if (typeof label !== 'string') return toolError('Each alt_label must be a string');
+      if (label.length > 100) return toolError(`alt_label "${label}" exceeds 100 character limit`);
+    }
+    altLabels = [...new Set(
+      (args['alt_labels'] as string[]).map(l => l.toLowerCase().trim()).filter(l => l.length > 0),
+    )];
+  }
+
+  // Validate definition
+  let definition: string | null = null;
+  if (typeof args['definition'] === 'string') {
+    if (args['definition'].length > 500) return toolError('definition exceeds 500 character limit');
+    definition = args['definition'].trim() || null;
+  }
+
+  try {
+    const concept = await insertConcept(db, scheme, prefLabel, altLabels, definition);
+    return toolSuccess({
+      id: concept.id,
+      scheme: concept.scheme,
+      pref_label: concept.pref_label,
+      message: 'Concept created. Embedding and tag matching will be applied on the next gardener run.',
+    });
+  } catch (err) {
+    const msg = String(err);
+    if (msg.includes('DUPLICATE')) {
+      return toolError(msg.replace('DUPLICATE: ', ''));
+    }
+    console.error(JSON.stringify({ event: 'promote_concept_error', error: msg }));
     return toolError('Database error. Try again.');
   }
 }

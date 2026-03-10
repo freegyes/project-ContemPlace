@@ -18,12 +18,16 @@ vi.mock('../mcp/src/tools', () => ({
     { name: 'list_recent', description: 'List', inputSchema: { type: 'object', properties: {} } },
     { name: 'get_related', description: 'Related', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
     { name: 'capture_note', description: 'Capture', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
+    { name: 'list_unmatched_tags', description: 'List unmatched', inputSchema: { type: 'object', properties: {} } },
+    { name: 'promote_concept', description: 'Promote', inputSchema: { type: 'object', properties: { pref_label: { type: 'string' }, scheme: { type: 'string' } }, required: ['pref_label', 'scheme'] } },
   ],
   handleSearchNotes: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleGetNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleListRecent: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleGetRelated: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleCaptureNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
+  handleListUnmatchedTags: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
+  handlePromoteConcept: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
 }));
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -38,7 +42,7 @@ vi.mock('../mcp/src/embed', () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 import handler from '../mcp/src/index';
-import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote } from '../mcp/src/tools';
+import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleListUnmatchedTags, handlePromoteConcept } from '../mcp/src/tools';
 
 const MOCK_TOOL_RESULT = { content: [{ type: 'text', text: '{"ok":true}' }], isError: false };
 
@@ -217,11 +221,11 @@ describe('MCP HTTP handler', () => {
       expect(Array.isArray(tools)).toBe(true);
     });
 
-    it('returns exactly 5 tool definitions', async () => {
+    it('returns exactly 7 tool definitions', async () => {
       const res = await rpc('tools/list');
       const body = await parseRpc(res);
       const tools = (body['result'] as Record<string, unknown>)?.['tools'] as unknown[];
-      expect(tools).toHaveLength(5);
+      expect(tools).toHaveLength(7);
     });
 
     it('each tool definition has name, description, inputSchema', async () => {
@@ -260,6 +264,16 @@ describe('MCP HTTP handler', () => {
     it('dispatches to handleCaptureNote for name="capture_note"', async () => {
       await rpc('tools/call', { name: 'capture_note', arguments: { text: 'hello' } });
       expect(vi.mocked(handleCaptureNote)).toHaveBeenCalledOnce();
+    });
+
+    it('dispatches to handleListUnmatchedTags for name="list_unmatched_tags"', async () => {
+      await rpc('tools/call', { name: 'list_unmatched_tags', arguments: {} });
+      expect(vi.mocked(handleListUnmatchedTags)).toHaveBeenCalledOnce();
+    });
+
+    it('dispatches to handlePromoteConcept for name="promote_concept"', async () => {
+      await rpc('tools/call', { name: 'promote_concept', arguments: { pref_label: 'test', scheme: 'domains' } });
+      expect(vi.mocked(handlePromoteConcept)).toHaveBeenCalledOnce();
     });
 
     it('returns -32601 for an unknown tool name', async () => {

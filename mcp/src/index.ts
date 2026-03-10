@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadConfig } from './config';
 import { validateAuth } from './auth';
 import { createOpenAIClient } from './embed';
-import { TOOL_DEFINITIONS, handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote } from './tools';
+import { TOOL_DEFINITIONS, handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleListUnmatchedTags, handlePromoteConcept } from './tools';
 import type { Env } from './types';
 
 const CORS_HEADERS = {
@@ -111,6 +111,12 @@ export default {
           break;
         case 'capture_note':
           result = await handleCaptureNote(args, db, openai, config);
+          break;
+        case 'list_unmatched_tags':
+          result = await handleListUnmatchedTags(args, db);
+          break;
+        case 'promote_concept':
+          result = await handlePromoteConcept(args, db);
           break;
         default:
           return jsonRpcError(id, -32601, `Unknown tool: ${toolName}`);

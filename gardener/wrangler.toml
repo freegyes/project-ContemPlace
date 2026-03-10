@@ -5,6 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 GARDENER_SIMILARITY_THRESHOLD = "0.70"
+GARDENER_TAG_MATCH_THRESHOLD = "0.55"
+EMBED_MODEL = "openai/text-embedding-3-small"
 
 [triggers]
 # 2am UTC = 3–4am CET/CEST. Chosen as a low-traffic window for a European-timezone user.
@@ -18,6 +20,7 @@ crons = ["0 2 * * *"]
 # Secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml):
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
+# OPENROUTER_API_KEY         (optional — enables semantic tag matching fallback; lexical-only without)
 # TELEGRAM_BOT_TOKEN         (optional — enables failure alerts to Telegram)
 # TELEGRAM_ALERT_CHAT_ID     (optional — chat ID to receive failure alerts)
 # GARDENER_API_KEY           (optional — enables POST /trigger endpoint for manual runs)

@@ -251,6 +251,36 @@ At personal scale, the cost of "wasted" runs on days with no new notes is zero �
 
 **Why:** The MCP spec changed in June 2025. The MCP server is now classified as an OAuth resource server, not an authorization server. Clients discover the authorization server via Protected Resource Metadata first, then fetch AS metadata from the URL found there. Claude.ai supports both old and new flows today, but Cursor follows the new spec. ChatGPT has a known bug where it skips PRM and goes straight to RFC 8414 — having both endpoints means both clients work. The `workers-oauth-provider` library serves both automatically.
 
+## Tag normalization: idempotency via always-recompute (Option C)
+
+**Decision (2026-03-10):** The gardener tag normalization step always recomputes `refined_tags` and `note_concepts` for all active notes, rather than using clean-slate deletion (Option A) or skip-if-enriched (Option B).
+
+**Why:** Clean-slate (Option A) would require deleting all `note_concepts` rows, but without a `created_by` column it would destroy future capture-time or user-created concept links. A `created_by` column was added to `note_concepts` to enable scoped deletes. Skip-if-enriched (Option B) would miss newly promoted concepts — old notes would never pick up new matches. Always-recompute handles vocabulary growth automatically: when a concept is promoted via MCP, the next gardener run applies it to all notes.
+
+## Tag normalization: GARDENER_TAG_MATCH_THRESHOLD at 0.55
+
+**Decision (2026-03-10):** A fourth threshold for semantic tag-to-concept matching, distinct from the three existing thresholds.
+
+**Why:** Tags are short strings (1-3 words), concept embeddings include definitions (full sentences). This asymmetry means matching scores are different from all other threshold scenarios. 0.55 is the starting point — lower than MATCH_THRESHOLD (0.60, raw query vs augmented store) because the tag side is bare, higher than MCP_SEARCH_THRESHOLD (0.35) because concept embeddings are shorter than full note embeddings. Tune empirically using unmatched_tag logs.
+
+The four independent thresholds:
+- `MATCH_THRESHOLD` (0.60) — raw query vs. augmented store, capture-time
+- `MCP_SEARCH_THRESHOLD` (0.35) — bare NL query vs. augmented store, agent search
+- `GARDENER_SIMILARITY_THRESHOLD` (0.70) — augmented vs. augmented, nightly linking
+- `GARDENER_TAG_MATCH_THRESHOLD` (0.55) — bare tag vs. concept definition, nightly normalization
+
+## Tag normalization: OpenRouter dependency is optional
+
+**Decision (2026-03-10):** The gardener's `OPENROUTER_API_KEY` is optional. When absent, tag normalization runs lexical matching only (pref_label + alt_labels). Semantic fallback is disabled. The gardener previously had zero external API dependencies beyond Supabase.
+
+**Why:** Lexical matching covers the majority of tags (exact pref_label or alt_label hits). Semantic fallback catches morphological variants and novel synonyms not in alt_labels. Making it optional preserves the gardener's ability to run with only Supabase credentials, and ensures an OpenRouter outage doesn't block the entire gardener run.
+
+## Tag normalization: enrichment_log metadata column
+
+**Decision (2026-03-10):** Added `metadata jsonb DEFAULT '{}'` to `enrichment_log` for storing unmatched tag strings, instead of repurposing the `model_used` column.
+
+**Why:** `model_used` has an established semantic contract (AI model identifier or null). Storing tag names in it would create ambiguity and break future queries filtering on model names. A JSONB `metadata` column is extensible — future enrichment types can store arbitrary structured data without another migration. Unmatched tags are stored as `{"tag": "the-tag-string"}`.
+
 ## Phase 2c OAuth: opaque tokens, not JWTs
 
 **Decision (2026-03-10):** Use the `workers-oauth-provider` library's opaque token format rather than JWTs. Reversing the original plan's assumption of "signed JWTs."

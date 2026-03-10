@@ -1,45 +1,205 @@
-import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes, insertSimilarityLinks, logEnrichments } from './db';
+import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes, insertSimilarityLinks, logEnrichments,
+         fetchConcepts, updateConceptEmbedding, fetchNotesForTagNorm, deleteGardenerNoteConcepts,
+         insertNoteConcepts, updateRefinedTags, deleteUnmatchedTagLogs, logUnmatchedTags, logTagNormEnrichments } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
+import { buildConceptEmbeddingInput, lexicalMatch, resolveNoteTags } from './normalize';
+import { createOpenAIClient, batchEmbedTexts } from './embed';
 import { sendAlert } from './alert';
 import { validateTriggerAuth } from './auth';
-import type { Env, SimilarityLink } from './types';
+import type { Env, SimilarityLink, TagNormResult, Concept } from './types';
 
 export interface GardenerRunResult {
   event: 'gardener_run_complete';
+  similarity: {
+    notes_processed: number;
+    links_deleted: number;
+    links_created: number;
+    enriched_notes: number;
+    errors: string[];
+  };
+  tag_normalization: TagNormResult | { event: 'tag_normalization_skipped'; reason: string };
+  duration_ms: number;
+}
+
+// ── Tag normalization ─────────────────────────────────────────────────────────
+
+export async function runTagNormalization(env: Env): Promise<TagNormResult> {
+  const errors: string[] = [];
+  const config = loadConfig(env);
+  const db = createSupabaseClient(config);
+
+  // 1. Fetch all concepts
+  const concepts = await fetchConcepts(db);
+  if (concepts.length === 0) {
+    return {
+      event: 'tag_normalization_complete',
+      notes_processed: 0,
+      tags_matched: 0,
+      tags_unmatched: 0,
+      concepts_embedded: 0,
+      errors: ['No concepts found — seed the vocabulary first'],
+    };
+  }
+
+  // 2. Populate null concept embeddings (first run + newly promoted concepts)
+  let conceptsEmbedded = 0;
+  const conceptsNeedingEmbedding = concepts.filter(c => c.embedding === null);
+  if (conceptsNeedingEmbedding.length > 0 && config.openrouterApiKey) {
+    try {
+      const openai = createOpenAIClient({ openrouterApiKey: config.openrouterApiKey, embedModel: config.embedModel });
+      const texts = conceptsNeedingEmbedding.map(c => buildConceptEmbeddingInput(c));
+      const embeddings = await batchEmbedTexts(openai, { openrouterApiKey: config.openrouterApiKey, embedModel: config.embedModel }, texts);
+
+      for (let i = 0; i < conceptsNeedingEmbedding.length; i++) {
+        const concept = conceptsNeedingEmbedding[i]!;
+        const emb = embeddings[i]!;
+        try {
+          await updateConceptEmbedding(db, concept.id, emb);
+          concept.embedding = emb;
+          conceptsEmbedded++;
+        } catch (err) {
+          errors.push(`concept embed update ${concept.pref_label}: ${String(err)}`);
+        }
+      }
+    } catch (err) {
+      errors.push(`batch concept embedding failed: ${String(err)}`);
+    }
+  } else if (conceptsNeedingEmbedding.length > 0) {
+    console.warn(JSON.stringify({
+      event: 'concept_embedding_skipped',
+      reason: 'OPENROUTER_API_KEY not configured',
+      count: conceptsNeedingEmbedding.length,
+    }));
+  }
+
+  // 3. Clean slate: delete gardener note_concepts + unmatched_tag logs
+  await deleteGardenerNoteConcepts(db);
+  await deleteUnmatchedTagLogs(db);
+
+  // 4. Fetch all active notes with tags
+  const notes = await fetchNotesForTagNorm(db);
+  if (notes.length === 0) {
+    return {
+      event: 'tag_normalization_complete',
+      notes_processed: 0,
+      tags_matched: 0,
+      tags_unmatched: 0,
+      concepts_embedded: conceptsEmbedded,
+      errors,
+    };
+  }
+
+  // 5. Collect all unique tags that don't match lexically — for batch embedding
+  const conceptsWithEmbeddings = concepts
+    .filter((c): c is Concept & { embedding: number[] } => c.embedding !== null)
+    .map(c => ({ concept: c, embedding: c.embedding }));
+
+  let tagEmbeddings = new Map<string, number[]>();
+
+  const apiKey = config.openrouterApiKey;
+  if (apiKey && conceptsWithEmbeddings.length > 0) {
+    const allUnmatchedTags = new Set<string>();
+    for (const note of notes) {
+      for (const tag of note.tags) {
+        if (!lexicalMatch(tag, concepts)) {
+          allUnmatchedTags.add(tag.toLowerCase());
+        }
+      }
+    }
+
+    if (allUnmatchedTags.size > 0) {
+      try {
+        const tagList = [...allUnmatchedTags];
+        const embedConfig = { openrouterApiKey: apiKey, embedModel: config.embedModel };
+        const openai = createOpenAIClient(embedConfig);
+        const embeddings = await batchEmbedTexts(openai, embedConfig, tagList);
+        for (let i = 0; i < tagList.length; i++) {
+          tagEmbeddings.set(tagList[i]!, embeddings[i]!);
+        }
+      } catch (err) {
+        errors.push(`batch tag embedding failed: ${String(err)}`);
+        tagEmbeddings = new Map();
+      }
+    }
+  }
+
+  // 6. Process each note
+  let totalMatched = 0;
+  let totalUnmatched = 0;
+  const allNoteConcepts: Array<{ note_id: string; concept_id: string }> = [];
+  const allUnmatchedEntries: Array<{ note_id: string; tag: string }> = [];
+  const processedNoteIds: string[] = [];
+
+  for (const note of notes) {
+    try {
+      const { matched, unmatched } = resolveNoteTags(
+        note, concepts, conceptsWithEmbeddings, tagEmbeddings, config.tagMatchThreshold,
+      );
+
+      // Collect refined_tags update
+      const refinedTags = matched.map(m => m.prefLabel);
+      await updateRefinedTags(db, note.id, refinedTags);
+
+      // Collect note_concepts rows
+      for (const m of matched) {
+        allNoteConcepts.push({ note_id: note.id, concept_id: m.conceptId });
+      }
+
+      // Collect unmatched tag log entries
+      for (const tag of unmatched) {
+        allUnmatchedEntries.push({ note_id: note.id, tag });
+      }
+
+      totalMatched += matched.length;
+      totalUnmatched += unmatched.length;
+      processedNoteIds.push(note.id);
+    } catch (err) {
+      errors.push(`note ${note.id}: ${String(err)}`);
+    }
+  }
+
+  // 7. Batch writes
+  if (allNoteConcepts.length > 0) {
+    try {
+      await insertNoteConcepts(db, allNoteConcepts);
+    } catch (err) {
+      errors.push(`note_concepts insert: ${String(err)}`);
+    }
+  }
+
+  await logUnmatchedTags(db, allUnmatchedEntries);
+  await logTagNormEnrichments(db, processedNoteIds);
+
+  const result: TagNormResult = {
+    event: 'tag_normalization_complete',
+    notes_processed: notes.length,
+    tags_matched: totalMatched,
+    tags_unmatched: totalUnmatched,
+    concepts_embedded: conceptsEmbedded,
+    errors,
+  };
+
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+// ── Similarity linker ─────────────────────────────────────────────────────────
+
+export async function runSimilarityLinker(env: Env): Promise<{
   notes_processed: number;
   links_deleted: number;
   links_created: number;
   enriched_notes: number;
-  duration_ms: number;
   errors: string[];
-}
-
-export async function runSimilarityLinker(env: Env): Promise<GardenerRunResult> {
-  const startTime = Date.now();
+}> {
   const errors: string[] = [];
-
   const config = loadConfig(env);
   const db = createSupabaseClient(config);
 
-  // 1. Clean slate — delete all gardener is-similar-to links before re-computing.
-  //    Must be first: a partial run leaves a partially-populated but consistent state
-  //    (no stale links from a prior threshold remain) and the next run rebuilds fully.
   const linksDeleted = await deleteGardenerSimilarityLinks(db);
-
-  // 2. Fetch all active notes with embeddings.
   const notes = await fetchNotesForSimilarity(db);
 
-  // 3. For each note A, find similar notes via match_notes RPC.
-  //
-  //    Direction convention: is-similar-to is semantically undirected, but the links
-  //    table is directed. We store exactly one row per pair with the lower UUID as
-  //    from_id. fetchNoteLinks queries both directions via .or(), so get_related works
-  //    correctly regardless of which end is stored as from_id.
-  //
-  //    Scale note: per-note RPC approach works up to ~200–300 notes (30s CPU limit).
-  //    TODO: replace findSimilarNotes internals with a single SQL self-join function
-  //    (find_similar_pairs RPC) when note count approaches this ceiling.
   let linksCreated = 0;
   const enrichedNoteIds = new Set<string>();
 
@@ -49,8 +209,8 @@ export async function runSimilarityLinker(env: Env): Promise<GardenerRunResult> 
       const linksToInsert: SimilarityLink[] = [];
 
       for (const noteB of similar) {
-        if (noteA.id === noteB.id) continue; // filter self-similarity (score 1.0)
-        if (noteA.id >= noteB.id) continue;  // deduplicate: only process when A is the lower UUID
+        if (noteA.id === noteB.id) continue;
+        if (noteA.id >= noteB.id) continue;
 
         const context = buildContext(noteA, noteB, noteB.similarity);
         linksToInsert.push({
@@ -71,24 +231,51 @@ export async function runSimilarityLinker(env: Env): Promise<GardenerRunResult> 
     }
   }
 
-  // 4. Log enrichment entries for notes that received new outbound links.
   await logEnrichments(db, [...enrichedNoteIds]);
 
-  const result: GardenerRunResult = {
-    event: 'gardener_run_complete',
+  return {
     notes_processed: notes.length,
     links_deleted: linksDeleted,
     links_created: linksCreated,
     enriched_notes: enrichedNoteIds.size,
-    duration_ms: Date.now() - startTime,
     errors,
   };
+}
 
-  // 5. Structured run summary — queryable via: wrangler tail --name contemplace-gardener
+// ── Orchestrator ──────────────────────────────────────────────────────────────
+
+async function runGardener(env: Env): Promise<GardenerRunResult> {
+  const startTime = Date.now();
+
+  // Phase 1: Tag normalization (runs first — see docs/decisions.md)
+  let tagNormResult: TagNormResult | { event: 'tag_normalization_skipped'; reason: string };
+  try {
+    tagNormResult = await runTagNormalization(env);
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'tag_normalization_failed', error: String(err) }));
+    tagNormResult = { event: 'tag_normalization_skipped', reason: String(err) };
+    // Continue to similarity linker — independent steps
+  }
+
+  // Phase 2: Similarity linking
+  const simResult = await runSimilarityLinker(env);
+
+  const result: GardenerRunResult = {
+    event: 'gardener_run_complete',
+    similarity: simResult,
+    tag_normalization: tagNormResult,
+    duration_ms: Date.now() - startTime,
+  };
+
   console.log(JSON.stringify(result));
 
-  if (errors.length > 0) {
-    throw new Error(`Gardener run completed with ${errors.length} error(s) — see logs above`);
+  // Check for errors in either phase
+  const allErrors = [
+    ...simResult.errors,
+    ...('errors' in tagNormResult ? tagNormResult.errors : []),
+  ];
+  if (allErrors.length > 0) {
+    throw new Error(`Gardener run completed with ${allErrors.length} error(s) — see logs above`);
   }
 
   return result;
@@ -97,7 +284,7 @@ export async function runSimilarityLinker(env: Env): Promise<GardenerRunResult> 
 export default {
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
     try {
-      await runSimilarityLinker(env);
+      await runGardener(env);
     } catch (err) {
       console.error(JSON.stringify({
         event: 'gardener_run_failed',
@@ -122,7 +309,7 @@ export default {
     if (authError) return authError;
 
     try {
-      const result = await runSimilarityLinker(env);
+      const result = await runGardener(env);
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

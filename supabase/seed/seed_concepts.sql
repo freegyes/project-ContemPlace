@@ -1,7 +1,7 @@
 -- seed_concepts.sql
 -- Starter controlled vocabulary for ContemPlace concept normalization (SKOS).
 --
--- ~30 broadly reusable concepts across four schemes:
+-- ~25 concepts across four schemes:
 --   domains  — subject areas and creative practices
 --   tools    — software and hardware instruments
 --   people   — recurring named references
@@ -19,6 +19,7 @@
 --   This seed is intentionally flat. Add hierarchy via UPDATE after concepts are inserted, once
 --   you can see which concepts naturally nest under others (e.g. coptic-stitch under bookbinding).
 --
+-- Idempotent: uses ON CONFLICT to update existing rows if re-run after the v2 migration seed.
 -- To run: paste into Supabase SQL Editor, or run manually after migrations are applied.
 
 insert into concepts (scheme, pref_label, alt_labels, definition) values
@@ -111,10 +112,16 @@ insert into concepts (scheme, pref_label, alt_labels, definition) values
 
   ('domains', 'writing',
     '{"blogging", "blog post", "essay", "long-form writing", "drafts", "documentation"}',
-    'Writing as practice — blog posts, essays, documentation, and drafts.'),
+    'Writing as practice — blog posts, essays, documentation, and drafts.')
 
-  -- ── TOOLS ─────────────────────────────────────────────────────────────────
-  -- Add tools that recur frequently in your notes. These examples cover common maker + PKM stacks.
+on conflict (scheme, pref_label) do update set
+  alt_labels = excluded.alt_labels,
+  definition = excluded.definition;
+
+-- ── TOOLS ─────────────────────────────────────────────────────────────────
+-- Separate insert so ON CONFLICT applies per statement.
+
+insert into concepts (scheme, pref_label, alt_labels, definition) values
 
   ('tools', 'lightburn',
     '{"LightBurn", "light burn"}',
@@ -126,23 +133,25 @@ insert into concepts (scheme, pref_label, alt_labels, definition) values
 
   ('tools', 'fusion-360',
     '{"Fusion 360", "fusion360", "autodesk fusion"}',
-    'Autodesk Fusion 360 — parametric CAD and CAM tool for 3D modeling and machining workflows.'),
+    'Autodesk Fusion 360 — parametric CAD and CAM tool for 3D modeling and machining workflows.')
 
-  -- ── PEOPLE ────────────────────────────────────────────────────────────────
-  -- Add people who recur as references, influences, or collaborators. One example to show the pattern.
+on conflict (scheme, pref_label) do update set
+  alt_labels = excluded.alt_labels,
+  definition = excluded.definition;
+
+-- ── PEOPLE ────────────────────────────────────────────────────────────────
+
+insert into concepts (scheme, pref_label, alt_labels, definition) values
 
   ('people', 'rick-rubin',
     '{"Rick Rubin"}',
-    'Record producer and author of The Creative Act — recurring reference for ideas about creativity and artistic process.'),
+    'Record producer and author of The Creative Act — recurring reference for ideas about creativity and artistic process.')
 
-  -- ── PLACES ────────────────────────────────────────────────────────────────
-  -- Add places that recur in your notes: studios, cities, communities, venues.
-  -- Example: ('places', 'your-city', '{}', 'Where you live and make — context for local events and projects.')
-  -- (No generic places seeded — these are always personal.)
+on conflict (scheme, pref_label) do update set
+  alt_labels = excluded.alt_labels,
+  definition = excluded.definition;
 
-  -- Sentinel: remove this line and add your first place concept above when ready.
-  ('places', '_placeholder',
-    '{}',
-    'Remove this row and add your own places. See comment above.')
-
-  ;
+-- ── PLACES ────────────────────────────────────────────────────────────────
+-- Add places that recur in your notes: studios, cities, communities, venues.
+-- Example: ('places', 'your-city', '{}', 'Where you live and make — context for local events and projects.')
+-- (No generic places seeded — these are always personal.)
