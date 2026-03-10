@@ -1,6 +1,7 @@
 import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes, insertSimilarityLinks, logEnrichments } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
+import { sendAlert } from './alert';
 import type { Env, SimilarityLink } from './types';
 
 async function runSimilarityLinker(env: Env): Promise<void> {
@@ -87,6 +88,7 @@ export default {
         event: 'gardener_run_failed',
         error: String(err),
       }));
+      await sendAlert(env, err);
     }
   },
 };
