@@ -26,6 +26,7 @@ describe('loadConfig', () => {
     expect(config.captureModel).toBe('anthropic/claude-haiku-4-5');
     expect(config.embedModel).toBe('openai/text-embedding-3-small');
     expect(config.matchThreshold).toBe(0.60);
+    expect(config.searchThreshold).toBe(0.35);
   });
 
   it('throws mentioning MCP_API_KEY when missing', () => {
@@ -84,5 +85,19 @@ describe('loadConfig', () => {
   it('accepts 1 as a valid MATCH_THRESHOLD', () => {
     const config = loadConfig(env({ MATCH_THRESHOLD: '1' }));
     expect(config.matchThreshold).toBe(1);
+  });
+
+  it('uses 0.35 as default searchThreshold when MCP_SEARCH_THRESHOLD is absent', () => {
+    const config = loadConfig(env({ MCP_SEARCH_THRESHOLD: undefined }));
+    expect(config.searchThreshold).toBe(0.35);
+  });
+
+  it('parses a valid MCP_SEARCH_THRESHOLD float', () => {
+    const config = loadConfig(env({ MCP_SEARCH_THRESHOLD: '0.45' }));
+    expect(config.searchThreshold).toBe(0.45);
+  });
+
+  it('throws mentioning MCP_SEARCH_THRESHOLD when invalid', () => {
+    expect(() => loadConfig(env({ MCP_SEARCH_THRESHOLD: 'bad' }))).toThrow('MCP_SEARCH_THRESHOLD');
   });
 });

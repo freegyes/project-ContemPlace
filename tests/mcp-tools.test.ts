@@ -75,6 +75,7 @@ const MOCK_CONFIG: Config = {
   captureModel: 'anthropic/claude-haiku-4-5',
   embedModel: 'openai/text-embedding-3-small',
   matchThreshold: 0.60,
+  searchThreshold: 0.35,
 };
 
 const mockDb = {} as unknown as SupabaseClient;
@@ -165,9 +166,9 @@ describe('handleSearchNotes', () => {
       expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), 1, undefined, undefined, undefined);
     });
 
-    it('defaults threshold to config.matchThreshold when not provided', async () => {
+    it('defaults threshold to config.searchThreshold when not provided', async () => {
       await handleSearchNotes({ query: 'test' }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), MOCK_CONFIG.matchThreshold, expect.any(Number), undefined, undefined, undefined);
+      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), MOCK_CONFIG.searchThreshold, expect.any(Number), undefined, undefined, undefined);
     });
 
     it('clamps threshold above 1 down to 1', async () => {
