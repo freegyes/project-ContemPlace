@@ -169,6 +169,32 @@ These three thresholds are independent and should not be conflated:
 - `MCP_SEARCH_THRESHOLD` (0.35) — bare natural-language query vs. augmented store, agent search
 - `GARDENER_SIMILARITY_THRESHOLD` (0.70) — augmented vs. augmented, nightly similarity linking
 
+## Gardener trigger model: fixed nightly cron over event-driven alternatives
+
+**Decision (2026-03-10):** The gardener runs on a fixed nightly Cron Trigger (`0 2 * * *`) rather than being triggered by note captures, accumulation thresholds, or DB events.
+
+**Why fixed cron is correct at this stage:**
+
+The system is designed for async enrichment. Capture already provides immediate context — `findRelatedNotes` runs at capture time and surfaces related notes in the Telegram reply. Similarity links from the gardener are a lower-urgency, corpus-wide signal. A 24-hour lag is acceptable for that use case.
+
+Fixed cron and clean-slate idempotency are a natural pair. The gardener always re-scans everything and rebuilds from scratch. That property only makes sense with a periodic batch model. Event-driven triggering per capture would require switching to incremental per-note processing — dropping clean-slate, adding a cursor, and handling race conditions between concurrent triggers. That's a different and more complex architecture, not a better one.
+
+At personal scale, the cost of "wasted" runs on days with no new notes is zero — the run takes a few seconds and costs nothing.
+
+**Why alternatives were rejected:**
+
+- **Per-capture triggering** — the capture pipeline already runs `findRelatedNotes` for immediate linking. Triggering a full corpus re-scan after every note is O(N) re-scans per session. It also breaks clean-slate by requiring incremental processing.
+- **Accumulation threshold ("run when N new notes exist")** — Cloudflare doesn't support conditional cron triggers natively. You'd still poll via cron and add a short-circuit check at the top. Worth adding as a guard once runs get long enough to matter; not worth it now.
+- **Supabase DB webhooks** — same problem as per-capture triggering, with added complexity (pg_net, HTTP calls from within Postgres, network reliability concerns).
+- **Cloudflare Queues** — proper decoupling with batching and retries, but fundamentally changes the model from "nightly full re-scan" to "incremental per-note processing." Worth considering if the system grows to high-volume or multi-user. Not appropriate now.
+
+**Where fixed cron breaks down:**
+
+1. **Bulk imports** (Obsidian vault, ChatGPT export) — after importing hundreds of notes at once, waiting until 2am is unacceptable. The fix is a `/trigger` HTTP endpoint on the gardener Worker (issue #32), not a different trigger model. One manual call after the import.
+2. **Scale ceiling** — when the per-note RPC approach hits ~200–300 notes and runs approach 30 seconds, incremental processing (cursor on `created_at`, only process notes newer than last run) becomes necessary. At that point a smarter trigger model makes more sense. That's a separate problem from what we're solving now.
+
+**Future optimization (not yet implemented):** A lightweight `COUNT(notes WHERE created_at > last_gardener_run)` guard at the top of each run — skip the full scan if nothing is new. Worth adding once a `gardening_runs` table exists and runs get long enough that short-circuiting matters.
+
 ## Gardener similarity linker: per-note RPC approach with known scale ceiling
 
 **Decision (2026-03-10):** The similarity linker calls `match_notes` RPC once per note (per-note ANN approach) rather than a SQL self-join or in-memory pairwise comparison.

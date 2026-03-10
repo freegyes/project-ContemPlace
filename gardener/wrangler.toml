@@ -7,6 +7,12 @@ compatibility_flags = ["nodejs_compat"]
 GARDENER_SIMILARITY_THRESHOLD = "0.70"
 
 [triggers]
+# 2am UTC = 3–4am CET/CEST. Chosen as a low-traffic window for a European-timezone user.
+# This time is arbitrary — change it freely. The gardener is idempotent and safe to run at any hour.
+# To trigger a run immediately without waiting for the cron (e.g. after a bulk import),
+# use the /trigger HTTP endpoint once issue #32 is implemented, or run locally via:
+#   npx wrangler dev -c gardener/wrangler.toml --test-scheduled
+#   curl "http://localhost:8787/__scheduled?cron=0+2+*+*+*"
 crons = ["0 2 * * *"]
 
 # Secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml):
