@@ -20,7 +20,7 @@ function requireSecret(value: string | undefined, name: string): string {
 }
 
 function parseThreshold(value: string | undefined, defaultValue: number): number {
-  const parsed = parseFloat(value ?? String(defaultValue));
+  const parsed = parseFloat(value || String(defaultValue));
   if (isNaN(parsed) || parsed < 0 || parsed > 1) {
     throw new Error(`Invalid GARDENER_SIMILARITY_THRESHOLD: "${value}" — must be a float between 0 and 1`);
   }

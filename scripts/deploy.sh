@@ -65,7 +65,7 @@ echo ""
 
 # ── Step 3: Unit tests ────────────────────────────────────────────────────────
 echo "▶  3/6  Unit tests..."
-npx vitest run tests/parser.test.ts tests/gardener-similarity.test.ts
+npx vitest run tests/parser.test.ts tests/gardener-similarity.test.ts tests/gardener-config.test.ts
 echo ""
 
 # ── Step 4: Deploy Telegram Worker ───────────────────────────────────────────

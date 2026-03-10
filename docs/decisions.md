@@ -135,3 +135,44 @@ The traceability rule is an explicit prohibition. The body should be a cleaned-u
 **Why:** The user should never send a message and wonder what happened. The error message is generic ("Something went wrong"), but its presence confirms the system received and attempted to process the input. Detailed diagnostics go to logs, not to Telegram.
 
 **Source:** `reviews/01-preferences.md`
+
+## Gardener as a separate Cloudflare Worker project
+
+**Decision (2026-03-10):** The gardening pipeline lives in `gardener/` with its own `wrangler.toml`, separate from the Telegram Worker and MCP Worker.
+
+**Why:** The gardener only needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. It does not need `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `MCP_API_KEY`, or `OPENROUTER_API_KEY` (no LLM calls for similarity linking). Keeping secrets scoped to the Worker that needs them is defense in depth. The separation also follows the precedent set by `mcp/` and keeps each Worker's logs, deployments, and failure domains independent.
+
+**Tradeoff:** Three separate deployment targets to manage. Mitigated by `scripts/deploy.sh` which deploys all three in sequence.
+
+## Gardener similarity linker: clean-slate idempotency
+
+**Decision (2026-03-10):** Each gardener run begins by deleting all `is-similar-to` links with `created_by = 'gardener'`, then re-inserting from scratch.
+
+**Why:** Append-only with conflict detection leaves stale links when the threshold is raised — pairs linked at 0.70 persist even if the threshold moves to 0.80. The clean-slate approach ensures the link set always reflects the current threshold with zero reconciliation logic. At personal-system scale (hundreds to a few thousand notes), the DELETE is a trivial operation. The DELETE runs first so a mid-run crash leaves a partially-populated but not corrupted state; the next run's DELETE cleans it up.
+
+## Gardener similarity linker: link direction convention
+
+**Decision (2026-03-10):** `is-similar-to` links are stored once per pair, with the lexicographically lower UUID as `from_id`.
+
+**Why:** `is-similar-to` is semantically undirected, but the `links` table is directed. Storing both directions doubles storage and causes `get_related` to return the same note twice (once for each direction row). `fetchNoteLinks` already queries `.or('from_id.eq.${id},to_id.eq.${id}')`, so a single directional row is found from either end. The UUID-ordering convention is deterministic and applied consistently at insert time.
+
+## Gardener similarity threshold: 0.70 for augmented-vs-augmented comparison
+
+**Decision (2026-03-10):** `GARDENER_SIMILARITY_THRESHOLD` defaults to 0.70. This is calibrated for augmented-vs-augmented embedding comparison, which is distinct from the capture-time and MCP search thresholds.
+
+**Why:** The similarity linker compares stored augmented embeddings against each other (both sides have the same `[Type: X] [Intent: Y] [Tags: ...]` prefix structure). This is a tighter, more symmetric comparison than capture-time `findRelatedNotes` (raw query vs. augmented store, threshold 0.60) or MCP `search_notes` (bare natural-language query vs. augmented store, threshold 0.35).
+
+Empirical basis from 14-note live DB (issue #20): linked pairs scored 0.57–0.77 (avg 0.66); unrelated pairs peaked at 0.64. Setting the threshold at 0.70 creates clear separation while surfacing genuinely related notes that capture-time linking missed (e.g. the pegboard/lamp pair at 0.80).
+
+These three thresholds are independent and should not be conflated:
+- `MATCH_THRESHOLD` (0.60) — raw query vs. augmented store, capture-time related-note lookup
+- `MCP_SEARCH_THRESHOLD` (0.35) — bare natural-language query vs. augmented store, agent search
+- `GARDENER_SIMILARITY_THRESHOLD` (0.70) — augmented vs. augmented, nightly similarity linking
+
+## Gardener similarity linker: per-note RPC approach with known scale ceiling
+
+**Decision (2026-03-10):** The similarity linker calls `match_notes` RPC once per note (per-note ANN approach) rather than a SQL self-join or in-memory pairwise comparison.
+
+**Why:** At 14 notes (~700ms), and realistically up to ~200 notes (~10s), the per-note RPC approach is within the 30s Cloudflare Worker CPU limit and reuses the existing `match_notes` function with no new SQL migrations. In-memory pairwise computation breaks at ~100–300 notes due to the O(N²) operation count against the 30s CPU wall.
+
+**Scale ceiling:** ~200–300 notes. When the note corpus approaches this size, `findSimilarNotes()` in `gardener/src/db.ts` should be replaced with a single SQL self-join function (`find_similar_pairs(threshold, offset, limit)`) — one round-trip instead of N. A TODO comment marks this location in the code. No other code changes are required.

@@ -63,8 +63,18 @@ mcp/
     embed.ts         # embedText, buildEmbeddingInput (copy of src/embed.ts)
     capture.ts       # parseCaptureResponse, runCaptureAgent (copy of src/capture.ts)
     types.ts         # MCP-specific TypeScript interfaces
+gardener/
+  wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
+  tsconfig.json
+  src/
+    index.ts         # scheduled() export only — no fetch handler
+    config.ts        # Config loading (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GARDENER_SIMILARITY_THRESHOLD)
+    db.ts            # deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarNotes,
+                     # insertSimilarityLinks, logEnrichments
+    similarity.ts    # buildContext() — auto-generates link context from shared tags + entities
+    types.ts         # Gardener-specific TypeScript interfaces
 scripts/
-  deploy.sh          # Automated 5-step deploy pipeline
+  deploy.sh          # Automated 6-step deploy pipeline (schema → typecheck → unit tests → Telegram Worker → Gardener Worker → smoke tests)
 supabase/
   config.toml
   migrations/
@@ -72,16 +82,18 @@ supabase/
   seed/
     seed_concepts.sql              # Initial SKOS domain concepts (run manually in SQL Editor)
 tests/
-  parser.test.ts         # Unit tests for src/capture.ts parseCaptureResponse (17 tests, no network)
-  smoke.test.ts          # Smoke tests against the live Telegram Worker
-  mcp-auth.test.ts       # Unit tests for mcp/src/auth.ts
-  mcp-config.test.ts     # Unit tests for mcp/src/config.ts
-  mcp-embed.test.ts      # Unit tests for mcp/src/embed.ts + parity with src/embed.ts
-  mcp-parser.test.ts     # Parity tests for mcp/src/capture.ts vs src/capture.ts (17 tests)
-  mcp-tools.test.ts      # Unit tests for all 5 MCP tool handlers (mocked deps, no network)
-  mcp-index.test.ts      # Unit tests for MCP HTTP routing and JSON-RPC protocol
-  mcp-smoke.test.ts      # Smoke tests against the live MCP Worker
-  semantic.test.ts       # Semantic correctness suite — tagging, linking, search quality (45 tests, hits live stack)
+  parser.test.ts              # Unit tests for src/capture.ts parseCaptureResponse (17 tests, no network)
+  smoke.test.ts               # Smoke tests against the live Telegram Worker
+  mcp-auth.test.ts            # Unit tests for mcp/src/auth.ts
+  mcp-config.test.ts          # Unit tests for mcp/src/config.ts
+  mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts + parity with src/embed.ts
+  mcp-parser.test.ts          # Parity tests for mcp/src/capture.ts vs src/capture.ts (17 tests)
+  mcp-tools.test.ts           # Unit tests for all 5 MCP tool handlers (mocked deps, no network)
+  mcp-index.test.ts           # Unit tests for MCP HTTP routing and JSON-RPC protocol
+  mcp-smoke.test.ts           # Smoke tests against the live MCP Worker
+  semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (45 tests, hits live stack)
+  gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
+  gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig (12 tests)
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap)
 wrangler.toml        # Telegram Worker Cloudflare config
 package.json
@@ -114,6 +126,14 @@ MCP_API_KEY                 # generate with: openssl rand -hex 32
 MCP_SEARCH_THRESHOLD        # default: 0.35 — used only by search_notes. Lower than MATCH_THRESHOLD
                              # because stored embeddings are metadata-augmented; bare query vectors
                              # score 0.41–0.49 against them, well below the 0.60 capture threshold.
+
+# Gardener Worker secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml)
+# SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are shared with the Telegram Worker above.
+
+# Gardener Worker configurable — defaults in gardener/wrangler.toml [vars]
+GARDENER_SIMILARITY_THRESHOLD  # default: 0.70 — augmented-vs-augmented cosine similarity.
+                                # Distinct from MATCH_THRESHOLD (0.60, raw query vs. augmented store)
+                                # and MCP_SEARCH_THRESHOLD (0.35, bare NL query vs. augmented store).
 
 # Test-only
 WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
@@ -161,6 +181,25 @@ npx vitest run tests/mcp-smoke.test.ts
 
 # Run semantic correctness suite (live stack — tagging, linking, search; ~70s; cleans up after itself)
 npx vitest run tests/semantic.test.ts
+
+# ── Gardener Worker ───────────────────────────────────────────────────────────
+# Deploy the Gardener Worker
+wrangler deploy -c gardener/wrangler.toml
+
+# Set Gardener Worker secrets (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required)
+wrangler secret put SUPABASE_URL -c gardener/wrangler.toml
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c gardener/wrangler.toml
+
+# Typecheck the Gardener Worker
+npx tsc --noEmit -p gardener/tsconfig.json
+
+# Run Gardener unit tests (local, no network)
+npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts
+
+# Trigger a gardener run locally against the live DB (symlink gardener/.dev.vars → .dev.vars first)
+# ln -s ../.dev.vars gardener/.dev.vars
+npx wrangler dev -c gardener/wrangler.toml --test-scheduled
+# then: curl "http://localhost:8787/__scheduled?cron=0+2+*+*+*"
 ```
 
 ## Hard Constraints
