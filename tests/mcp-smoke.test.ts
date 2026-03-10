@@ -125,7 +125,7 @@ describe('MCP Worker — protocol', () => {
     const body = await res.json() as Record<string, unknown>;
     const tools = (body['result'] as Record<string, unknown>)?.['tools'] as Array<Record<string, unknown>>;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(8);
     for (const tool of tools) {
       expect(tool).toHaveProperty('name');
       expect(tool).toHaveProperty('inputSchema');

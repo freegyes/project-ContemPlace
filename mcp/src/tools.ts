@@ -30,15 +30,15 @@ function clamp(val: number | undefined, min: number, max: number, def: number): 
 export const TOOL_DEFINITIONS = [
   {
     name: 'search_notes',
-    description: 'Search your personal notes by semantic similarity to a query. Embeds the query text and matches against stored notes using vector similarity. Use filter_type or filter_intent to narrow results. Returns ranked results with similarity scores — above 0.75 is a strong match, 0.60–0.75 is moderate, below 0.60 may be loosely related.',
+    description: 'Search notes by meaning. Returns ranked results with body text included — no need to call get_note just to read content. Scores: above 0.50 is a strong match, 0.35–0.50 is moderate. For finding specific passages within long notes, use search_chunks instead.',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Natural language search query, max 1000 characters' },
         limit: { type: 'number', description: 'Number of results to return (default 5, max 20)' },
-        threshold: { type: 'number', description: 'Minimum similarity score (default 0.35, range 0.0–1.0). Notes are stored with metadata-augmented embeddings, so plain-language queries typically score 0.3–0.5 against relevant notes — above 0.5 is a strong match.' },
-        filter_type: { type: 'string', enum: ['idea', 'reflection', 'source', 'lookup'] },
-        filter_intent: { type: 'string', enum: ['reflect', 'plan', 'create', 'remember', 'reference', 'log'] },
+        threshold: { type: 'number', description: 'Minimum similarity score (default 0.35, range 0.0–1.0)' },
+        filter_type: { type: 'string', enum: ['idea', 'reflection', 'source', 'lookup'], description: 'Note form: idea (default/general), reflection (explicit personal insight), source (has URL), lookup (research prompt)' },
+        filter_intent: { type: 'string', enum: ['reflect', 'plan', 'create', 'remember', 'reference', 'log'], description: 'User purpose: reflect (processing feelings), plan (future action, aspirations, wishes), create (specific thing to build), remember (storing a fact, no URL), reference (external content, URL present), log (recording what happened)' },
         filter_tags: { type: 'array', items: { type: 'string' }, description: 'Notes must contain all listed tags' },
       },
       required: ['query'],
@@ -46,7 +46,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'get_note',
-    description: 'Fetch a single note by its UUID, including the full body, all metadata, and any links to other notes. Use this after search_notes to get complete content for a specific note. The raw_input field contains the user\'s original unedited words.',
+    description: 'Fetch a single note by UUID with full metadata, body, raw_input, and links. The body is the capture agent\'s structured interpretation; raw_input is the user\'s exact words and the source of truth — prefer raw_input when quoting what the user said. The corrections field lists voice-dictation fixes applied (e.g., "cattle stitch → kettle stitch").',
     inputSchema: {
       type: 'object',
       properties: {
@@ -57,20 +57,20 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'list_recent',
-    description: 'List the most recently created notes, newest first. Use filter_type or filter_intent to focus on a specific kind of note — for example, filter_intent=plan to see everything the user is currently planning.',
+    description: 'List the most recently created notes, newest first. Returns summary fields including body text. Use get_note for the full record including raw_input and links.',
     inputSchema: {
       type: 'object',
       properties: {
         limit: { type: 'number', description: 'Number of notes to return (default 10, max 50)' },
-        filter_type: { type: 'string', enum: ['idea', 'reflection', 'source', 'lookup'] },
-        filter_intent: { type: 'string', enum: ['reflect', 'plan', 'create', 'remember', 'reference', 'log'] },
+        filter_type: { type: 'string', enum: ['idea', 'reflection', 'source', 'lookup'], description: 'Note form: idea (default/general), reflection (explicit personal insight), source (has URL), lookup (research prompt)' },
+        filter_intent: { type: 'string', enum: ['reflect', 'plan', 'create', 'remember', 'reference', 'log'], description: 'User purpose: reflect (processing feelings), plan (future action, aspirations, wishes), create (specific thing to build), remember (storing a fact, no URL), reference (external content, URL present), log (recording what happened)' },
       },
       required: [],
     },
   },
   {
     name: 'get_related',
-    description: 'Get all notes linked to a given note, in both directions. Returns the linked notes along with the link type and any context recorded when the link was created. Useful for traversing the note graph.',
+    description: 'Get all notes linked to a given note, in both directions. Link types: extends (builds on), contradicts (challenges), supports (reinforces or parallel effort), is-example-of (concrete instance), is-similar-to (auto-detected by gardener). The direction field shows whether the queried note is source (outbound) or target (inbound). created_by distinguishes capture-time links from gardener-detected ones.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -82,19 +82,19 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'capture_note',
-    description: 'Create a new note by running the full capture pipeline. The text is embedded, matched against related notes for context, and structured by the AI capture agent (title, body, type, intent, tags, entities, links). The result is permanently stored. Use the source parameter to record where this note came from — for example, "obsidian", "notion", or "manual". This tool has a side effect: it creates a real, persistent note.',
+    description: 'Capture a thought as a permanent note. Pass the user\'s raw input — the server embeds, finds related notes, and automatically generates a structured note (title, body, type, intent, tags, entities, links). Do not pre-structure, summarize, or clean up the text. Voice dictation errors are expected and corrected server-side. Side effect: creates a persistent note.',
     inputSchema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Raw text to capture, max 4000 characters' },
-        source: { type: 'string', description: 'Provenance label (default "mcp"), alphanumeric and hyphens/underscores only, max 100 chars' },
+        text: { type: 'string', description: 'The user\'s exact words — do not rephrase, summarize, clean up, or add wrapper context. Pass through verbatim as spoken or typed. The server handles all structuring and voice-dictation correction. Max 4000 characters.' },
+        source: { type: 'string', description: 'Identifies where this note came from. Default "mcp" is fine. Use a specific label when known — e.g., "claude-code", "obsidian-import". Alphanumeric/hyphens/underscores, max 100 chars.' },
       },
       required: ['text'],
     },
   },
   {
     name: 'list_unmatched_tags',
-    description: 'List tags from captured notes that don\'t match any concept in the controlled vocabulary. Use this to identify recurring tags that should be promoted to concepts. Tags are ordered by frequency — high-count tags are strong candidates for new concepts.',
+    description: 'List tags that don\'t match any concept in the controlled vocabulary, ordered by frequency. Part of the curation workflow: list unmatched tags → review with the user → promote worthy ones via promote_concept (which enables synonym collapse on the next gardener run). Surface these opportunistically during knowledge browsing — do not auto-promote without user input.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -105,21 +105,21 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'promote_concept',
-    description: 'Add a new concept to the controlled vocabulary. The concept becomes available for tag normalization on the next gardener run. Embedding is populated automatically. Use this after reviewing unmatched tags to promote recurring tag clusters into canonical concepts with alt_labels for synonym collapse.',
+    description: 'Add a new concept to the controlled vocabulary. On the next gardener run, notes tagged with the pref_label or any alt_label get their refined_tags normalized to the canonical label. Always confirm with the user before promoting. Include alt_labels for all known synonyms — this is what enables normalization.',
     inputSchema: {
       type: 'object',
       properties: {
         pref_label: { type: 'string', description: 'Canonical label in kebab-case (e.g. "laser-cutting"), max 100 chars' },
-        scheme: { type: 'string', enum: ['domains', 'tools', 'people', 'places'], description: 'Vocabulary scheme' },
-        alt_labels: { type: 'array', items: { type: 'string' }, description: 'Synonym labels (max 20, each max 100 chars)' },
-        definition: { type: 'string', description: 'Short definition (max 500 chars). Helps semantic matching.' },
+        scheme: { type: 'string', enum: ['domains', 'tools', 'people', 'places'], description: 'Vocabulary scheme: domains (topic areas like "woodworking"), tools (software/hardware like "obsidian"), people (named individuals), places (locations)' },
+        alt_labels: { type: 'array', items: { type: 'string' }, description: 'Synonym labels for tag normalization — include all known variants (max 20, each max 100 chars)' },
+        definition: { type: 'string', description: 'Short definition (max 500 chars). Improves semantic matching accuracy for fuzzy tag resolution.' },
       },
       required: ['pref_label', 'scheme'],
     },
   },
   {
     name: 'search_chunks',
-    description: 'Search within note paragraphs by semantic similarity. Unlike search_notes (which matches whole notes), this finds specific passages within long notes. Each chunk is a paragraph or section from a note with body > 1500 characters. Use search_notes first for broad discovery, then search_chunks when you need to locate a specific passage. Returns chunks with their parent note metadata.',
+    description: 'Search within note paragraphs by semantic similarity. Only notes with body > 1500 characters are chunked — most short notes only appear in search_notes. Use this when looking for specific information buried in a longer note (e.g., imports, detailed write-ups). Results include parent note metadata (type, intent, tags).',
     inputSchema: {
       type: 'object',
       properties: {
