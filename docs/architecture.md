@@ -90,6 +90,8 @@ The MCP Worker implements JSON-RPC 2.0 over HTTP with Bearer token authenticatio
 | `list_unmatched_tags` | Tags without SKOS concept matches, for vocabulary curation |
 | `promote_concept` | Insert new SKOS concept interactively |
 
+Tool descriptions in `TOOL_DEFINITIONS` (mcp/src/tools.ts) include behavioral guidance for connecting agents — what kind of input to pass, how to interpret results, when to use each tool. The `capture_note` description explicitly instructs agents to pass user's raw words without cleaning up or pre-structuring. Filter enum descriptions explain the classification taxonomy. These descriptions are the only guidance a connecting agent receives about how to use ContemPlace.
+
 The search threshold (`MCP_SEARCH_THRESHOLD`, default 0.35) is lower than the capture threshold (`MATCH_THRESHOLD`, 0.60) because stored embeddings are metadata-augmented while search queries are bare natural language.
 
 ## Gardener pipeline

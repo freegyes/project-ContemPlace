@@ -427,6 +427,21 @@ The `metadata` JSONB column on `enrichment_log` (added in `20260310000000_tag_no
 - Worker topology: should Telegram delegate to MCP instead of duplicating the pipeline? (Issue #46)
 - SYSTEM_FRAME as public spec: value for agent guidance even if smart gate is primary (Issue #47)
 
+## MCP tool descriptions as the agent guidance layer
+
+**Decision (2026-03-10):** Enrich MCP `TOOL_DEFINITIONS` descriptions to guide connecting agents, rather than publishing the SYSTEM_FRAME or adding a guidance endpoint. The tool description is the only context an MCP-connected agent receives about how to use each tool.
+
+**Why:** When Claude Code CLI (or any MCP agent) connects, it sees only the tool names, descriptions, and parameter schemas. The original `capture_note` text parameter said "Raw text to capture, max 4000 characters" — giving the agent no reason to avoid composing polished text, which defeats the capture pipeline's voice correction and "transcription not interpretation" principle.
+
+**Design principles applied:**
+- **One directive per description.** For `capture_note`: "pass the user's raw words without cleaning up." Avoid checklist paralysis — a wall of instructions makes agents second-guess simple captures.
+- **Say WHAT the server does, not HOW.** "The server handles all structuring" is behavioral guidance. The two-pass embedding, SYSTEM_FRAME/capture voice split, and fallback logic are implementation details.
+- **Replace text, don't append.** Token budget held roughly constant (~1,530 tokens for all 8 tools). Longer descriptions compound in cost — they're re-sent on every request.
+- **Enum glosses, not taxonomy essays.** Filter parameters get brief parenthetical hints: `plan (future action, aspirations, wishes)`. Enough to disambiguate without defining the full classification rules.
+- **Don't add "search first" to capture_note.** Dedup is the gardener's job (similarity linker), not the agent's. The core principle — "the user must never think about the system" — extends to agents acting on the user's behalf.
+
+**What this leaves for later:** Issue #47 (publishing SYSTEM_FRAME as a public spec) and issue #45 (formal input quality contract) remain open as potential Level 2/3 escalations if the tool descriptions prove insufficient.
+
 ## match_chunks RPC: must DROP before CREATE when changing return type
 
 **Decision (2026-03-10):** `CREATE OR REPLACE FUNCTION` cannot change the return type of an existing function. When extending return columns, `DROP FUNCTION IF EXISTS` must precede `CREATE FUNCTION`.

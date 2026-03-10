@@ -113,16 +113,16 @@ The MCP Worker exposes eight tools:
 
 | Tool | What it does |
 |---|---|
-| `search_notes` | Semantic search by natural language query. Optional: `limit`, `threshold`, `filter_type`, `filter_intent`, `filter_tags`. |
-| `search_chunks` | Semantic search at chunk level — finds specific passages within long notes. Optional: `limit`, `threshold`. |
-| `get_note` | Fetch a single note by UUID — includes raw input, entities, and all links. |
+| `search_notes` | Search notes by meaning. Returns ranked results with body text. Optional: `limit`, `threshold`, `filter_type`, `filter_intent`, `filter_tags`. |
+| `search_chunks` | Search within paragraphs of long notes (body > 1500 chars). Optional: `limit`, `threshold`. |
+| `get_note` | Fetch a single note by UUID — body, raw_input (source of truth), entities, links, corrections. |
 | `list_recent` | Most recent notes, newest first. Optional: `limit`, `filter_type`, `filter_intent`. |
-| `get_related` | All notes linked to a given note, both directions. |
-| `capture_note` | Full capture pipeline. Pass `text` and optional `source` label. Creates a real, permanent note. |
-| `list_unmatched_tags` | Tags that haven't matched any SKOS concept, with frequency. For vocabulary curation. |
-| `promote_concept` | Add a new concept to the SKOS vocabulary. For expanding the controlled vocabulary interactively. |
+| `get_related` | Linked notes in both directions with link type glossary (extends, contradicts, supports, is-example-of, is-similar-to). |
+| `capture_note` | Pass the user's raw words — the server runs the full capture pipeline. Do not pre-structure or summarize. |
+| `list_unmatched_tags` | Tags without SKOS concept matches, with frequency. Part of the curation workflow. |
+| `promote_concept` | Add a concept to the SKOS vocabulary. Confirm with the user first; include alt_labels for synonym collapse. |
 
-Auth: `Authorization: Bearer <MCP_API_KEY>` header on all requests.
+Auth: `Authorization: Bearer <MCP_API_KEY>` header on all requests. Tool descriptions include guidance for connecting agents — pass raw user input to `capture_note`, don't pre-structure or summarize.
 
 **Threshold note:** The default search threshold is 0.35. Stored embeddings are metadata-augmented (`[Type: idea] [Intent: plan] [Tags: …] text`), while search queries are bare natural language. A lower threshold compensates for this vector space gap. You can override per call. See `docs/decisions.md` for the full analysis.
 
@@ -295,7 +295,7 @@ npx vitest run tests/gardener-integration.test.ts
 wrangler dev
 ```
 
-~292 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
+~391 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
 
 ## Project layout
 
@@ -344,8 +344,8 @@ tests/
   mcp-config.test.ts      Unit tests: MCP config loading (14)
   mcp-embed.test.ts       Unit tests: embedding + parity with src/embed.ts (8)
   mcp-parser.test.ts      Unit tests: MCP parser parity with src/capture.ts (17)
-  mcp-tools.test.ts       Unit tests: all 8 tool handlers (~71)
-  mcp-index.test.ts       Unit tests: HTTP routing + JSON-RPC protocol (~33)
+  mcp-tools.test.ts       Unit tests: all 8 tool handlers (93)
+  mcp-index.test.ts       Unit tests: HTTP routing + JSON-RPC protocol (35)
   mcp-smoke.test.ts       Smoke tests: live MCP Worker
   gardener-similarity.test.ts  Unit tests: buildContext + UUID dedup (13)
   gardener-normalize.test.ts   Unit tests: tag matching logic (23)
