@@ -6,6 +6,7 @@ const BASE_ENV: Env = {
   SUPABASE_URL: 'https://example.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-key',
   GARDENER_SIMILARITY_THRESHOLD: '0.70',
+  GARDENER_TAG_MATCH_THRESHOLD: '0.55',
   GARDENER_API_KEY: 'test-gardener-key',
 };
 

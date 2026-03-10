@@ -148,6 +148,113 @@ export async function logEnrichments(
   }
 }
 
+// ── Curation functions ───────────────────────────────────────────────────────
+
+export interface UnmatchedTagRow {
+  tag: string;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+}
+
+// List unmatched tags from enrichment_log, grouped by tag string.
+// Uses COUNT(DISTINCT note_id) for frequency — resilient to duplicate logging across runs.
+// Requires the metadata jsonb column added in migration 20260310000000.
+export async function listUnmatchedTags(
+  db: SupabaseClient,
+  minCount: number,
+): Promise<UnmatchedTagRow[]> {
+  // Supabase JS client doesn't support GROUP BY natively, so use a raw RPC or
+  // filter client-side. Since the enrichment_log is modest in size (hundreds of rows),
+  // fetch all unmatched_tag rows and aggregate in JS.
+  const { data, error } = await db
+    .from('enrichment_log')
+    .select('note_id, metadata, completed_at')
+    .eq('enrichment_type', 'unmatched_tag');
+
+  if (error) {
+    throw new Error(`Failed to list unmatched tags: ${error.message}`);
+  }
+
+  const rows = (data as Array<{
+    note_id: string;
+    metadata: { tag?: string } | null;
+    completed_at: string;
+  }>) ?? [];
+
+  // Aggregate by tag string
+  const tagMap = new Map<string, { noteIds: Set<string>; firstSeen: string; lastSeen: string }>();
+  for (const row of rows) {
+    const tag = row.metadata?.tag;
+    if (!tag) continue;
+
+    const existing = tagMap.get(tag);
+    if (existing) {
+      existing.noteIds.add(row.note_id);
+      if (row.completed_at < existing.firstSeen) existing.firstSeen = row.completed_at;
+      if (row.completed_at > existing.lastSeen) existing.lastSeen = row.completed_at;
+    } else {
+      tagMap.set(tag, {
+        noteIds: new Set([row.note_id]),
+        firstSeen: row.completed_at,
+        lastSeen: row.completed_at,
+      });
+    }
+  }
+
+  // Filter by min_count, sort by count desc, cap at 50
+  const results: UnmatchedTagRow[] = [];
+  for (const [tag, info] of tagMap) {
+    if (info.noteIds.size >= minCount) {
+      results.push({
+        tag,
+        count: info.noteIds.size,
+        first_seen: info.firstSeen,
+        last_seen: info.lastSeen,
+      });
+    }
+  }
+
+  results.sort((a, b) => b.count - a.count);
+  return results.slice(0, 50);
+}
+
+export interface ConceptRow {
+  id: string;
+  scheme: string;
+  pref_label: string;
+}
+
+// Insert a new concept into the concepts table. Returns the inserted row.
+// Throws on duplicate (23505 unique violation on scheme + pref_label).
+export async function insertConcept(
+  db: SupabaseClient,
+  scheme: string,
+  prefLabel: string,
+  altLabels: string[],
+  definition: string | null,
+): Promise<ConceptRow> {
+  const { data, error } = await db
+    .from('concepts')
+    .insert({
+      scheme,
+      pref_label: prefLabel,
+      alt_labels: altLabels,
+      definition,
+    })
+    .select('id, scheme, pref_label')
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error(`DUPLICATE: Concept '${prefLabel}' already exists in scheme '${scheme}'`);
+    }
+    throw new Error(`Failed to insert concept: ${error.message}`);
+  }
+
+  return data as ConceptRow;
+}
+
 // ── Read functions ────────────────────────────────────────────────────────────
 
 // Fetch a single note by UUID. Returns null if not found.
