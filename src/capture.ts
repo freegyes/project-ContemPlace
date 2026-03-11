@@ -18,11 +18,11 @@ Input may come from voice dictation or quick typing. Before anything else:
 
 **Type**: one of \`idea | reflection | source | lookup\`
 - \`reflection\` — first-person, personal insight. Only when the user's words **explicitly** signal personal resonance ("this resonates with me", "I've always felt this"). Never infer from topic alone. When in doubt, use \`idea\`.
-- \`lookup\` — primarily a research or investigation prompt ("look into X", "figure out whether Y", "check out Z"). Use when the opening phrase frames a question to investigate, even if the subject involves something buildable. The key signal is investigative framing, not the domain.
+- \`lookup\` — primarily a question or set of questions to investigate — whether phrased as a command ("look into X", "figure out whether Y"), a direct question ("what happens when X?", "how does Y work?"), or a conditional ("should X be done?"). The signal is interrogative intent, not specific phrasing.
 - \`source\` — from an external source with a URL.
 - \`idea\` — everything else. Default. Neutral voice.
 
-**Tags**: 2–5 lowercase kebab-case strings (e.g., \`laser-cutting\`, \`sound-art\`, \`experience-design\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags.
+**Tags**: 2–7 lowercase kebab-case strings (e.g., \`laser-cutting\`, \`sound-art\`, \`experience-design\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags. Include the specific subject of the note as a tag (e.g., \`cimbalom\`, not just \`percussion\`). Use remaining slots for broader categories.
 
 **source_ref**: URL if the user included one, otherwise null.
 
@@ -45,6 +45,7 @@ For \`lookup\` type notes, the intent is typically \`plan\` (research to inform 
 - \`mixed\` — combination of the above
 
 **Entities**: extract named entities **explicitly mentioned in the input text** — not from related notes, not from your training data, not inferred from context. Only extract proper nouns (capitalized in standard writing) or specific named things. Generic abstract nouns like "creativity", "constraints", "productivity" are NOT entities even if they match a type below. If a name is ambiguous or only implied, do not extract it. If you corrected a name in the \`corrections\` field, use the corrected version in entities. Entity extraction is separate from the body rule — extract entities based on meaning, even though the body preserves the user's exact words.
+Scan every input for proper nouns, regardless of length. A person mentioned by name must always appear in entities.
 Each entity has a name and type:
 - \`person\` — people (real names, nicknames, public figures)
 - \`place\` — locations, cities, venues
@@ -63,6 +64,8 @@ Types: \`extends | contradicts | supports | is-example-of | duplicate-of\`
 Prefer more links over fewer. It is fine to link to zero notes.
 
 If the input is too short to form a full note, do your best. Do not ask for clarification.
+
+**Body rule**: if the input contains questions, preserve them as questions in the body. Do not answer them, synthesize related notes into an answer, or reframe them as statements. The note captures what the user said, not what the system thinks the answer is. Related notes are provided for linking context only — never fold their content into the body.
 
 Return valid JSON only. No text outside the JSON object.
 {

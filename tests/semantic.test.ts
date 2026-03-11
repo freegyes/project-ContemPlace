@@ -136,6 +136,19 @@ const FIXTURES = {
   E1_naturalearthdata_source: `Natural Earth: free, public domain vector and raster map data at 1:10m, 1:50m, and 1:110m scales — the standard starting point for any project that needs clean world geography without licensing headaches. https://www.naturalearthdata.com`,
 
   E2_field_notebook_typo: `I want to start keeping a physical field notebook alongside the digital notes — a sown binding so the pages lay flat, with dot grid paper for sketching circuit layouts and plotter paths before committing to the machine. Probably just a small A5 format to start.`,
+
+  // Cluster F: Question handling — questions must be preserved, not answered (#68, #73)
+  F1_direct_question: `What happens when the gardening process finds a duplicate note in ContemPlace? Does it merge them, link them, or flag them for review?`,
+
+  F2_multi_question: `What would happen when a question or issue I had captured in ContemPlace gets dealt with in other places? Should it be updated somehow? Or will it happen when another note gets captured that implies a more mature state? Will there be a trail?`,
+
+  F3_conditional_question: `Should ContemPlace eventually support importing notes from Obsidian, or is it better to keep the two systems separate and let MCP bridge them?`,
+
+  // Cluster G: Short input entity extraction (#51)
+  G1_short_with_person: `Build found-object instruments like Nicolas Bras does — tin cans, scrap wood, salvaged springs as resonators.`,
+
+  // Cluster H: Tag priority — specific subject must appear (#52)
+  H1_specific_subject: `Build a cimbalom from tin cans and scrap materials — tune the cans by filling them with different amounts of sand, strike with chopstick mallets.`,
 } as const;
 
 // ── Captured results (populated in beforeAll) ─────────────────────────────────
@@ -439,5 +452,86 @@ describe('Cross-cluster isolation — no spurious links', () => {
         (laserIds.includes(l.from_id) && voiceCaptureIds.includes(l.to_id)),
     );
     expect(crossCluster.length).toBe(0);
+  });
+});
+
+// ── Cluster F: Question handling (#68, #73) ──────────────────────────────────
+
+describe('Cluster F — Question handling', () => {
+  it('F1 direct question: type is lookup', () => {
+    expect(notes.F1_direct_question.type).toBe('lookup');
+  });
+
+  it('F1 direct question: body preserves question form', () => {
+    expect(notes.F1_direct_question.body).toContain('?');
+  });
+
+  it('F2 multi-question: type is lookup', () => {
+    expect(notes.F2_multi_question.type).toBe('lookup');
+  });
+
+  it('F2 multi-question: body preserves question form', () => {
+    expect(notes.F2_multi_question.body).toContain('?');
+  });
+
+  it('F3 conditional question: type is lookup', () => {
+    expect(notes.F3_conditional_question.type).toBe('lookup');
+  });
+
+  it('F3 conditional question: body preserves question form', () => {
+    expect(notes.F3_conditional_question.body).toContain('?');
+  });
+
+  it('F1 direct question: tags include relevant term', () => {
+    expect(hasAnyTag(notes.F1_direct_question, ['contemplace', 'gardening', 'duplicate', 'notes'])).toBe(true);
+  });
+
+  it('F2 multi-question: tags include relevant term', () => {
+    expect(hasAnyTag(notes.F2_multi_question, ['contemplace', 'notes', 'capture', 'maturity', 'resolution'])).toBe(true);
+  });
+
+  it('F3 conditional question: tags include relevant term', () => {
+    expect(hasAnyTag(notes.F3_conditional_question, ['contemplace', 'obsidian', 'import', 'mcp', 'notes'])).toBe(true);
+  });
+});
+
+// ── Cluster G: Short input entity extraction (#51) ───────────────────────────
+
+describe('Cluster G — Short input entity extraction', () => {
+  it('G1 short with person: captures successfully', () => {
+    expect(typeof notes.G1_short_with_person.id).toBe('string');
+  });
+
+  it('G1 short with person: entities include Nicolas Bras', async () => {
+    const db = supabase();
+    const { data } = await db.from('notes').select('entities').eq('id', notes.G1_short_with_person.id).single();
+    const entities = (data as { entities: Array<{ name: string; type: string }> })?.entities ?? [];
+    expect(entities.some(e => e.name.toLowerCase().includes('nicolas bras') && e.type === 'person')).toBe(true);
+  });
+
+  it('G1 short with person: tags include instrument-related term', () => {
+    expect(hasAnyTag(notes.G1_short_with_person, ['instrument', 'found-object', 'diy', 'sound', 'percussion'])).toBe(true);
+  });
+});
+
+// ── Cluster H: Tag priority (#52) ────────────────────────────────────────────
+
+describe('Cluster H — Tag priority for specific subjects', () => {
+  it('H1 specific subject: tags include cimbalom', () => {
+    expect(notes.H1_specific_subject.tags.some(t => t.toLowerCase().includes('cimbalom'))).toBe(true);
+  });
+
+  it('H1 specific subject: has both specific and broad tags', () => {
+    const tags = notes.H1_specific_subject.tags.map(t => t.toLowerCase());
+    const hasSpecific = tags.some(t => t.includes('cimbalom'));
+    const hasBroad = tags.some(t =>
+      t.includes('instrument') || t.includes('diy') || t.includes('percussion') ||
+      t.includes('found-object') || t.includes('craft')
+    );
+    expect(hasSpecific && hasBroad).toBe(true);
+  });
+
+  it('H1 specific subject: intent is create or plan', () => {
+    expect(['create', 'plan']).toContain(notes.H1_specific_subject.intent);
   });
 });
