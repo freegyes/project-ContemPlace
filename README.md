@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
-  <img src="https://img.shields.io/badge/tests-~420-brightgreen" alt="Tests: ~420" />
+  <img src="https://img.shields.io/badge/tests-~435-brightgreen" alt="Tests: ~435" />
   <img src="https://img.shields.io/badge/cloudflare-workers-orange" alt="Cloudflare Workers" />
   <img src="https://img.shields.io/badge/database-supabase-green" alt="Supabase" />
 </p>
@@ -135,7 +135,7 @@ The system doesn't care about categories. You never have to pick one. You send r
 
 No folders, no hierarchy, no manual organization. Every note is atomic — one idea, one reference, one reflection. Structure comes from three mechanisms:
 
-1. **Capture-time linking** — the LLM compares your note against existing notes and creates typed edges (`extends`, `contradicts`, `supports`, `is-example-of`)
+1. **Capture-time linking** — the LLM compares your note against existing notes and creates typed edges (`extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`)
 2. **Similarity linking** — the gardening pipeline finds notes with high cosine similarity and connects them with `is-similar-to` links
 3. **Tag normalization** — free-form tags are matched against a SKOS concept vocabulary, so "laser cutting" and "laser cutter" resolve to the same concept
 
@@ -149,7 +149,7 @@ Each note gets 10 fields from a single LLM pass:
 | Field | Purpose |
 |---|---|
 | **title** | A claim or insight — not a topic label |
-| **body** | 1–5 sentences, atomic, in the user's own voice |
+| **body** | 1–8 sentences (scales with input length), atomic, in the user's own voice |
 | **type** | `idea` / `reflection` / `source` / `lookup` |
 | **intent** | `reflect` / `plan` / `create` / `remember` / `reference` / `log` |
 | **modality** | `text` / `link` / `list` / `mixed` |

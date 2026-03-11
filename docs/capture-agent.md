@@ -11,7 +11,7 @@ The capture agent is an LLM that turns raw user input into a structured note. It
 | `idea` | Default. A thought, observation, or plan that doesn't fit the other three. |
 | `reflection` | First-person personal insight. Requires an explicit signal of personal resonance — "this resonates with me", "I realized", "I felt". Topic alone is never enough; a note *about* mindfulness is not automatically a reflection. |
 | `source` | An external URL is included in the input. |
-| `lookup` | An investigative prompt — the user is asking a question to research later, not recording an answer. Triggered by investigative framing ("look into", "figure out whether", "check out"), even if the subject involves something buildable. |
+| `lookup` | A question or set of questions to investigate — whether phrased as a command ("look into X"), a direct question ("what happens when X?"), or a conditional ("should X be done?"). The signal is interrogative intent, not specific phrasing. |
 
 ### Intent — what the user is doing
 
@@ -37,6 +37,7 @@ The agent extracts proper nouns from the input with five type categories: `perso
 Strict rules:
 - Only extract entities **explicitly mentioned** in the user's input
 - Never infer entities from related notes or training data
+- Scan every input for proper nouns, regardless of length — a person mentioned by name must always appear in entities
 - If a name was corrected via the `corrections` field, use the corrected version
 - Names over 200 characters are filtered out (likely parser artifacts)
 - Invalid entity types are filtered out
@@ -88,6 +89,10 @@ The capture voice (stored in the database, not in code) enforces a bright-line r
 > Every sentence in the body must be traceable to something the user actually said.
 
 The agent may clean up grammar, remove filler, and lightly restructure — but it must not add information, conclusions, elaborations, or descriptions that the user did not express. If the input is short, the body is short. One sentence is fine.
+
+**Question preservation** (added PR #76): If the input contains questions, they must be preserved as questions in the body. The agent must not answer them, synthesize related notes into an answer, or reframe them as statements. Related notes are for linking context only — never fold their content into the body. This rule lives in SYSTEM_FRAME (structural correctness), not the capture voice (stylistic).
+
+**Body length scaling** (added PR #76): The capture voice no longer enforces a fixed "1-5 sentences." Short inputs get 1-3 sentences. Longer inputs can use up to 8 sentences to preserve all actionable content. Shorter is still better than padded.
 
 This rule exists because the capture LLM (Haiku) tends to add a summarizing conclusion that restates what the user's words already showed. The traceability rule explicitly prohibits this. The user's raw input is the source of truth; the structured note is a cleaned-up presentation of it, not an interpretation.
 

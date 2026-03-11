@@ -15,7 +15,7 @@ The core table. Each row is a captured note with both the user's raw input and t
 | `created_at` | timestamptz | auto | |
 | `updated_at` | timestamptz | trigger | Via `update_updated_at()` trigger |
 | `title` | text | LLM | Claim or descriptive phrase |
-| `body` | text | LLM | 1–5 sentences, atomic |
+| `body` | text | LLM | 1–8 sentences (scales with input length), atomic |
 | `type` | text | LLM | `idea`, `reflection`, `source`, `lookup` |
 | `tags` | text[] | LLM | Free-form tags from input |
 | `source_ref` | text | LLM | URL if present |
@@ -57,7 +57,7 @@ Typed edges between notes. Capture-time links are created by the LLM; gardening-
 | `id` | uuid (PK) | |
 | `from_id` | uuid (FK → notes) | The newer note |
 | `to_id` | uuid (FK → notes) | The related note |
-| `link_type` | text | 8 allowed values (see below) |
+| `link_type` | text | 9 allowed values (see below) |
 | `context` | text | Why the link exists |
 | `confidence` | float | 1.0 for LLM/human links, <1.0 for auto-similarity |
 | `created_by` | text | `capture`, `gardener`, or `user` |

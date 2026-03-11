@@ -87,18 +87,18 @@ supabase/
   seed/
     seed_concepts.sql              # SKOS starter vocabulary (~30 concepts, 4 schemes — run manually in SQL Editor)
 tests/
-  parser.test.ts              # Unit tests for src/capture.ts parseCaptureResponse (17 tests, no network)
+  parser.test.ts              # Unit tests for src/capture.ts parseCaptureResponse (18 tests, no network)
   smoke.test.ts               # Smoke tests against the live Telegram Worker
   mcp-auth.test.ts            # Unit tests for mcp/src/auth.ts
   mcp-config.test.ts          # Unit tests for mcp/src/config.ts
   mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts + parity with src/embed.ts
-  mcp-parser.test.ts          # Parity tests for mcp/src/capture.ts vs src/capture.ts (17 tests)
+  mcp-parser.test.ts          # Parity tests for mcp/src/capture.ts vs src/capture.ts (18 tests)
   mcp-tools.test.ts           # Unit tests for all 8 MCP tool handlers (mocked deps, no network)
   mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (27 tests, no network)
   mcp-index.test.ts           # Unit tests for OAuthProvider config + resolveExternalToken (15 tests)
   mcp-oauth.test.ts           # Unit tests for consent page rendering, AuthHandler, CONSENT_SECRET validation (27 tests)
   mcp-smoke.test.ts           # Smoke tests against the live MCP Worker
-  semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (45 tests, hits live stack)
+  semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (60 tests, hits live stack)
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
   gardener-normalize.test.ts  # Unit tests for tag matching: lexicalMatch, semanticMatch, resolveNoteTags (23 tests)
   gardener-embed.test.ts      # Parity tests for gardener/src/embed.ts vs src/embed.ts + mcp/src/embed.ts (3 tests)
@@ -342,7 +342,7 @@ bash scripts/deploy.sh
 The script runs in order:
 1. `supabase db push --linked` — applies pending migrations via the Supabase connection pooler (no direct port 5432 access required)
 2. `tsc --noEmit` — typecheck
-3. `vitest run tests/parser.test.ts` — 17 parser unit tests (local, no network)
+3. `vitest run tests/parser.test.ts` — 18 parser unit tests (local, no network)
 4. `wrangler deploy` — deploys the Worker
 5. `vitest run tests/smoke.test.ts` — end-to-end smoke tests against live Worker
 

@@ -551,3 +551,23 @@ The agent needs guidance beyond the structural SYSTEM_FRAME: what to capture (at
 - **(D) A + C:** Defense in depth but overkill for single-user.
 
 Option B chosen because: zero external dependencies, everything lives in Worker code and secrets, full client compatibility preserved, and the consent page is visited rarely enough that per-approval entry is not a burden. DCR stays open (harmless without consent page access). No per-session cookie (adds signing complexity for marginal convenience). Cloudflare Access documented as the upgrade path if the system becomes multi-user or faces active targeting.
+
+## Capture quality batch 1: prompt fixes over hybrid pipeline (2026-03-12)
+
+**Decision:** Fix 5 capture agent quality issues (#68, #73, #52, #51, #74) via SYSTEM_FRAME prompt strengthening and capture voice tuning, not the full hybrid pre-pass/LLM/post-pass pipeline proposed in #68.
+
+**Context:** Real-world usage surfaced a cluster of quality issues: hallucinated answers for question inputs, misclassification of questions as `idea` instead of `lookup`, dropped primary-subject tags, missed entity extraction in short inputs, and body truncation of longer inputs. All shared a root cause: the single-pass LLM was near its quality ceiling for edge cases.
+
+**Why not the hybrid pipeline:** The three-layer architecture (pre-pass → LLM → post-pass) would fix the same problems more reliably but at significantly more complexity. The current issues affect ~10-15% of captures. Prompt fixes are cheap, immediately deployable, and testable via the semantic test suite. If they prove insufficient, the hybrid pipeline is the next step (reserved for Phase 3 / smart capture router #27).
+
+**Changes made:**
+- Anti-hallucination body rule in SYSTEM_FRAME: questions must be preserved as questions, never answered
+- Broader `lookup` definition: interrogative intent, not just command phrasing
+- Tag limit raised from 2-5 to 2-7 with subject-first priority
+- Entity extraction emphasis: proper nouns extracted regardless of input length
+- Body length scaling: 1-3 sentences short, up to 8 for longer inputs
+- Schema bug fixed: `duplicate-of` added to `links.link_type` CHECK constraint (was silently dropping all duplicate-of links)
+
+**Validation:** 60/60 semantic tests pass (15 new F/G/H clusters covering all fixed issues). All question-type fixtures correctly classified as `lookup` with preserved question form.
+
+**Risk:** Body length relaxation may produce less atomic notes for medium-length inputs. Tag count inflation possible with wider 2-7 range. Both monitored post-deploy.
