@@ -5,7 +5,7 @@ import type { Env } from './types';
  * Uses crypto.subtle.timingSafeEqual (Workers runtime) with a fallback
  * to a manual constant-time loop (for Node test environments).
  */
-function timingSafeEqual(a: string, b: string): boolean {
+export function timingSafeEqual(a: string, b: string): boolean {
   const encoder = new TextEncoder();
   const bufA = encoder.encode(a);
   const bufB = encoder.encode(b);

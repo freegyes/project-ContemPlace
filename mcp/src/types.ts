@@ -1,3 +1,5 @@
+import type { OAuthHelpers } from '@cloudflare/workers-oauth-provider';
+
 // ── MCP Worker Env ───────────────────────────────────────────────────────────
 
 export interface Env {
@@ -10,6 +12,8 @@ export interface Env {
   MATCH_THRESHOLD: string;
   MCP_SEARCH_THRESHOLD: string;
   OAUTH_KV: KVNamespace;
+  /** Injected at runtime by OAuthProvider before calling handlers */
+  OAUTH_PROVIDER?: OAuthHelpers;
 }
 
 // ── Note Types ──────────────────────────────────────────────────────────────

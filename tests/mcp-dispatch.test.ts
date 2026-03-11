@@ -29,6 +29,10 @@ vi.mock('../mcp/src/tools', () => ({
   handleSearchChunks: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
 }));
 
+vi.mock('@cloudflare/workers-oauth-provider', () => ({
+  OAuthProvider: vi.fn().mockImplementation(() => ({ fetch: vi.fn() })),
+}));
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn().mockReturnValue({}),
 }));
@@ -253,9 +257,10 @@ describe('handleMcpRequest — JSON-RPC dispatch', () => {
       expect(res.headers.get('Content-Type')).toContain('application/json');
     });
 
-    it('success responses include CORS headers', async () => {
+    it('success responses include Content-Type header', async () => {
       const res = await dispatch('initialize');
-      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+      // CORS is now handled by OAuthProvider wrapper, not by handleMcpRequest
+      expect(res.headers.get('Content-Type')).toBe('application/json');
     });
 
     it('error responses include jsonrpc, id, and error.code + message', async () => {
