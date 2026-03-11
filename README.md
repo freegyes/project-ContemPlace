@@ -54,7 +54,7 @@ The core — database + MCP server — is the only required piece. Everything el
 
 | Module | What it does | State |
 |---|---|---|
-| **MCP server** | Exposes the note graph to any MCP-capable agent. Eight tools: search notes, search chunks, retrieve, browse, get related, capture, list unmatched tags, promote concept. | ✅ Live |
+| **MCP server** | Exposes the note graph to any MCP-capable agent. Eight tools: search notes, search chunks, get note, list recent, get related, capture, list unmatched tags, promote concept. | ✅ Live |
 | **Telegram capture bot** | Zero-friction note capture. Message the bot in any format — voice, text, link — and get a structured note back. | ✅ Live |
 | **Gardening pipeline** | Nightly background enrichment: similarity links, SKOS tag normalization, chunk generation. Runs at 02:00 UTC, also triggerable via POST /trigger. | ✅ Complete |
 | **Dashboard** | Browser-based view of your notes — search, browse, follow links, see the graph. | 💡 Planned |
@@ -97,7 +97,7 @@ Each note gets 10 fields from a single LLM pass:
 | **modality** | `text` / `link` / `list` / `mixed` |
 | **tags** | Free-form, from the input |
 | **entities** | Proper nouns with types (person, place, tool, project, concept) |
-| **links** | Typed edges to related notes (`extends`, `contradicts`, `supports`, `is-example-of`) |
+| **links** | Typed edges to related notes (`extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`) |
 | **corrections** | Voice dictation fixes, applied silently and reported |
 | **source_ref** | URL if one was included |
 
@@ -320,7 +320,7 @@ npx vitest run tests/gardener-integration.test.ts
 wrangler dev
 ```
 
-~400 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
+~420 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
 
 ## Project layout
 
@@ -397,3 +397,29 @@ docs/             Architecture, schema, decisions, roadmap
 | [Design decisions](docs/decisions.md) | Why this stack, key tradeoffs, lessons from real usage |
 | [Roadmap](docs/roadmap.md) | Phase history and what's next |
 | [CLAUDE.md](CLAUDE.md) | Working instructions for Claude Code — conventions, constraints, commands |
+
+## FAQ
+
+### What kind of notes does this store?
+
+Anything you'd want to find again. The capture agent handles a wide range of input — it classifies each note by type and intent automatically. In practice, a typical database ends up with:
+
+- **Project ideas** — things to build, one concept per note. A musical instrument, a piece of furniture, a software tool.
+- **Technical references** — things you looked up and want to find again. Wiring diagrams, software settings, material specs.
+- **Practical improvements** — workshop layouts, storage solutions, home projects.
+- **Feature specs** — ideas for websites, products, or tools you're building.
+- **Research breadcrumbs** — things to follow up on. A simulator to try, a course to take, a technique to learn.
+- **Source notes** — references to videos, articles, or conversations that sparked ideas, linked back to the notes they generated.
+- **Reflections** — shorter, more personal notes about energy, motivation, or creative identity. Not project descriptions — how it feels to make things.
+
+The system doesn't care about categories. You never have to pick one. You send raw text; the capture agent figures out the type, intent, tags, and entities. The categories above aren't folders — they're patterns that emerge from real usage.
+
+### How does structure emerge?
+
+There are no folders, no hierarchy, no manual organization. Every note is atomic — one idea, one reference, one reflection. Structure comes from three mechanisms:
+
+1. **Capture-time linking** — the LLM compares your note against existing notes and creates typed edges (`extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`).
+2. **Similarity linking** — the gardening pipeline finds notes with high cosine similarity and connects them with `is-similar-to` links.
+3. **Tag normalization** — free-form tags are matched against a SKOS concept vocabulary, so "laser cutting" and "laser cutter" resolve to the same concept.
+
+Over time, clusters form naturally. Notes about instrument building link to each other; notes about a specific technique form a web. Any MCP-capable agent can surface these clusters via `search_notes` and `get_related` — ask "what are my instrument-building ideas?" and the graph does the work.
