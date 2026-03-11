@@ -60,9 +60,13 @@ afterAll(async () => {
 
 describe('MCP Worker — CORS', () => {
   it('returns 204 with CORS headers for OPTIONS', async () => {
-    const res = await fetch(`${MCP_URL}/mcp`, { method: 'OPTIONS' });
+    const res = await fetch(`${MCP_URL}/mcp`, {
+      method: 'OPTIONS',
+      headers: { 'Origin': 'https://claude.ai' },
+    });
     expect(res.status).toBe(204);
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    // OAuthProvider mirrors the request Origin (not wildcard *)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://claude.ai');
   });
 });
 
@@ -76,9 +80,10 @@ describe('MCP Worker — authentication', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns 403 when Authorization header has wrong token', async () => {
+  it('returns 401 when Authorization header has wrong token', async () => {
     const res = await post(rpcBody('initialize'), 'wrong-key');
-    expect(res.status).toBe(403);
+    // OAuthProvider returns 401 for unrecognized tokens (not 403)
+    expect(res.status).toBe(401);
   });
 
   it('returns 200 with correct token', async () => {
@@ -88,12 +93,10 @@ describe('MCP Worker — authentication', () => {
 });
 
 describe('MCP Worker — routing', () => {
-  it('returns 404 for GET /mcp', async () => {
-    const res = await fetch(`${MCP_URL}/mcp`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${API_KEY}` },
-    });
-    expect(res.status).toBe(404);
+  it('GET /mcp is handled by OAuthProvider (not 404)', async () => {
+    // OAuthProvider treats /mcp as an API route — returns 401 for unauthenticated GET
+    const res = await fetch(`${MCP_URL}/mcp`, { method: 'GET' });
+    expect(res.status).toBe(401);
   });
 
   it('returns 404 for POST to an unknown path', async () => {
@@ -103,6 +106,45 @@ describe('MCP Worker — routing', () => {
       body: rpcBody('initialize'),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('MCP Worker — OAuth discovery', () => {
+  it('GET /.well-known/oauth-protected-resource returns RFC 9728 metadata', async () => {
+    const res = await fetch(`${MCP_URL}/.well-known/oauth-protected-resource`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body['resource']).toBeDefined();
+    expect(body['authorization_servers']).toBeDefined();
+    expect(Array.isArray(body['authorization_servers'])).toBe(true);
+  });
+
+  it('GET /.well-known/oauth-authorization-server returns RFC 8414 metadata', async () => {
+    const res = await fetch(`${MCP_URL}/.well-known/oauth-authorization-server`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body['authorization_endpoint']).toBeDefined();
+    expect(body['token_endpoint']).toBeDefined();
+    expect(body['registration_endpoint']).toBeDefined();
+    expect(body['code_challenge_methods_supported']).toEqual(['S256']);
+  });
+
+  it('POST /register accepts DCR registration', async () => {
+    const res = await fetch(`${MCP_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Smoke Test Client',
+        redirect_uris: ['https://example.com/callback'],
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body['client_id']).toBeDefined();
+    expect(body['client_name']).toBe('Smoke Test Client');
   });
 });
 

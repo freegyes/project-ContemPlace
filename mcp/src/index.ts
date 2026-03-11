@@ -1,20 +1,18 @@
+import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { createClient } from '@supabase/supabase-js';
 import { loadConfig } from './config';
-import { validateAuth } from './auth';
+import { timingSafeEqual } from './auth';
 import { createOpenAIClient } from './embed';
 import { TOOL_DEFINITIONS, handleSearchNotes, handleSearchChunks, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleListUnmatchedTags, handlePromoteConcept } from './tools';
+import { AuthHandler } from './oauth';
 import type { Env } from './types';
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+// ── JSON-RPC helpers ─────────────────────────────────────────────────────────
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 
@@ -28,7 +26,7 @@ function jsonRpcResult(id: unknown, result: unknown): Response {
 
 /**
  * Handle an authenticated MCP JSON-RPC request.
- * Exported so both the static token bypass and future OAuthProvider can call it.
+ * Called by the McpApiHandler (via OAuthProvider) for both OAuth and static token callers.
  */
 export async function handleMcpRequest(request: Request, env: Env): Promise<Response> {
   // Parse JSON-RPC body
@@ -120,22 +118,49 @@ export async function handleMcpRequest(request: Request, env: Env): Promise<Resp
   return jsonRpcError(id, -32601, 'Method not found');
 }
 
-export default {
+// ── MCP API Handler (ExportedHandler for OAuthProvider) ──────────────────────
+// The library requires `fetch` to be non-optional (ExportedHandlerWithFetch).
+// Typed as Required<Pick<...>> to satisfy the constraint.
+
+const McpApiHandler: ExportedHandler<Env> & Pick<Required<ExportedHandler<Env>>, 'fetch'> = {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
-    }
-
-    const url = new URL(request.url);
-    if (request.method !== 'POST' || url.pathname !== '/mcp') {
-      return new Response('Not Found', { status: 404 });
-    }
-
-    // Auth — check before parsing body
-    const authError = validateAuth(request, env);
-    if (authError) return authError;
-
     return handleMcpRequest(request, env);
+  },
+};
+
+// ── OAuthProvider configuration ──────────────────────────────────────────────
+
+const oauthProvider = new OAuthProvider<Env>({
+  apiRoute: '/mcp',
+  apiHandler: McpApiHandler,
+  defaultHandler: AuthHandler,
+  authorizeEndpoint: '/authorize',
+  tokenEndpoint: '/token',
+  clientRegistrationEndpoint: '/register',
+  accessTokenTTL: 3600,       // 1 hour
+  refreshTokenTTL: 2592000,   // 30 days
+  // SECURITY: S256 only — plain offers no cryptographic protection.
+  // The library defaults to true (allowing plain). Override explicitly.
+  allowPlainPKCE: false,
+  scopesSupported: ['mcp'],
+  /**
+   * Static token bypass via resolveExternalToken.
+   * When a Bearer token is not in the library's internal format (userId:grantId:secret),
+   * this callback fires. We compare against MCP_API_KEY for backward-compatible static auth.
+   * The hex MCP_API_KEY has no colons, so the library skips KV lookup entirely — no latency penalty.
+   */
+  async resolveExternalToken({ token, env }) {
+    if (!env.MCP_API_KEY) return null;
+    if (!timingSafeEqual(token, env.MCP_API_KEY)) return null;
+    return { props: { userId: 'static-key', authMethod: 'static' } };
+  },
+  onError({ code, description, status }) {
+    console.error(JSON.stringify({ event: 'oauth_error', code, description, status }));
+  },
+});
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return oauthProvider.fetch(request, env, ctx);
   },
 };

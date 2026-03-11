@@ -1,10 +1,24 @@
 /**
  * Tests for the MCP HTTP wrapper (mcp/src/index.ts default export).
- * Auth, routing, and CORS only — JSON-RPC dispatch is tested in mcp-dispatch.test.ts.
+ * Verifies that the OAuthProvider is wired up correctly and that the
+ * static token bypass via resolveExternalToken works.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
+
+// vi.hoisted() runs before vi.mock factories — safe to reference in both.
+const oauthCapture = vi.hoisted(() => ({
+  options: {} as Record<string, unknown>,
+  fetch: vi.fn(),
+}));
+
+vi.mock('@cloudflare/workers-oauth-provider', () => ({
+  OAuthProvider: vi.fn().mockImplementation((options: Record<string, unknown>) => {
+    oauthCapture.options = options;
+    return { fetch: oauthCapture.fetch };
+  }),
+}));
 
 vi.mock('../mcp/src/tools', () => ({
   TOOL_DEFINITIONS: [
@@ -43,119 +57,100 @@ const MOCK_ENV = {
   CAPTURE_MODEL: 'anthropic/claude-haiku-4-5',
   EMBED_MODEL: 'openai/text-embedding-3-small',
   MATCH_THRESHOLD: '0.60',
+  OAUTH_KV: {},
 };
 
-function authHeaders(key = VALID_API_KEY): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${key}`,
-  };
-}
-
-function rpcBody(method: string, id: unknown = 1): string {
-  return JSON.stringify({ jsonrpc: '2.0', method, id });
-}
+const MOCK_CTX = {
+  waitUntil: vi.fn(),
+  passThroughOnException: vi.fn(),
+} as unknown as ExecutionContext;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('MCP HTTP wrapper', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    oauthCapture.fetch.mockResolvedValue(new Response('ok'));
+  });
 
-  describe('CORS preflight', () => {
-    it('returns 204 for OPTIONS request', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', { method: 'OPTIONS' }),
-        MOCK_ENV,
-      );
-      expect(res.status).toBe(204);
+  describe('delegates all requests to OAuthProvider', () => {
+    it('passes request, env, and ctx to OAuthProvider.fetch', async () => {
+      const req = new Request('https://worker.example.com/mcp', { method: 'POST' });
+      await handler.fetch(req, MOCK_ENV as never, MOCK_CTX);
+      expect(oauthCapture.fetch).toHaveBeenCalledWith(req, MOCK_ENV, MOCK_CTX);
     });
 
-    it('sets Access-Control-Allow-Origin: * on preflight', async () => {
+    it('returns the response from OAuthProvider.fetch', async () => {
+      const expected = new Response('test-response', { status: 200 });
+      oauthCapture.fetch.mockResolvedValue(expected);
       const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', { method: 'OPTIONS' }),
-        MOCK_ENV,
+        new Request('https://worker.example.com/mcp', { method: 'POST' }),
+        MOCK_ENV as never,
+        MOCK_CTX,
       );
-      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    });
-
-    it('sets correct Allow-Methods header', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', { method: 'OPTIONS' }),
-        MOCK_ENV,
-      );
-      expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+      expect(res).toBe(expected);
     });
   });
 
-  describe('routing', () => {
-    it('returns 404 for GET /mcp', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', { method: 'GET' }),
-        MOCK_ENV,
-      );
-      expect(res.status).toBe(404);
+  describe('OAuthProvider configuration', () => {
+    it('configures apiRoute as /mcp', () => {
+      expect(oauthCapture.options['apiRoute']).toBe('/mcp');
     });
 
-    it('returns 404 for POST to an unknown path', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/other', { method: 'POST', headers: authHeaders(), body: '{}' }),
-        MOCK_ENV,
-      );
-      expect(res.status).toBe(404);
-    });
-  });
-
-  describe('authentication', () => {
-    it('returns 401 when Authorization header is missing', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-        }),
-        MOCK_ENV,
-      );
-      expect(res.status).toBe(401);
+    it('configures authorizeEndpoint as /authorize', () => {
+      expect(oauthCapture.options['authorizeEndpoint']).toBe('/authorize');
     });
 
-    it('returns 403 when token is wrong', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', {
-          method: 'POST',
-          headers: authHeaders('wrong-key'),
-          body: rpcBody('initialize'),
-        }),
-        MOCK_ENV,
-      );
-      expect(res.status).toBe(403);
+    it('configures tokenEndpoint as /token', () => {
+      expect(oauthCapture.options['tokenEndpoint']).toBe('/token');
     });
 
-    it('allows request through with correct token', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: rpcBody('initialize'),
-        }),
-        MOCK_ENV,
-      );
-      expect(res.status).toBe(200);
+    it('enables DCR at /register', () => {
+      expect(oauthCapture.options['clientRegistrationEndpoint']).toBe('/register');
+    });
+
+    it('disallows plain PKCE (S256 only)', () => {
+      expect(oauthCapture.options['allowPlainPKCE']).toBe(false);
+    });
+
+    it('sets access token TTL to 1 hour', () => {
+      expect(oauthCapture.options['accessTokenTTL']).toBe(3600);
+    });
+
+    it('sets refresh token TTL to 30 days', () => {
+      expect(oauthCapture.options['refreshTokenTTL']).toBe(2592000);
+    });
+
+    it('declares mcp scope', () => {
+      expect(oauthCapture.options['scopesSupported']).toEqual(['mcp']);
+    });
+
+    it('provides a resolveExternalToken callback', () => {
+      expect(typeof oauthCapture.options['resolveExternalToken']).toBe('function');
+    });
+
+    it('provides an onError callback', () => {
+      expect(typeof oauthCapture.options['onError']).toBe('function');
     });
   });
 
-  describe('delegates to handleMcpRequest after auth', () => {
-    it('returns valid JSON-RPC response for an authenticated request', async () => {
-      const res = await handler.fetch(
-        new Request('https://worker.example.com/mcp', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: rpcBody('initialize'),
-        }),
-        MOCK_ENV,
-      );
-      const body = await res.json() as Record<string, unknown>;
-      expect(body['jsonrpc']).toBe('2.0');
-      expect(body['result']).toBeDefined();
+  describe('resolveExternalToken (static token bypass)', () => {
+    it('returns props for a valid static token', async () => {
+      const resolve = oauthCapture.options['resolveExternalToken'] as (input: { token: string; env: typeof MOCK_ENV }) => Promise<unknown>;
+      const result = await resolve({ token: VALID_API_KEY, env: MOCK_ENV });
+      expect(result).toEqual({ props: { userId: 'static-key', authMethod: 'static' } });
+    });
+
+    it('returns null for an invalid static token', async () => {
+      const resolve = oauthCapture.options['resolveExternalToken'] as (input: { token: string; env: typeof MOCK_ENV }) => Promise<unknown>;
+      const result = await resolve({ token: 'wrong-key', env: MOCK_ENV });
+      expect(result).toBeNull();
+    });
+
+    it('returns null when MCP_API_KEY is not set', async () => {
+      const resolve = oauthCapture.options['resolveExternalToken'] as (input: { token: string; env: Record<string, unknown> }) => Promise<unknown>;
+      const result = await resolve({ token: 'any-key', env: { ...MOCK_ENV, MCP_API_KEY: '' } });
+      expect(result).toBeNull();
     });
   });
 });
