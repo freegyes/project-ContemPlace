@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "0.3.0",
     "@supabase/supabase-js": "^2",
     "openai": "^4"
   },
