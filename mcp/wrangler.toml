@@ -8,6 +8,11 @@ CAPTURE_MODEL = "anthropic/claude-haiku-4-5"
 EMBED_MODEL = "openai/text-embedding-3-small"
 MATCH_THRESHOLD = "0.35"
 
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "11030833d3ce42c982434edef755ee2e"
+preview_id = "7626e22d14e94b2ea1e6bf40edb5d60d"
+
 # Secrets (set via: wrangler secret put <NAME> -c mcp/wrangler.toml):
 # MCP_API_KEY
 # SUPABASE_URL
