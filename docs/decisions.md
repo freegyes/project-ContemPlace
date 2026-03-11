@@ -503,3 +503,13 @@ A new capture mode emerged: an LLM agent commits useful insights into ContemPlac
 The agent needs guidance beyond the structural SYSTEM_FRAME: what to capture (atomic ideas worth finding in three months), what to skip (session logs, task status), how to format (one idea per call, preserve user's framing). This is the editorial contract — tracked in issue #47.
 
 `get_capture_guidance` MCP tool would return both structural spec and editorial guidance. The editorial layer could live in `capture_profiles` alongside the capture voice — editable without deploy.
+
+## Phase 2c-A: extract handleMcpRequest + timing-safe auth (2026-03-11)
+
+**Decision:** Refactor the MCP Worker's monolithic `fetch()` handler into a thin HTTP wrapper (CORS, routing, auth) and an exported `handleMcpRequest(request, env)` function that handles JSON-RPC dispatch. Fix timing-vulnerable string comparison in auth.
+
+**Why:** OAuthProvider integration (Phase 2c issue C) needs the JSON-RPC dispatch logic as a standalone function. Both the static token bypass and OAuthProvider will call `handleMcpRequest` — the wrapper decides which auth path, the dispatch is shared. Extracting now, while behavior is unchanged, keeps the OAuth PR focused on new functionality.
+
+**Auth fix:** `validateAuth` previously used `token !== env.MCP_API_KEY` — a timing-vulnerable comparison that leaks token length information. Replaced with `timingSafeEqual` using `crypto.subtle.timingSafeEqual` (Workers runtime) with a manual XOR-loop fallback for Node test environments. Added `isStaticTokenRequest(request, env): boolean` for the future static-token bypass path.
+
+**Test split:** `mcp-index.test.ts` (previously 31 tests covering everything) split into `mcp-dispatch.test.ts` (27 tests — JSON-RPC protocol and tool dispatch against `handleMcpRequest` directly) and `mcp-index.test.ts` (9 tests — HTTP wrapper: auth, routing, CORS). Total MCP unit tests: 185.

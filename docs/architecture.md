@@ -190,7 +190,7 @@ This is in design, not implemented. See `docs/decisions.md` for the ADR and issu
 
 - **Webhook verification:** Every request must include a valid `x-telegram-bot-api-secret-token` header matching the configured secret. Missing or wrong = 403.
 - **Chat ID whitelist:** Only chat IDs listed in `ALLOWED_CHAT_IDS` are processed. Others get a silent 200 (no information leak).
-- **MCP auth:** Bearer token (`MCP_API_KEY`) required on all MCP requests. Returns 401/403 on missing/wrong token.
+- **MCP auth:** Bearer token (`MCP_API_KEY`) required on all MCP requests. Returns 401/403 on missing/wrong token. Token comparison uses constant-time `timingSafeEqual` to prevent timing attacks. The dispatch logic (`handleMcpRequest`) is exported separately from the auth wrapper, enabling future OAuth integration to share the same dispatch path.
 - **Gardener trigger auth:** Optional Bearer token (`GARDENER_API_KEY`) for the `/trigger` endpoint.
 - **Service role key:** All Supabase access uses the service role key, bypassing RLS. The anon key is never used. RLS is enabled on all tables with a `deny all` policy as defense in depth — if the anon key were ever exposed, it would have zero access.
 - **No raw SQL interpolation:** JSONB columns (`entities`, `metadata`) contain LLM-generated content and are never interpolated into SQL strings. All queries use parameterized Supabase client calls.

@@ -301,7 +301,7 @@ npx vitest run tests/gardener-integration.test.ts
 wrangler dev
 ```
 
-~393 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
+~400 tests total across unit, integration, and smoke suites. Smoke and integration tests create and clean up test notes automatically.
 
 ## Project layout
 

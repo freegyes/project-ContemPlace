@@ -55,9 +55,9 @@ mcp/
   wrangler.toml      # MCP Worker config (name: mcp-contemplace)
   tsconfig.json
   src/
-    index.ts         # JSON-RPC 2.0 HTTP handler — routes to 8 tool handlers
+    index.ts         # HTTP wrapper (CORS, routing, auth) + exported handleMcpRequest (JSON-RPC dispatch)
     tools.ts         # Tool definitions + handlers (search_notes, search_chunks, get, list, capture, list_unmatched_tags, promote_concept)
-    auth.ts          # Bearer token auth (validateAuth)
+    auth.ts          # Bearer token auth (validateAuth, isStaticTokenRequest — constant-time comparison)
     config.ts        # Config loading with secret validation
     db.ts            # DB read/write functions (fetchNote, listRecentNotes, searchNotes, insertNote, …)
     embed.ts         # embedText, buildEmbeddingInput (copy of src/embed.ts)
@@ -93,7 +93,8 @@ tests/
   mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts + parity with src/embed.ts
   mcp-parser.test.ts          # Parity tests for mcp/src/capture.ts vs src/capture.ts (17 tests)
   mcp-tools.test.ts           # Unit tests for all 8 MCP tool handlers (mocked deps, no network)
-  mcp-index.test.ts           # Unit tests for MCP HTTP routing and JSON-RPC protocol
+  mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (27 tests, no network)
+  mcp-index.test.ts           # Unit tests for MCP HTTP wrapper — auth, routing, CORS (9 tests)
   mcp-smoke.test.ts           # Smoke tests against the live MCP Worker
   semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (45 tests, hits live stack)
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
@@ -189,7 +190,7 @@ wrangler deploy -c mcp/wrangler.toml
 wrangler secret put MCP_API_KEY -c mcp/wrangler.toml
 
 # Run all MCP unit tests (local, no network)
-npx vitest run tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts tests/mcp-parser.test.ts tests/mcp-tools.test.ts tests/mcp-index.test.ts
+npx vitest run tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts tests/mcp-parser.test.ts tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts tests/mcp-index.test.ts
 
 # Run MCP smoke tests (against live MCP Worker — requires MCP_WORKER_URL + MCP_API_KEY in .dev.vars)
 npx vitest run tests/mcp-smoke.test.ts
