@@ -16,7 +16,7 @@ const DEFAULT_CAPTURE_VOICE = `## Your capture style
 
 **Title**: A claim or insight when one is present. If the input doesn't contain a claim, use a descriptive phrase.
 
-**Body**: 1–5 sentences. Use the user's own words. Every sentence must be traceable to the input. Shorter is better than padded.`;
+**Body**: Use the user's own words. Every sentence must be traceable to the input. 1–3 sentences for short inputs. For longer inputs, use as many sentences as needed to preserve all actionable content — up to 8. Shorter is still better than padded.`;
 
 export async function getCaptureVoice(
   db: SupabaseClient,
