@@ -111,6 +111,22 @@ Add OAuth 2.1 authentication to the MCP server for browser-based clients (Claude
 Progress:
 - **Sub-issue A** — Handler refactor: `handleMcpRequest` extracted, timing-safe auth (PR #63, merged)
 - **Sub-issue B** — KV namespace + OAuth dependency: `@cloudflare/workers-oauth-provider@0.3.0` installed, `OAUTH_KV` created, `Env` updated (PR #64, merged)
+- **Sub-issue C** — OAuthProvider integration + consent page + static bypass (PR #65, merged)
+
+### Sub-issue C — delivered (PR #65)
+
+Wired up `@cloudflare/workers-oauth-provider` as the MCP Worker's default export. The library handles OAuth 2.1 Authorization Code + PKCE, DCR, discovery endpoints, token management, and CORS uniformly.
+
+Key design decision: used `resolveExternalToken` callback (the library's extension point for external token validation) instead of a wrapper function for static token bypass. This means all requests go through OAuthProvider — no dual routing, no CORS inconsistency. Static `MCP_API_KEY` callers are handled by the callback with constant-time comparison; OAuth callers go through the full flow.
+
+Delivered:
+- `GET /.well-known/oauth-protected-resource` — RFC 9728 metadata (auto-served by library)
+- `GET /.well-known/oauth-authorization-server` — RFC 8414 metadata (auto-served by library)
+- `POST /register` — Dynamic Client Registration (auto-served by library)
+- `GET /authorize` — consent page: client name, redirect URI display, "Approve" button
+- `POST /authorize` → `POST /token` — completes OAuth flow
+- S256-only PKCE (`allowPlainPKCE: false`), 1h access tokens, 30d refresh with rotation
+- Verified end-to-end with Claude.ai web connector (all 8 tools visible and functional)
 
 ## Architectural clarification: database + MCP is the core
 

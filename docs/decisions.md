@@ -513,3 +513,28 @@ The agent needs guidance beyond the structural SYSTEM_FRAME: what to capture (at
 **Auth fix:** `validateAuth` previously used `token !== env.MCP_API_KEY` — a timing-vulnerable comparison that leaks token length information. Replaced with `timingSafeEqual` using `crypto.subtle.timingSafeEqual` (Workers runtime) with a manual XOR-loop fallback for Node test environments. Added `isStaticTokenRequest(request, env): boolean` for the future static-token bypass path.
 
 **Test split:** `mcp-index.test.ts` (previously 31 tests covering everything) split into `mcp-dispatch.test.ts` (27 tests — JSON-RPC protocol and tool dispatch against `handleMcpRequest` directly) and `mcp-index.test.ts` (9 tests — HTTP wrapper: auth, routing, CORS). Total MCP unit tests: 185.
+
+## Phase 2c-C: resolveExternalToken over wrapper for static bypass (2026-03-11)
+
+**Decision:** Use the OAuthProvider library's `resolveExternalToken` callback for static token bypass instead of wrapping OAuthProvider with a custom fetch handler.
+
+**Why:** The original plan (issue #61, plan doc) proposed a wrapper: check `isStaticTokenRequest()` first, bypass OAuthProvider entirely for static callers, delegate to OAuthProvider for everyone else. Specialist review discovered `resolveExternalToken` — the library's built-in hook for validating tokens not found in its internal KV store. When a Bearer token doesn't match the internal `userId:grantId:secret` format, this callback fires. The hex `MCP_API_KEY` has no colons, so the library skips KV lookup entirely and calls the callback immediately.
+
+**Benefits over wrapper:**
+- No dual routing — OAuthProvider is the sole default export
+- CORS handled uniformly by the library (origin-mirroring) on all paths
+- `ctx.props` consistently available for both OAuth and static callers
+- OPTIONS preflight handled by library for all routes — no manual handling needed
+
+**Behavioral changes from the switch:**
+- Wrong token returns 401 (OAuthProvider) instead of 403 (old validateAuth)
+- CORS uses origin-mirroring (`Access-Control-Allow-Origin: <origin>`) instead of wildcard `*`
+- GET /mcp returns 401 (API route, needs auth) instead of 404 (old routing)
+
+**Consent page:** Open gate, no login. Single-user system. Displays client name + redirect URI prominently so the owner can verify before approving. Cloudflare Access is the documented upgrade path if the risk profile changes.
+
+## Phase 2c-C: CIMD deferred (2026-03-11)
+
+**Decision:** Leave `clientIdMetadataDocumentEnabled: false` (the default). Do not enable Client ID Metadata Documents yet.
+
+**Why:** No current MCP client uses CIMD. Enabling it requires the `global_fetch_strictly_public` compatibility flag in wrangler.toml, which changes the Worker's fetch behavior globally. The risk isn't justified for a feature no client needs today. Enable it when a client actually requires it.

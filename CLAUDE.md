@@ -55,14 +55,15 @@ mcp/
   wrangler.toml      # MCP Worker config (name: mcp-contemplace)
   tsconfig.json
   src/
-    index.ts         # HTTP wrapper (CORS, routing, auth) + exported handleMcpRequest (JSON-RPC dispatch)
+    index.ts         # OAuthProvider setup, McpApiHandler, resolveExternalToken bypass, handleMcpRequest (JSON-RPC dispatch)
+    oauth.ts         # Consent page HTML renderer + AuthHandler (GET/POST /authorize)
     tools.ts         # Tool definitions + handlers (search_notes, search_chunks, get, list, capture, list_unmatched_tags, promote_concept)
-    auth.ts          # Bearer token auth (validateAuth, isStaticTokenRequest — constant-time comparison)
+    auth.ts          # Bearer token auth (validateAuth, isStaticTokenRequest, timingSafeEqual — constant-time comparison)
     config.ts        # Config loading with secret validation
     db.ts            # DB read/write functions (fetchNote, listRecentNotes, searchNotes, insertNote, …)
     embed.ts         # embedText, buildEmbeddingInput (copy of src/embed.ts)
     capture.ts       # parseCaptureResponse, runCaptureAgent (copy of src/capture.ts)
-    types.ts         # MCP-specific TypeScript interfaces
+    types.ts         # MCP-specific TypeScript interfaces (Env includes OAUTH_KV + OAUTH_PROVIDER)
 gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
@@ -94,7 +95,8 @@ tests/
   mcp-parser.test.ts          # Parity tests for mcp/src/capture.ts vs src/capture.ts (17 tests)
   mcp-tools.test.ts           # Unit tests for all 8 MCP tool handlers (mocked deps, no network)
   mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (27 tests, no network)
-  mcp-index.test.ts           # Unit tests for MCP HTTP wrapper — auth, routing, CORS (9 tests)
+  mcp-index.test.ts           # Unit tests for OAuthProvider config + resolveExternalToken (15 tests)
+  mcp-oauth.test.ts           # Unit tests for consent page rendering + AuthHandler (19 tests)
   mcp-smoke.test.ts           # Smoke tests against the live MCP Worker
   semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (45 tests, hits live stack)
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
@@ -190,7 +192,7 @@ wrangler deploy -c mcp/wrangler.toml
 wrangler secret put MCP_API_KEY -c mcp/wrangler.toml
 
 # Run all MCP unit tests (local, no network)
-npx vitest run tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts tests/mcp-parser.test.ts tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts tests/mcp-index.test.ts
+npx vitest run tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts tests/mcp-parser.test.ts tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts tests/mcp-index.test.ts tests/mcp-oauth.test.ts
 
 # Run MCP smoke tests (against live MCP Worker — requires MCP_WORKER_URL + MCP_API_KEY in .dev.vars)
 npx vitest run tests/mcp-smoke.test.ts
@@ -323,6 +325,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **Phase 1.5 (complete):** Schema v2 (8 tables), metadata-augmented embeddings, `intent`/`modality`/`entities` extraction, capture voice in DB, enrichment log, expanded link types, parser unit tests. Deployed and verified via smoke tests.
 - **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 8 tools (`search_notes`, `search_chunks`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Bearer token auth. Tagged `v2.0.0`.
 - **Phase 2b (complete):** Gardening pipeline — nightly similarity linker, SKOS tag normalization, chunk generation. Maturity scoring deferred. Tagged `v2.5.0`.
+- **Phase 2c (in progress):** OAuth 2.1 for MCP server. Sub-issues A (handler refactor), B (KV + dependency), C (OAuthProvider integration) complete. Uses `@cloudflare/workers-oauth-provider` with `resolveExternalToken` for static token bypass. DCR enabled. Verified with Claude.ai web connector.
 - **Phase 3 (deferred):** Associative trails, type inheritance (`note_types`), location extraction.
 
 ## Deploy

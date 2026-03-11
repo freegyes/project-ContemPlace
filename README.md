@@ -17,7 +17,7 @@ The system is **modular**. The database and MCP server are the irreducible core 
 | Telegram capture bot | ✅ Live |
 | MCP server | ✅ Live — 8 tools |
 | Gardening pipeline | ✅ Complete — similarity linker, tag normalization, chunk generation · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
-| OAuth 2.1 (Claude.ai web) | 🔜 [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
+| OAuth 2.1 (Claude.ai web) | ✅ Live — Auth Code + PKCE, DCR, static key fallback · [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
 | Dashboard | 💡 Planned — [#12](https://github.com/freegyes/project-ContemPlace/issues/12) |
 | Smart capture router | 💡 Design phase — input-type detection + specialized handlers · [#27](https://github.com/freegyes/project-ContemPlace/issues/27) |
 | Import tools | 💡 Planned — [#13](https://github.com/freegyes/project-ContemPlace/issues/13), [#14](https://github.com/freegyes/project-ContemPlace/issues/14) |
@@ -128,11 +128,23 @@ The MCP Worker exposes eight tools:
 | `list_unmatched_tags` | Tags without SKOS concept matches, with frequency. Part of the curation workflow. |
 | `promote_concept` | Add a concept to the SKOS vocabulary. Confirm with the user first; include alt_labels for synonym collapse. |
 
-Auth: `Authorization: Bearer <MCP_API_KEY>` header on all requests. Tool descriptions include guidance for connecting agents — pass raw user input to `capture_note`, don't pre-structure or summarize.
+**Auth:** Two paths, both permanent:
+- **OAuth 2.1** — Authorization Code + PKCE for browser-based clients (Claude.ai web, ChatGPT, Cursor). Dynamic Client Registration — no manual credentials needed.
+- **Static Bearer token** — `Authorization: Bearer <MCP_API_KEY>` for API/SDK callers (Claude Code CLI, Anthropic API, OpenAI Responses API).
+
+Tool descriptions include guidance for connecting agents — pass raw user input to `capture_note`, don't pre-structure or summarize.
 
 **Threshold note:** The default search threshold is 0.35. Stored embeddings are metadata-augmented (`[Type: idea] [Intent: plan] [Tags: …] text`), while search queries are bare natural language. A lower threshold compensates for this vector space gap. You can override per call. See `docs/decisions.md` for the full analysis.
 
-### Connect from Claude Code
+### Connect from Claude.ai web
+
+Add a remote MCP server in Claude.ai settings. Enter the URL — OAuth handles the rest:
+
+```
+https://mcp-contemplace.<subdomain>.workers.dev/mcp
+```
+
+### Connect from Claude Code CLI
 
 ```json
 {
@@ -316,9 +328,10 @@ src/              Telegram capture Worker
   types.ts        TypeScript interfaces
 mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
   src/
-    index.ts      HTTP handler — routing, auth, JSON-RPC dispatch
+    index.ts      OAuthProvider setup, McpApiHandler, resolveExternalToken bypass
+    oauth.ts      Consent page HTML + AuthHandler (GET/POST /authorize)
     tools.ts      All 8 tool handlers with input validation
-    auth.ts       Bearer token auth
+    auth.ts       Bearer token auth + constant-time comparison
     config.ts     Config loading with validation
     db.ts         DB read/write functions
     embed.ts      Embedding helpers (copy of src/embed.ts)
@@ -351,8 +364,10 @@ tests/
   mcp-embed.test.ts       Unit tests: embedding + parity with src/embed.ts (8)
   mcp-parser.test.ts      Unit tests: MCP parser parity with src/capture.ts (17)
   mcp-tools.test.ts       Unit tests: all 8 tool handlers (93)
-  mcp-index.test.ts       Unit tests: HTTP routing + JSON-RPC protocol (35)
-  mcp-smoke.test.ts       Smoke tests: live MCP Worker
+  mcp-index.test.ts       Unit tests: OAuthProvider config + resolveExternalToken (15)
+  mcp-oauth.test.ts       Unit tests: consent page rendering + AuthHandler (19)
+  mcp-dispatch.test.ts    Unit tests: JSON-RPC dispatch (27)
+  mcp-smoke.test.ts       Smoke tests: live MCP Worker + OAuth discovery (27)
   gardener-similarity.test.ts  Unit tests: buildContext + UUID dedup (13)
   gardener-normalize.test.ts   Unit tests: tag matching logic (23)
   gardener-embed.test.ts       Unit tests: embedding parity (3)
