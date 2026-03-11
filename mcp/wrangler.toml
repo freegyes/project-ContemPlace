@@ -15,6 +15,7 @@ preview_id = "7626e22d14e94b2ea1e6bf40edb5d60d"
 
 # Secrets (set via: wrangler secret put <NAME> -c mcp/wrangler.toml):
 # MCP_API_KEY
+# CONSENT_SECRET          — protects the OAuth consent page; generate with: openssl rand -hex 16
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 # OPENROUTER_API_KEY

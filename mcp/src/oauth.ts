@@ -1,4 +1,5 @@
 import type { AuthRequest, ClientInfo } from '@cloudflare/workers-oauth-provider';
+import { timingSafeEqual } from './auth';
 import type { Env } from './types';
 
 /** Single-user system — fixed user ID for all grants */
@@ -11,6 +12,7 @@ export const OWNER_USER_ID = 'owner';
 export function renderConsentPage(
   authRequest: AuthRequest,
   clientInfo: ClientInfo | null,
+  options?: { requireSecret?: boolean },
 ): string {
   const clientName = escapeHtml(clientInfo?.clientName ?? 'Unknown client');
   const redirectUri = escapeHtml(authRequest.redirectUri);
@@ -28,6 +30,8 @@ export function renderConsentPage(
     .client-name { font-weight: 600; }
     .redirect { font-family: monospace; font-size: 0.85rem; background: #e8e8e8; padding: 8px 12px; border-radius: 4px; word-break: break-all; margin: 12px 0; }
     .scope { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+    label { display: block; font-size: 0.9rem; margin-bottom: 4px; color: #333; }
+    input[type="password"] { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; margin-bottom: 16px; box-sizing: border-box; }
     button { background: #2563eb; color: white; border: none; padding: 12px 32px; border-radius: 6px; font-size: 1rem; cursor: pointer; }
     button:hover { background: #1d4ed8; }
     .note { font-size: 0.8rem; color: #888; margin-top: 24px; }
@@ -48,6 +52,8 @@ export function renderConsentPage(
     ${authRequest.codeChallenge ? `<input type="hidden" name="code_challenge" value="${escapeHtml(authRequest.codeChallenge)}">` : ''}
     ${authRequest.codeChallengeMethod ? `<input type="hidden" name="code_challenge_method" value="${escapeHtml(authRequest.codeChallengeMethod)}">` : ''}
     ${authRequest.resource ? `<input type="hidden" name="resource" value="${escapeHtml(typeof authRequest.resource === 'string' ? authRequest.resource : authRequest.resource.join(' '))}">` : ''}
+    ${options?.requireSecret ? `<label for="consent_secret">Passphrase</label>
+    <input type="password" id="consent_secret" name="consent_secret" required autocomplete="off">` : ''}
     <button type="submit">Approve</button>
   </form>
   <p class="note">Single-user system. If you are not the owner, close this page.</p>
@@ -74,11 +80,16 @@ export const AuthHandler: ExportedHandler<Env> = {
       return new Response('Internal Server Error', { status: 500 });
     }
 
+    const requireSecret = Boolean(env.CONSENT_SECRET);
+    if (!requireSecret) {
+      console.warn(JSON.stringify({ event: 'consent_no_secret', warning: 'CONSENT_SECRET not set — consent page is unprotected' }));
+    }
+
     if (request.method === 'GET') {
       try {
         const authRequest = await oauthHelpers.parseAuthRequest(request);
         const clientInfo = await oauthHelpers.lookupClient(authRequest.clientId);
-        const html = renderConsentPage(authRequest, clientInfo);
+        const html = renderConsentPage(authRequest, clientInfo, { requireSecret });
         return new Response(html, {
           status: 200,
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -92,6 +103,17 @@ export const AuthHandler: ExportedHandler<Env> = {
     if (request.method === 'POST') {
       try {
         const formData = await request.formData();
+
+        if (requireSecret) {
+          const submitted = (formData.get('consent_secret') as string) ?? '';
+          if (!submitted || !timingSafeEqual(submitted, env.CONSENT_SECRET)) {
+            console.warn(JSON.stringify({ event: 'consent_secret_failed' }));
+            return new Response(renderDeniedPage(), {
+              status: 403,
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            });
+          }
+        }
 
         const authRequest: AuthRequest = {
           clientId: formData.get('client_id') as string ?? '',
@@ -122,6 +144,26 @@ export const AuthHandler: ExportedHandler<Env> = {
     return new Response('Method Not Allowed', { status: 405 });
   },
 };
+
+export function renderDeniedPage(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Denied — ContemPlace</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 420px; margin: 60px auto; padding: 0 20px; color: #1a1a1a; background: #fafafa; }
+    h1 { font-size: 1.3rem; color: #dc2626; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Authorization denied</h1>
+  <p>The passphrase was incorrect. <a href="javascript:history.back()">Go back</a> and try again.</p>
+</body>
+</html>`;
+}
 
 function escapeHtml(str: string): string {
   return str

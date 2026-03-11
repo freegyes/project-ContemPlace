@@ -4,6 +4,7 @@ import type { OAuthHelpers } from '@cloudflare/workers-oauth-provider';
 
 export interface Env {
   MCP_API_KEY: string;
+  CONSENT_SECRET: string;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   OPENROUTER_API_KEY: string;

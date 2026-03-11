@@ -3,11 +3,16 @@
  * Pure unit tests — no network, no KV.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderConsentPage, AuthHandler, OWNER_USER_ID } from '../mcp/src/oauth';
+import { renderConsentPage, renderDeniedPage, AuthHandler, OWNER_USER_ID } from '../mcp/src/oauth';
 import type { AuthRequest, ClientInfo } from '@cloudflare/workers-oauth-provider';
 
 // ── Mock OAuthProvider (module-level, prevents cloudflare:workers import) ─────
 vi.mock('@cloudflare/workers-oauth-provider', () => ({}));
+
+// ── Mock timingSafeEqual (module-level) ──────────────────────────────────────
+vi.mock('../mcp/src/auth', () => ({
+  timingSafeEqual: (a: string, b: string) => a === b,
+}));
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -34,9 +39,12 @@ function makeClientInfo(overrides: Partial<ClientInfo> = {}): ClientInfo {
   };
 }
 
+const TEST_CONSENT_SECRET = 'test-consent-secret-value';
+
 function makeEnv(overrides: Record<string, unknown> = {}) {
   return {
     MCP_API_KEY: 'test-key',
+    CONSENT_SECRET: TEST_CONSENT_SECRET,
     SUPABASE_URL: 'https://example.supabase.co',
     SUPABASE_SERVICE_ROLE_KEY: 'service-key',
     OPENROUTER_API_KEY: 'or-key',
@@ -122,6 +130,35 @@ describe('renderConsentPage', () => {
     );
     expect(html).toContain('name="resource"');
     expect(html).toContain('value="https://mcp.example.com"');
+  });
+
+  it('omits passphrase field when requireSecret is false', () => {
+    const html = renderConsentPage(makeAuthRequest(), makeClientInfo(), { requireSecret: false });
+    expect(html).not.toContain('name="consent_secret"');
+    expect(html).not.toContain('Passphrase');
+  });
+
+  it('omits passphrase field when options not provided', () => {
+    const html = renderConsentPage(makeAuthRequest(), makeClientInfo());
+    expect(html).not.toContain('name="consent_secret"');
+  });
+
+  it('includes passphrase field when requireSecret is true', () => {
+    const html = renderConsentPage(makeAuthRequest(), makeClientInfo(), { requireSecret: true });
+    expect(html).toContain('name="consent_secret"');
+    expect(html).toContain('type="password"');
+    expect(html).toContain('Passphrase');
+  });
+});
+
+// ── renderDeniedPage tests ──────────────────────────────────────────────────
+
+describe('renderDeniedPage', () => {
+  it('renders valid HTML with denial message', () => {
+    const html = renderDeniedPage();
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('Authorization denied');
+    expect(html).toContain('passphrase was incorrect');
   });
 });
 
@@ -214,8 +251,8 @@ describe('AuthHandler', () => {
   });
 
   describe('POST /authorize — consent submission', () => {
-    it('completes authorization and redirects', async () => {
-      const body = new URLSearchParams({
+    function postBody(extra: Record<string, string> = {}) {
+      return new URLSearchParams({
         client_id: 'test-client-id',
         redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
         state: 'random-state',
@@ -223,13 +260,17 @@ describe('AuthHandler', () => {
         response_type: 'code',
         code_challenge: 'abc123',
         code_challenge_method: 'S256',
+        consent_secret: TEST_CONSENT_SECRET,
+        ...extra,
       });
+    }
 
+    it('completes authorization and redirects with correct secret', async () => {
       const res = await AuthHandler.fetch!(
         new Request('https://worker.example.com/authorize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: body.toString(),
+          body: postBody().toString(),
         }),
         envWithHelpers() as never,
         {} as ExecutionContext,
@@ -240,19 +281,11 @@ describe('AuthHandler', () => {
     });
 
     it('calls completeAuthorization with owner user ID', async () => {
-      const body = new URLSearchParams({
-        client_id: 'test-client-id',
-        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-        state: 'random-state',
-        scope: 'mcp',
-        response_type: 'code',
-      });
-
       await AuthHandler.fetch!(
         new Request('https://worker.example.com/authorize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: body.toString(),
+          body: postBody().toString(),
         }),
         envWithHelpers() as never,
         {} as ExecutionContext,
@@ -267,14 +300,42 @@ describe('AuthHandler', () => {
 
     it('returns 400 when completeAuthorization throws', async () => {
       mockCompleteAuthorization.mockRejectedValue(new Error('bad grant'));
+      const res = await AuthHandler.fetch!(
+        new Request('https://worker.example.com/authorize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: postBody().toString(),
+        }),
+        envWithHelpers() as never,
+        {} as ExecutionContext,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 403 when consent_secret is wrong', async () => {
+      const res = await AuthHandler.fetch!(
+        new Request('https://worker.example.com/authorize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: postBody({ consent_secret: 'wrong-value' }).toString(),
+        }),
+        envWithHelpers() as never,
+        {} as ExecutionContext,
+      );
+      expect(res.status).toBe(403);
+      const html = await res.text();
+      expect(html).toContain('Authorization denied');
+      expect(mockCompleteAuthorization).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 when consent_secret is missing', async () => {
       const body = new URLSearchParams({
-        client_id: 'test',
-        redirect_uri: 'https://example.com',
-        state: 's',
+        client_id: 'test-client-id',
+        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+        state: 'random-state',
         scope: 'mcp',
         response_type: 'code',
       });
-
       const res = await AuthHandler.fetch!(
         new Request('https://worker.example.com/authorize', {
           method: 'POST',
@@ -284,7 +345,45 @@ describe('AuthHandler', () => {
         envWithHelpers() as never,
         {} as ExecutionContext,
       );
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(403);
+      expect(mockCompleteAuthorization).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 when consent_secret is empty string', async () => {
+      const res = await AuthHandler.fetch!(
+        new Request('https://worker.example.com/authorize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: postBody({ consent_secret: '' }).toString(),
+        }),
+        envWithHelpers() as never,
+        {} as ExecutionContext,
+      );
+      expect(res.status).toBe(403);
+      expect(mockCompleteAuthorization).not.toHaveBeenCalled();
+    });
+
+    it('allows POST without secret when CONSENT_SECRET is not set (graceful degradation)', async () => {
+      const body = new URLSearchParams({
+        client_id: 'test-client-id',
+        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+        state: 'random-state',
+        scope: 'mcp',
+        response_type: 'code',
+      });
+      const env = envWithHelpers();
+      (env as Record<string, unknown>).CONSENT_SECRET = '';
+      const res = await AuthHandler.fetch!(
+        new Request('https://worker.example.com/authorize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        }),
+        env as never,
+        {} as ExecutionContext,
+      );
+      expect(res.status).toBe(302);
+      expect(mockCompleteAuthorization).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -58,6 +58,7 @@ const MOCK_ENV = {
   EMBED_MODEL: 'openai/text-embedding-3-small',
   MATCH_THRESHOLD: '0.60',
   OAUTH_KV: {},
+  CONSENT_SECRET: 'test-consent-secret',
 };
 
 const MOCK_CTX = {
