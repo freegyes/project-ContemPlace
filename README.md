@@ -28,6 +28,12 @@ The system is **modular**. The database and MCP server are the irreducible core 
 
 **Your context travels with you.** Every AI tool you adopt builds up context about you — then locks it away. ContemPlace inverts this: your memory lives in a database you control, and any MCP-capable agent can tap into it instantly. Switch tools, try new agents, combine workflows — your accumulated context comes along for free.
 
+<div align="center">
+<img src="docs/assets/claude-web-mcp-demo.png" alt="Claude.ai web retrieving instrument-building notes from ContemPlace via MCP — a fresh session with zero prior context" width="400" />
+<br />
+<em>A fresh Claude.ai session with no prior context. One prompt, and the agent pulls a cluster of instrument-building notes from the ContemPlace MCP server.</em>
+</div>
+
 **Database + MCP is the product.** The irreducible core is a Postgres database with vector search and an MCP surface that any agent can talk to. The Telegram bot, the gardening pipeline, and everything else are modules you add. If you have a Claude subscription and MCP access, you can start capturing and retrieving notes with zero additional infrastructure.
 
 **You own your data.** Notes are stored in Postgres — a format you can query, export, or migrate without asking anyone's permission. Raw input is always preserved alongside the structured note. Nothing is locked in. No proprietary format, no walled garden.
