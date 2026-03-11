@@ -2,9 +2,11 @@
 
 Your thoughts, stored in a database you own, accessible to any AI agent you choose to work with.
 
-The core is a database and an MCP surface. That's the product — everything else is a module. Any MCP-capable agent can read from and write to your knowledge base directly. You don't need a special app. You send raw input from whatever interface suits you — a Telegram bot, Claude CLI, a custom script, anything that can call MCP. The system structures it, embeds it, links it to prior thinking, and makes it semantically searchable. A gardening pipeline runs in the background to normalize, connect, and chunk your notes so retrieval keeps getting better. Your notes become context that any agent can pull from automatically.
+Every AI agent you use builds memory about you — but in its own proprietary garden, isolated from every other tool. You can't move it, combine it, or even extract it without non-trivial effort. And every time you try a new tool, you start from zero: no context, no history, re-prompting your way back to usefulness.
 
-No proprietary format. No vendor lock-in. No VC-backed service that might change the rules. The stack is boring on purpose — widely-used, well-documented, free-tier friendly, nothing that requires infrastructure babysitting.
+ContemPlace is the fix. An MCP-connected database that *you* own, where any agent can read and write your knowledge base directly. You send raw input from whatever interface suits you — a Telegram bot, Claude CLI, a custom script, anything that speaks MCP. The system structures it, embeds it, links it to prior thinking, and makes it semantically searchable. A gardening pipeline runs in the background to normalize, connect, and chunk your notes so retrieval keeps getting better. Your notes become portable context that any agent can pull from automatically. You bring your memory with you.
+
+No proprietary format. No vendor lock-in. No VC-backed service that might change the rules. The stack is boring on purpose — widely-used, well-documented, free-tier friendly, nothing that requires infrastructure babysitting. Average use costs $2–3/month in LLM calls; everything else runs on free tiers.
 
 The system is **modular**. The database and MCP server are the irreducible core — the minimum viable product. Everything else — a Telegram bot for low-friction capture, a gardening pipeline that organizes notes in the background, a smart capture router that handles any input type, import tools, a dashboard — is an optional layer. Each module shares the same ethos: zero friction on input, agent-first retrieval, data you can always get out.
 
@@ -24,15 +26,19 @@ The system is **modular**. The database and MCP server are the irreducible core 
 
 ## Philosophy
 
+**Your context travels with you.** Every AI tool you adopt builds up context about you — then locks it away. ContemPlace inverts this: your memory lives in a database you control, and any MCP-capable agent can tap into it instantly. Switch tools, try new agents, combine workflows — your accumulated context comes along for free.
+
 **Database + MCP is the product.** The irreducible core is a Postgres database with vector search and an MCP surface that any agent can talk to. The Telegram bot, the gardening pipeline, and everything else are modules you add. If you have a Claude subscription and MCP access, you can start capturing and retrieving notes with zero additional infrastructure.
 
-**You own your data.** Notes are stored in Postgres — a format you can query, export, or migrate without asking anyone's permission. Raw input is always preserved alongside the structured note. Nothing is locked in.
+**You own your data.** Notes are stored in Postgres — a format you can query, export, or migrate without asking anyone's permission. Raw input is always preserved alongside the structured note. Nothing is locked in. No proprietary format, no walled garden.
 
-**You never think about the system.** You send a thought; the system handles structure. Tags, intent classifications, entity extraction, and links between notes emerge automatically. The gardening pipeline runs in the background to refine connections over time. You set it up once and don't have to think about it. The capture layer is designed to grow smarter over time — recognizing what kind of input it received and processing it accordingly — so you never have to stress about format, routing, or administration.
+**You never think about the system.** You send a thought; the system handles structure. Tags, intent classifications, entity extraction, and links between notes emerge automatically. The gardening pipeline runs in the background to refine connections over time. You set it up once and don't have to think about it. The capture layer is designed to grow smarter over time — recognizing what kind of input it received and processing it accordingly — so you never have to stress about format, routing, or administration. This matters most when your brain works faster than your organizational patience — low friction isn't a feature, it's the reason this works at all.
 
 **Agent-first retrieval.** The primary access pattern is semantic search via MCP — an AI agent finding relevant context from your notes automatically. Human-facing UIs are secondary. The value compounds as the database grows: the more you put in, the more useful the context layer becomes.
 
-**Low cost, no risk.** Cloudflare Workers free tier, Supabase free tier, OpenRouter pay-per-call with small models. The capture agent runs on Claude Haiku. The whole system costs pennies per day for regular use. No infrastructure to babysit, no startup risk.
+**Your ideas become a graph you can explore.** Over time, notes cluster around themes. Some nodes gain gravitational weight — many connections, recent activity. You can see what's currently on your mind, trace how ideas evolved, and generate visual representations of your thinking. The system doesn't impose structure; structure emerges from the accumulation of linked notes.
+
+**Low cost, no risk.** Cloudflare Workers free tier, Supabase free tier, OpenRouter pay-per-call with small models. The capture agent runs on Claude Haiku. Average use costs $2–3/month. No infrastructure to babysit, no startup risk.
 
 **Files-first, Obsidian-style.** Export is always possible. The data model is transparent. If you want to leave, you take your notes with you.
 

@@ -475,3 +475,31 @@ Follow-up from Battery 2 testing. Two prompt refinements.
 **2. `lookup` type detection broadened.** "Figure out whether" didn't trigger `lookup` in Battery 2 (classified as `idea`/`create` instead), while "look into whether" did in Battery 1. Removed the "Not for things to make or build" exclusion — a research question about something buildable is still a lookup if the framing is investigative. Added "figure out whether Y" to the examples. Key signal is now the opening verb phrase, not the domain.
 
 **Known limitation documented: real-word voice errors without corpus support.** "Guitar" for "citera" went uncorrected because no citera note exists in the corpus. The voice correction cross-references related notes, but can only correct to terms that appear in the context. When the domain-specific term isn't in the corpus at all, the LLM would need its own training knowledge to make the inference — which is unreliable for obscure terms. This is accepted as a known limitation.
+
+## Product vision refinement: the problem ContemPlace solves (2026-03-11)
+
+Articulated the core problem statement through dogfooding and preparing to share the project publicly. Three pillars:
+
+**1. Portable context.** AI agents build memory about you in proprietary, isolated gardens — non-portable and non-trivial to extract. ContemPlace inverts this: your memory lives in a database you own, any MCP-capable tool reads and writes it, accumulated context travels with you.
+
+**2. Emergent structure.** Notes cluster around themes over time. Some nodes gain gravitational weight (many connections, recent activity). Maps of content form naturally as gravitational centers. The system doesn't impose organization; it emerges from linked, gardened notes. Closer to community detection than folder hierarchies.
+
+**3. Low friction as a prerequisite, not a feature.** The system works *because* it doesn't ask you to organize. This is non-negotiable for the target user (high-throughput thinking, low organizational patience).
+
+These are now documented in README.md (Philosophy section) and CLAUDE.md (Product Intent section).
+
+## Multilingual input: open question (2026-03-11)
+
+`text-embedding-3-small` is multilingual — Hungarian works fine in a monolingual corpus. The concern is mixed-language retrieval: two notes about the same concept in different languages will have lower cosine similarity than same-language pairs. Metadata augmentation (`[Type: idea] [Intent: plan] [Tags: ...]`) is English regardless of body language, which partially bridges the gap.
+
+**Hypothesis:** Cross-language degradation is non-catastrophic for practical use. Untested — issue #57 tracks a concrete test plan.
+
+**Design direction if degradation is significant:** Normalize output language in the structured note (always English title/body/tags), preserve original in `raw_input`. Language normalization as a capture voice rule, not a code change. Fits the existing architecture: raw_input is sacred, the structured note is already the LLM's interpretation.
+
+## Agent-driven capture: editorial contract needed (2026-03-11)
+
+A new capture mode emerged: an LLM agent commits useful insights into ContemPlace after a work session. This differs from pass-through capture (user's raw words) — the agent makes editorial decisions about what's worth remembering.
+
+The agent needs guidance beyond the structural SYSTEM_FRAME: what to capture (atomic ideas worth finding in three months), what to skip (session logs, task status), how to format (one idea per call, preserve user's framing). This is the editorial contract — tracked in issue #47.
+
+`get_capture_guidance` MCP tool would return both structural spec and editorial guidance. The editorial layer could live in `capture_profiles` alongside the capture voice — editable without deploy.

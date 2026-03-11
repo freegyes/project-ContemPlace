@@ -347,6 +347,10 @@ Use `--skip-smoke` to skip step 5 and test manually.
 
 **Core principle:** The user must never think about the system itself. They are free to think what they think and capture it anytime, anywhere, easily, without stressing about administration, routing, or what happens on the other side. They trust that the DB will contain it in an easily retrievable, useful manner. This is the foundational design principle — every architectural decision evaluates against it.
 
+**The problem ContemPlace solves:** Every AI agent builds memory about you in its own proprietary garden — isolated, non-portable, and non-trivial to even extract. Switching to a new tool means starting from zero. ContemPlace inverts this: your memory lives in a database you own, any MCP-capable agent can read and write it, and your accumulated context travels with you. You stop being locked into any single agent's ecosystem.
+
+**Emergent structure, not imposed structure.** Notes cluster around themes over time. Some nodes gain gravitational weight — many connections, recent activity. The user can explore what's currently on their mind, trace how ideas evolved, and generate visual representations. The system doesn't impose organization; organization emerges from the accumulation of linked, gardened notes. This is closer to maps of content (MOCs) than to folders or categories.
+
 ### What is ContemPlace?
 
 The irreducible core is the **database + MCP surface**. That is the product. Everything else — the Telegram bot, the smart capture router, import tools, a dashboard — is an optional module.
