@@ -447,7 +447,9 @@ Each layer owns a specific type of information. **Never duplicate across layers*
 | **`docs/architecture.md`** | Workers, data flow, embedding strategy, error handling. | When architecture changes |
 | **`docs/capture-agent.md`** | Classification taxonomy, linking logic, voice correction. | When capture behavior changes |
 | **`CLAUDE.md`** | Stable AI context: architecture, hard constraints, key files, conventions. No current state, no issue indexes, no phase status. | When architecture or conventions change |
-| **`README.md`** | Front door: status table, tool list, test count, project layout, quick start. | When any user-visible surface changes |
+| **`README.md`** | Product front door: what it is, why it matters, status, modules, philosophy, FAQ. No bash commands, no config tables. | When any user-visible surface changes |
+| **`docs/setup.md`** | Full deploy guide: prerequisites, secrets, Worker deployment, configuration tables, env var reference. | When deploy process or config changes |
+| **`docs/development.md`** | Test commands, project layout, file-by-file breakdown, contributor reference. | When tests, layout, or dev workflow changes |
 
 ### Rules
 
