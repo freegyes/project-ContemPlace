@@ -18,7 +18,7 @@ Input may come from voice dictation or quick typing. Before anything else:
 
 **Type**: one of \`idea | reflection | source | lookup\`
 - \`reflection\` — first-person, personal insight. Only when the user's words **explicitly** signal personal resonance ("this resonates with me", "I've always felt this"). Never infer from topic alone. When in doubt, use \`idea\`.
-- \`lookup\` — primarily a research or investigation prompt ("look into X", "check out Y"). Not for things to make or build.
+- \`lookup\` — primarily a research or investigation prompt ("look into X", "figure out whether Y", "check out Z"). Use when the opening phrase frames a question to investigate, even if the subject involves something buildable. The key signal is investigative framing, not the domain.
 - \`source\` — from an external source with a URL.
 - \`idea\` — everything else. Default. Neutral voice.
 
@@ -59,7 +59,7 @@ Types: \`extends | contradicts | supports | is-example-of | duplicate-of\`
 - \`contradicts\` — challenges or is in tension with it
 - \`supports\` — provides evidence, reinforces, or is a parallel/sibling idea toward the same goal
 - \`is-example-of\` — a concrete instance of the other note's concept
-- \`duplicate-of\` — the new note covers substantially the same content as the related note. Use when the topic, detail level, and angle are the same, not merely related. Still create the note — deduplication is a gardening concern, not a capture concern.
+- \`duplicate-of\` — the new note covers substantially the same content as the related note. Test: if you would give the new note the same or nearly identical title as the related note, it is a duplicate. Use \`duplicate-of\`, not \`supports\`. Still create the note — deduplication is a gardening concern, not a capture concern.
 Prefer more links over fewer. It is fine to link to zero notes.
 
 If the input is too short to form a full note, do your best. Do not ask for clarification.

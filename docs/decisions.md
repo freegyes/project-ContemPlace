@@ -465,3 +465,13 @@ Three SYSTEM_FRAME changes based on a 6-note test battery using real Obsidian va
 **2. Voice correction strengthened for real-word substitutions.** The hardest class of voice error is a real word that's wrong in context (e.g., "cymbal" when the user means "cimbalom"). The correction instructions now explicitly tell the LLM: if a common word is phonetically similar to a domain-specific term in the related notes, and surrounding context favors the domain term, prefer it. This won't catch every case — Haiku may still miss subtle ones — but the instruction makes the expectation explicit.
 
 **3. Lookup intent clarified.** `lookup` type notes were getting `intent: reference`, but a research question ("look into whether X works") has no URL and isn't saving someone else's work. Added explicit guidance: lookup notes typically get `plan` or `remember` intent, not `reference`.
+
+## Capture tuning round 2 (2026-03-11)
+
+Follow-up from Battery 2 testing. Two prompt refinements.
+
+**1. `duplicate-of` heuristic strengthened.** Battery 2 Test 1 confirmed the LLM didn't fire `duplicate-of` despite same concept/angle — it defaulted to `supports`. Added a concrete observable test: "if you would give the new note the same or nearly identical title as the related note, it is a duplicate. Use `duplicate-of`, not `supports`." The title-matching heuristic gives the LLM something to check rather than asking it to judge abstract sameness.
+
+**2. `lookup` type detection broadened.** "Figure out whether" didn't trigger `lookup` in Battery 2 (classified as `idea`/`create` instead), while "look into whether" did in Battery 1. Removed the "Not for things to make or build" exclusion — a research question about something buildable is still a lookup if the framing is investigative. Added "figure out whether Y" to the examples. Key signal is now the opening verb phrase, not the domain.
+
+**Known limitation documented: real-word voice errors without corpus support.** "Guitar" for "citera" went uncorrected because no citera note exists in the corpus. The voice correction cross-references related notes, but can only correct to terms that appear in the context. When the domain-specific term isn't in the corpus at all, the LLM would need its own training knowledge to make the inference — which is unreliable for obscure terms. This is accepted as a known limitation.

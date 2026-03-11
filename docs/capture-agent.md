@@ -11,7 +11,7 @@ The capture agent is an LLM that turns raw user input into a structured note. It
 | `idea` | Default. A thought, observation, or plan that doesn't fit the other three. |
 | `reflection` | First-person personal insight. Requires an explicit signal of personal resonance — "this resonates with me", "I realized", "I felt". Topic alone is never enough; a note *about* mindfulness is not automatically a reflection. |
 | `source` | An external URL is included in the input. |
-| `lookup` | An investigative prompt — the user is asking a question to research later, not recording an answer. |
+| `lookup` | An investigative prompt — the user is asking a question to research later, not recording an answer. Triggered by investigative framing ("look into", "figure out whether", "check out"), even if the subject involves something buildable. |
 
 ### Intent — what the user is doing
 
@@ -53,7 +53,7 @@ The agent receives the top 5 semantically related notes (with their titles, bodi
 | `contradicts` | Challenges or stands in tension with a prior note |
 | `supports` | Reinforces, provides evidence for, or runs parallel toward the same goal |
 | `is-example-of` | A concrete instance of a more abstract prior note |
-| `duplicate-of` | Covers substantially the same content as an existing note — same topic, detail, angle. The note is still created; deduplication is a gardening concern. |
+| `duplicate-of` | Covers substantially the same content as an existing note — same topic, detail, angle. Heuristic: if the new note would get the same or nearly identical title as the related note, it's a duplicate. Use `duplicate-of`, not `supports`. The note is still created; deduplication is a gardening concern. |
 
 `supports` was broadened after real usage showed that sibling projects (e.g., two kitchen improvement ideas) weren't being linked because none of the original four types fit cleanly. Now `supports` covers both "provides evidence for" and "is a parallel effort toward the same goal."
 
