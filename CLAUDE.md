@@ -25,45 +25,47 @@ Cloudflare Workers handles the Telegram webhook. Supabase is the database only �
 
 The capture flow is **async**: the Worker returns 200 to Telegram immediately, then processes in the background via `ctx.waitUntil()`. This eliminates Telegram retry issues and keeps the bot responsive regardless of LLM latency.
 
+**Single capture path:** The Telegram Worker delegates capture to the MCP Worker via a Cloudflare Service Binding (in-process RPC, no HTTP hop). The capture pipeline lives in `mcp/src/pipeline.ts` — one source of truth for all gateways.
+
 **System frame / capture voice split:** The system prompt is split into two parts:
-- **System frame** (`SYSTEM_FRAME` constant in `src/capture.ts`) — structural contract: JSON schema, field enums, entity/link rules, voice correction instructions. Lives in code. Do not put stylistic rules here.
+- **System frame** (`SYSTEM_FRAME` constant in `mcp/src/capture.ts`) — structural contract: JSON schema, field enums, entity/link rules, voice correction instructions. Lives in code. Do not put stylistic rules here.
 - **Capture voice** (stored in `capture_profiles` DB table, fetched at runtime) — title style, body rules, traceability, tone, examples. User-editable without code deployment. Any capture interface (Telegram, MCP, CLI) fetches the same profile.
 
 ```
-Telegram → Cloudflare Worker → verify signature → check chat ID whitelist → dedup check → return 200
-                                └→ ctx.waitUntil():
-                                     embed raw text + fetch capture voice (parallel)
-                                     → find related notes
-                                     → LLM (system frame + capture voice)
-                                     → re-embed with metadata augmentation (fallback to raw on failure)
-                                     → DB insert (note + links)
-                                     → enrichment log + Telegram reply (parallel)
+Telegram → Telegram Worker → verify signature → check chat ID whitelist → dedup check → return 200
+                              └→ ctx.waitUntil():
+                                   typing indicator
+                                   → Service Binding RPC to MCP Worker (env.CAPTURE_SERVICE.capture)
+                                   → MCP Worker runs pipeline.ts:
+                                       embed raw text + fetch capture voice (parallel)
+                                       → find related notes → LLM → re-embed → DB insert → log
+                                   → format HTML reply with emoji indicators
+                                   → send Telegram reply
 ```
 
 ## Project Layout
 
 ```
 src/
-  index.ts           # Worker entry point (webhook handler + async dispatch)
-  config.ts          # Env var reading with defaults (all model strings and thresholds live here)
-  capture.ts         # Capture agent (SYSTEM_FRAME, buildSystemPrompt, LLM call, parseCaptureResponse exported)
-  embed.ts           # Embedding helpers (embedText, buildEmbeddingInput)
+  index.ts           # Worker entry point (webhook handler, Service Binding call to MCP Worker, HTML reply formatting)
+  config.ts          # Env var reading (Telegram + Supabase only — model/threshold config lives in MCP Worker)
   telegram.ts        # Telegram API helpers (sendMessage, sendChatAction)
-  db.ts              # Supabase client + DB operations (insertNote, logEnrichments, getCaptureVoice, findRelatedNotes)
-  types.ts           # TypeScript interfaces (Telegram, capture result, DB row types, Intent, Modality, Entity)
+  db.ts              # Supabase client + dedup only (createSupabaseClient, tryClaimUpdate)
+  types.ts           # TypeScript interfaces (Telegram types, CaptureServiceStub, ServiceCaptureResult)
 mcp/
   wrangler.toml      # MCP Worker config (name: mcp-contemplace)
   tsconfig.json
   src/
-    index.ts         # OAuthProvider setup, McpApiHandler, resolveExternalToken bypass, handleMcpRequest (JSON-RPC dispatch)
+    index.ts         # OAuthProvider setup, CaptureService entrypoint (WorkerEntrypoint), McpApiHandler, resolveExternalToken bypass
+    pipeline.ts      # Single source of truth for capture logic — called by Service Binding RPC + capture_note tool
     oauth.ts         # Consent page HTML renderer + AuthHandler (GET/POST /authorize)
     tools.ts         # Tool definitions + handlers (search_notes, search_chunks, get, list, capture, list_unmatched_tags, promote_concept)
     auth.ts          # Bearer token auth (validateAuth, isStaticTokenRequest, timingSafeEqual — constant-time comparison)
     config.ts        # Config loading with secret validation
     db.ts            # DB read/write functions (fetchNote, listRecentNotes, searchNotes, insertNote, …)
-    embed.ts         # embedText, buildEmbeddingInput (copy of src/embed.ts)
-    capture.ts       # parseCaptureResponse, runCaptureAgent (copy of src/capture.ts)
-    types.ts         # MCP-specific TypeScript interfaces (Env includes OAUTH_KV + OAUTH_PROVIDER)
+    embed.ts         # embedText, buildEmbeddingInput
+    capture.ts       # SYSTEM_FRAME, parseCaptureResponse, runCaptureAgent
+    types.ts         # MCP-specific TypeScript interfaces (Env, ServiceCaptureResult, CaptureResult, etc.)
 gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
@@ -79,7 +81,7 @@ gardener/
     auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
     types.ts         # Gardener-specific TypeScript interfaces (Concept, NoteForTagNorm, NoteForChunking, etc.)
 scripts/
-  deploy.sh          # Automated 6-step deploy pipeline (schema → typecheck → unit tests → Telegram Worker → Gardener Worker → smoke tests)
+  deploy.sh          # Automated 7-step deploy pipeline (schema → typecheck → unit tests → MCP Worker → Telegram Worker → Gardener Worker → smoke tests)
 supabase/
   config.toml
   migrations/
@@ -87,12 +89,11 @@ supabase/
   seed/
     seed_concepts.sql              # SKOS starter vocabulary (~30 concepts, 4 schemes — run manually in SQL Editor)
 tests/
-  parser.test.ts              # Unit tests for src/capture.ts parseCaptureResponse (18 tests, no network)
+  parser.test.ts              # Unit tests for mcp/src/capture.ts parseCaptureResponse (18 tests, no network)
   smoke.test.ts               # Smoke tests against the live Telegram Worker
   mcp-auth.test.ts            # Unit tests for mcp/src/auth.ts
   mcp-config.test.ts          # Unit tests for mcp/src/config.ts
-  mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts + parity with src/embed.ts
-  mcp-parser.test.ts          # Parity tests for mcp/src/capture.ts vs src/capture.ts (18 tests)
+  mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts (7 tests)
   mcp-tools.test.ts           # Unit tests for all 8 MCP tool handlers (mocked deps, no network)
   mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (27 tests, no network)
   mcp-index.test.ts           # Unit tests for OAuthProvider config + resolveExternalToken (15 tests)
@@ -101,12 +102,13 @@ tests/
   semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (78 tests, hits live stack)
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
   gardener-normalize.test.ts  # Unit tests for tag matching: lexicalMatch, semanticMatch, resolveNoteTags (23 tests)
-  gardener-embed.test.ts      # Parity tests for gardener/src/embed.ts vs src/embed.ts + mcp/src/embed.ts (3 tests)
+  gardener-embed.test.ts      # Parity tests for gardener/src/embed.ts vs mcp/src/embed.ts (2 tests)
   gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig (12 tests)
   gardener-alert.test.ts      # Unit tests for sendAlert() — Telegram alerting (10 tests)
   gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing (13 tests)
   gardener-chunk.test.ts      # Unit tests for splitIntoChunks and buildChunkEmbeddingInput (16 tests)
   gardener-integration.test.ts # Integration test: capture → gardener /trigger → get_related (live stack)
+  gardener-tag-norm.test.ts    # Integration test: capture → gardener → tag normalization verification (live stack)
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap)
 wrangler.toml        # Telegram Worker Cloudflare config
 package.json
@@ -118,18 +120,14 @@ tsconfig.json
 Deployed secrets via `wrangler secret put`. Local dev and tests via `.dev.vars` (single source of truth).
 
 ```
-# Required — no defaults
+# Telegram Worker — required, no defaults
 TELEGRAM_BOT_TOKEN          # from BotFather
 TELEGRAM_WEBHOOK_SECRET     # openssl rand -hex 32
-OPENROUTER_API_KEY          # from openrouter.ai
-SUPABASE_URL                # from Supabase dashboard → Project Settings → API
-SUPABASE_SERVICE_ROLE_KEY   # from Supabase dashboard → Project Settings → API
+SUPABASE_URL                # from Supabase dashboard → Project Settings → API (for dedup only)
+SUPABASE_SERVICE_ROLE_KEY   # from Supabase dashboard → Project Settings → API (for dedup only)
 ALLOWED_CHAT_IDS            # comma-separated Telegram chat IDs allowed to use the bot
-
-# Configurable — defaults in src/config.ts
-CAPTURE_MODEL               # default: anthropic/claude-haiku-4-5
-EMBED_MODEL                 # default: openai/text-embedding-3-small
-MATCH_THRESHOLD             # default: 0.60 (must be a float between 0 and 1)
+# Note: OPENROUTER_API_KEY, CAPTURE_MODEL, EMBED_MODEL, MATCH_THRESHOLD moved to MCP Worker.
+# The Telegram Worker delegates capture via Service Binding — it no longer needs AI/model config.
 
 # MCP Worker secrets (set via: wrangler secret put <NAME> -c mcp/wrangler.toml)
 MCP_API_KEY                 # generate with: openssl rand -hex 32
@@ -193,7 +191,7 @@ wrangler deploy -c mcp/wrangler.toml
 wrangler secret put MCP_API_KEY -c mcp/wrangler.toml
 
 # Run all MCP unit tests (local, no network)
-npx vitest run tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts tests/mcp-parser.test.ts tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts tests/mcp-index.test.ts tests/mcp-oauth.test.ts
+npx vitest run tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts tests/mcp-index.test.ts tests/mcp-oauth.test.ts
 
 # Run MCP smoke tests (against live MCP Worker — requires MCP_WORKER_URL + MCP_API_KEY in .dev.vars)
 npx vitest run tests/mcp-smoke.test.ts
@@ -324,7 +322,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 
 - **Phase 1 (complete):** Schema (notes, links, processed_updates), Telegram bot, Cloudflare Worker with async capture, chat ID whitelist, single capture mode, confirmation replies.
 - **Phase 1.5 (complete):** Schema v2 (8 tables), metadata-augmented embeddings, `intent`/`modality`/`entities` extraction, capture voice in DB, enrichment log, expanded link types, parser unit tests. Deployed and verified via smoke tests.
-- **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 8 tools (`search_notes`, `search_chunks`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Bearer token auth. Tagged `v2.0.0`.
+- **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 8 tools (`search_notes`, `search_chunks`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Also hosts `CaptureService` entrypoint for Service Binding RPC (PR #90, issue #46) — single capture pipeline for all gateways. Tagged `v2.0.0`.
 - **Phase 2b (complete):** Gardening pipeline — nightly similarity linker, SKOS tag normalization, chunk generation. Maturity scoring deferred. Tagged `v2.5.0`.
 - **Phase 2c (in progress):** OAuth 2.1 for MCP server. Sub-issues A (handler refactor), B (KV + dependency), C (OAuthProvider integration), D (consent page security) complete. Uses `@cloudflare/workers-oauth-provider` with `resolveExternalToken` for static token bypass. DCR enabled. Consent page protected by `CONSENT_SECRET`. Verified with Claude.ai web connector. Remaining: E (Cursor/ChatGPT verification).
 - **Phase 3 (deferred):** Associative trails, type inheritance (`note_types`), location extraction.
@@ -341,12 +339,14 @@ bash scripts/deploy.sh
 
 The script runs in order:
 1. `supabase db push --linked` — applies pending migrations via the Supabase connection pooler (no direct port 5432 access required)
-2. `tsc --noEmit` — typecheck
-3. `vitest run tests/parser.test.ts` — 18 parser unit tests (local, no network)
-4. `wrangler deploy` — deploys the Worker
-5. `vitest run tests/smoke.test.ts` — end-to-end smoke tests against live Worker
+2. `tsc --noEmit` — typecheck all 3 Workers
+3. `vitest run` — parser + gardener unit tests (local, no network)
+4. `wrangler deploy -c mcp/wrangler.toml` — deploys MCP Worker (must go first — Service Binding target)
+5. `wrangler deploy` — deploys Telegram Worker
+6. `wrangler deploy -c gardener/wrangler.toml` — deploys Gardener Worker
+7. `vitest run tests/smoke.test.ts` — end-to-end smoke tests against live Worker
 
-Use `--skip-smoke` to skip step 5 and test manually.
+Use `--skip-smoke` to skip step 7 and test manually.
 
 ## Product Intent
 
@@ -372,15 +372,12 @@ Three layers, each with a clear job:
 
 The smart capture router (issue #27) enhances what happens *inside* `capture_note` — routing different input types to specialized handlers. It's an upgrade to the gate, not a bypass.
 
-### Design implications (under active review)
+### Design implications
 
-This architectural clarity is recent. Several existing decisions need revisiting:
-- The Telegram Worker and MCP Worker duplicate capture logic (#46). If MCP is the universal gate, the Telegram Worker should delegate rather than duplicate.
+The single capture path is implemented (PR #90, issue #46): the Telegram Worker delegates to the MCP Worker via Service Binding. Remaining items:
 - The smart capture router (#27) should enhance the MCP surface, not just the Telegram Worker.
 - The input quality contract needs formal definition (#45).
 - The SYSTEM_FRAME could be published as a spec for agent guidance (#47).
-
-These questions need thorough strategic thinking before implementation. The current architecture works but was designed with Telegram as the primary input.
 
 The `raw_input` column preserves the user's exact words. The structured note (title, body, tags, links) is the LLM's interpretation — useful for retrieval, but the raw input is the irreplaceable source of truth and must never be discarded.
 

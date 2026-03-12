@@ -48,7 +48,7 @@ Auth: single API key (Bearer token). `MCP_SEARCH_THRESHOLD` (default 0.35) is se
 
 **Tool description enrichment (PR #49)** — All 8 tool descriptions now include behavioral guidance for connecting agents. `capture_note` tells agents to pass raw user words without summarizing or pre-structuring. Filter enums include glosses explaining each value's meaning. `get_note` explains the raw_input vs body distinction. `get_related` includes a link type glossary. This enables agent-driven interaction (e.g., Claude Code CLI) without agents having to guess how the system works.
 
-`mcp/src/capture.ts` is a deliberate copy of `src/capture.ts` (Cloudflare Workers cannot share code across Worker projects without monorepo tooling). The `tests/mcp-parser.test.ts` parity tests enforce that the copies stay in sync.
+**Single capture path (PR #90, 2026-03-12):** The Telegram Worker now delegates capture to the MCP Worker via a Cloudflare Service Binding. `mcp/src/pipeline.ts` is the single source of truth for capture logic. ~650 lines of duplicated code removed (`src/capture.ts`, `src/embed.ts`, shared DB functions, parity tests). See `docs/decisions.md` for the full ADR.
 
 In scope after the MCP server is live: import scripts for **ChatGPT memory export** and **Obsidian vault** — standalone Node.js scripts that loop `capture_note` calls with appropriate source tags.
 
@@ -144,13 +144,13 @@ Three layers:
 2. **Enrichment** — the gardening pipeline. The quality guarantee. Makes raw input useful regardless of how messy it arrived.
 3. **Retrieval** — agents query the enriched graph via MCP. Where the value compounds.
 
-This has implications for the existing architecture that need thorough review:
-- The Telegram Worker duplicates capture logic instead of calling through MCP
+The first concrete step was delivered in PR #90: the Telegram Worker delegates capture to the MCP Worker via a Service Binding instead of running its own copy of the pipeline. One capture process, multiple gateways.
+
+Remaining implications:
 - The smart capture router should enhance the MCP surface, not just Telegram
 - The input quality contract (what must be true for gardening to work) needs formal definition
-- Several Workers may need to be restructured around MCP as the central interface
 
-**Status:** Recognized as a strategic direction. Needs deeper architectural review before implementation reshapes the Worker topology. Tracked in issue #27.
+**Status:** Core architecture implemented. Remaining items tracked in issues #27 and #45.
 
 ## Smart Capture Router (in design) — issue #27
 

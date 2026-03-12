@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
-  <img src="https://img.shields.io/badge/tests-~453-brightgreen" alt="Tests: ~453" />
+  <img src="https://img.shields.io/badge/tests-~427-brightgreen" alt="Tests: ~427" />
   <img src="https://img.shields.io/badge/cloudflare-workers-orange" alt="Cloudflare Workers" />
   <img src="https://img.shields.io/badge/database-supabase-green" alt="Supabase" />
 </p>

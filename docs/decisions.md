@@ -600,4 +600,6 @@ A dedicated `belief` tag was considered and rejected. It would only add value fo
 
 **What goes away:** `src/capture.ts`, `src/embed.ts`, shared functions in `src/db.ts`, 3 parity test files (24 tests), `processCapture` in `src/index.ts` (~107 lines). The Telegram Worker becomes a thin webhook adapter (~20 lines of capture logic).
 
-**Open questions:** (1) Whether the gardener's `embed.ts` should also use a Service Binding or keep its own copy given its batch-oriented pattern. (2) Whether the MCP Worker should be renamed to reflect its broader role (e.g., `contemplace-core`). (3) `WorkerEntrypoint` compatibility with OAuthProvider needs a spike to verify coexistence.
+**Open questions:** (1) Whether the gardener's `embed.ts` should also use a Service Binding or keep its own copy given its batch-oriented pattern. (2) Whether the MCP Worker should be renamed to reflect its broader role (e.g., `contemplace-core`).
+
+**Implemented (2026-03-12, PR #90).** `WorkerEntrypoint` coexists with OAuthProvider — named export (`CaptureService`) alongside default export (OAuthProvider-wrapped fetch). `mcp/src/pipeline.ts` is the single source of truth, called by both `CaptureService.capture()` and `handleCaptureNote`. Telegram Worker is now ~180 lines total with enriched HTML reply (emoji indicators for type, intent, link types, entity types). `compatibility_date` bumped to `2024-04-03` on both Workers. Deploy script reordered to 7 steps (MCP Worker before Telegram Worker). ~650 lines deleted, 24 parity tests removed, 313 unit tests remain.

@@ -4,7 +4,7 @@ Test commands, project layout, and contributor reference for ContemPlace.
 
 ## Tests
 
-~453 tests across unit, integration, smoke, and semantic suites.
+~427 tests across unit, integration, smoke, and semantic suites.
 
 ### Unit tests (local, no network)
 
@@ -12,7 +12,7 @@ Test commands, project layout, and contributor reference for ContemPlace.
 # All unit tests at once
 npx vitest run tests/parser.test.ts \
   tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts \
-  tests/mcp-parser.test.ts tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts \
+  tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts \
   tests/mcp-index.test.ts tests/mcp-oauth.test.ts \
   tests/gardener-similarity.test.ts tests/gardener-normalize.test.ts \
   tests/gardener-embed.test.ts tests/gardener-config.test.ts \
@@ -20,7 +20,7 @@ npx vitest run tests/parser.test.ts \
   tests/gardener-chunk.test.ts
 
 # Or individually:
-npx vitest run tests/parser.test.ts              # Capture response parsing (17 tests)
+npx vitest run tests/parser.test.ts              # Capture response parsing (18 tests)
 npx vitest run tests/mcp-tools.test.ts           # All 8 MCP tool handlers (93 tests)
 npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch (27 tests)
 npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler (19 tests)
@@ -53,14 +53,15 @@ Tests tagging quality, linking accuracy, and search relevance across 9 topic clu
 ### Typecheck
 
 ```bash
-npx tsc --noEmit                            # Telegram + MCP Workers
+npx tsc --noEmit                            # Telegram Worker
+npx tsc --noEmit -p mcp/tsconfig.json       # MCP Worker
 npx tsc --noEmit -p gardener/tsconfig.json  # Gardener Worker
 ```
 
 ## Deploy
 
 ```bash
-bash scripts/deploy.sh          # Full: schema → typecheck → unit tests → Telegram Worker → Gardener Worker → smoke tests
+bash scripts/deploy.sh          # Full: schema → typecheck → unit tests → MCP Worker → Telegram Worker → Gardener Worker → smoke tests
 bash scripts/deploy.sh --skip-smoke  # Skip end-to-end smoke tests
 
 # Individual Workers:
@@ -90,25 +91,24 @@ npx wrangler dev -c gardener/wrangler.toml --test-scheduled
 ## Project layout
 
 ```
-src/              Telegram capture Worker
-  index.ts        Entry point — webhook handler, async dispatch
-  capture.ts      System frame, LLM call, response parser (parseCaptureResponse)
-  embed.ts        Embedding client, metadata-augmented embedding builder
-  db.ts           Supabase operations
+src/              Telegram capture Worker (thin webhook adapter)
+  index.ts        Entry point — webhook handler, Service Binding call, HTML reply formatting
+  db.ts           Supabase client + dedup (tryClaimUpdate)
   telegram.ts     Telegram API helpers
-  config.ts       Environment variable parsing with defaults
-  types.ts        TypeScript interfaces
+  config.ts       Environment variable parsing (Telegram + Supabase only)
+  types.ts        Telegram types + CaptureServiceStub + ServiceCaptureResult
 mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
   src/
-    index.ts      OAuthProvider setup, McpApiHandler, resolveExternalToken bypass
+    index.ts      OAuthProvider setup, CaptureService entrypoint, McpApiHandler, resolveExternalToken bypass
+    pipeline.ts   Single source of truth for capture logic (called by Service Binding RPC + capture_note tool)
     oauth.ts      Consent page HTML + AuthHandler (GET/POST /authorize)
     tools.ts      All 8 tool handlers with input validation
     auth.ts       Bearer token auth + constant-time comparison
     config.ts     Config loading with validation
     db.ts         DB read/write functions
-    embed.ts      Embedding helpers (copy of src/embed.ts)
-    capture.ts    Capture pipeline (copy of src/capture.ts)
-    types.ts      MCP-specific TypeScript interfaces
+    embed.ts      Embedding helpers
+    capture.ts    System frame, LLM call, response parser (parseCaptureResponse)
+    types.ts      MCP-specific TypeScript interfaces + ServiceCaptureResult
   wrangler.toml
 gardener/         Gardener Worker (nightly enrichment pipeline)
   src/
@@ -124,17 +124,16 @@ gardener/         Gardener Worker (nightly enrichment pipeline)
     types.ts      TypeScript interfaces
   wrangler.toml
 scripts/
-  deploy.sh       Automated 6-step deploy pipeline
+  deploy.sh       Automated 7-step deploy pipeline
 supabase/
   migrations/     Schema migrations (v2 is current — 8 tables)
   seed/           SKOS domain concept seeds
 tests/
-  parser.test.ts          Capture response parsing (17)
+  parser.test.ts          Capture response parsing (18)
   smoke.test.ts           Live Telegram Worker
   mcp-auth.test.ts        MCP auth (8)
   mcp-config.test.ts      MCP config loading (14)
-  mcp-embed.test.ts       Embedding + parity with src/embed.ts (8)
-  mcp-parser.test.ts      MCP parser parity with src/capture.ts (17)
+  mcp-embed.test.ts       Embedding helpers (7)
   mcp-tools.test.ts       All 8 tool handlers (93)
   mcp-index.test.ts       OAuthProvider + resolveExternalToken (15)
   mcp-oauth.test.ts       Consent page + AuthHandler (19)
@@ -142,13 +141,13 @@ tests/
   mcp-smoke.test.ts       Live MCP Worker + OAuth discovery (27)
   gardener-similarity.test.ts  buildContext + UUID dedup (13)
   gardener-normalize.test.ts   Tag matching logic (23)
-  gardener-embed.test.ts       Embedding parity (3)
+  gardener-embed.test.ts       Embedding parity with mcp/src/embed.ts (2)
   gardener-config.test.ts      Gardener config loading (12)
   gardener-alert.test.ts       Telegram failure alerting (10)
   gardener-trigger.test.ts     /trigger endpoint auth + routing (13)
   gardener-chunk.test.ts       Note chunking logic (16)
   gardener-integration.test.ts capture → gardener → get_related (6)
-  semantic.test.ts             Tagging, linking, search quality (45)
+  semantic.test.ts             Tagging, linking, search quality (78)
 docs/             Architecture, schema, decisions, roadmap
 ```
 
@@ -158,7 +157,7 @@ docs/             Architecture, schema, decisions, roadmap
 - **Smoke tests** (`smoke.test.ts`, `mcp-smoke.test.ts`) — hit live Workers, require `.dev.vars`. Test notes are prefixed `[SMOKE-TEST]` and cleaned up in `afterAll`
 - **Integration tests** (`gardener-integration.test.ts`) — exercise the full cycle against deployed Workers. Require `MCP_WORKER_URL`, `MCP_API_KEY`, `GARDENER_WORKER_URL`, `GARDENER_API_KEY` in `.dev.vars`
 - **Semantic tests** (`semantic.test.ts`) — quality assertions against real LLM output. Self-cleaning via `source='semantic-test'`. ~70s runtime
-- **Parity tests** (`mcp-parser.test.ts`, `mcp-embed.test.ts`, `gardener-embed.test.ts`) — enforce that copied code in MCP and Gardener Workers stays in sync with `src/`
+- **Parity tests** (`gardener-embed.test.ts`) — enforces that gardener's embedding helpers stay in sync with `mcp/src/embed.ts`
 
 ## `.dev.vars` loading
 

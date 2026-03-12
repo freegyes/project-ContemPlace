@@ -4,7 +4,7 @@ ContemPlace's irreducible core is the **database + MCP surface**. The database (
 
 The current implementation runs as three Cloudflare Workers: a **Telegram capture Worker** (a convenient input channel), an **MCP Worker** (the core interface), and a **Gardener Worker** (the enrichment layer). Supabase provides the database — Postgres with pgvector for semantic search. There are no Edge Functions, no queues, no background job runners.
 
-> **Architectural note (2026-03-10):** The three-Worker topology was designed with Telegram as the primary input. A recent product-level insight reframes MCP as the universal interface — the Telegram bot is one client, not the core. This may reshape how the Workers relate to each other. See `docs/decisions.md` ("Database + MCP is the irreducible core") and issue #27 for the ongoing review.
+> **Architectural update (2026-03-12):** The Telegram Worker now delegates capture to the MCP Worker via a Cloudflare Service Binding (PR #90). There is one capture pipeline (`mcp/src/pipeline.ts`), and the Telegram Worker is a thin webhook adapter. This resolved issue #46 and eliminated ~650 lines of duplicated code.
 
 ## Why this shape
 
@@ -18,13 +18,13 @@ OpenRouter sits between the Workers and all AI models. This adds a hop but means
 
 | Worker | Name | Purpose | Trigger |
 |---|---|---|---|
-| **Telegram capture** | `contemplace` | Receives Telegram webhooks, structures notes via LLM, stores in DB | Telegram webhook POST |
-| **MCP server** | `mcp-contemplace` | Exposes 8 tools to AI agents via JSON-RPC 2.0 over HTTP | HTTP POST /mcp |
+| **Telegram capture** | `contemplace` | Receives Telegram webhooks, delegates capture to MCP Worker via Service Binding, formats HTML reply | Telegram webhook POST |
+| **MCP server** | `mcp-contemplace` | Exposes 8 tools to AI agents via JSON-RPC 2.0 over HTTP. Hosts the `CaptureService` entrypoint for Service Binding RPC. | HTTP POST /mcp, Service Binding RPC |
 | **Gardener** | `contemplace-gardener` | Nightly enrichment: tag normalization, similarity linking, chunk generation | Cron (02:00 UTC) or POST /trigger |
 
 Each Worker is independently deployed with its own `wrangler.toml` and secrets. They share the same Supabase database and use the same `openai` SDK pattern for OpenRouter calls.
 
-Code that must be shared (capture pipeline, embedding helpers) is deliberately copied across Workers because Cloudflare Workers cannot share code across projects without monorepo tooling. Parity tests enforce that copies stay in sync.
+The capture pipeline lives in one place (`mcp/src/pipeline.ts`). The Telegram Worker calls it via a Cloudflare Service Binding — zero-overhead in-process RPC, no HTTP hop, no auth overhead. The Gardener Worker still has its own copy of embedding helpers because its batch-oriented pattern differs from capture-time embedding.
 
 ## The async capture flow
 
@@ -35,6 +35,7 @@ Telegram sends a webhook POST for every message. The Worker must respond quickly
        │
        ▼
  ┌─────────────────────────────────┐
+ │ Telegram Worker (contemplace)   │
  │  1. Verify webhook secret       │ ← 403 if wrong
  │  2. Parse body                  │ ← 200 if non-text message
  │  3. Check chat ID whitelist     │ ← 200 silently if not allowed
@@ -44,10 +45,21 @@ Telegram sends a webhook POST for every message. The Worker must respond quickly
        │
        ▼  ctx.waitUntil()
  ┌─────────────────────────────────┐
+ │  • Send typing indicator        │
+ │  • Call Service Binding RPC:    │
+ │    env.CAPTURE_SERVICE.capture  │
+ │    (text, 'telegram')           │
+ └──────────────┬──────────────────┘
+                │  in-process RPC
+                ▼
+ ┌─────────────────────────────────┐
+ │ MCP Worker (mcp-contemplace)    │
+ │ CaptureService.capture()        │
+ │  → runCapturePipeline():        │
+ │                                 │
  │  A. In parallel:                │
  │     • embed raw text            │
  │     • fetch capture voice       │
- │     • send typing indicator     │
  │                                 │
  │  B. Find related notes          │
  │     (match_notes RPC, top 5)    │
@@ -67,13 +79,21 @@ Telegram sends a webhook POST for every message. The Worker must respond quickly
  │                                 │
  │  F. Insert note + links         │
  │                                 │
- │  G. In parallel:                │
- │     • log enrichments           │
- │     • send Telegram reply       │
+ │  G. Log enrichments             │
+ │                                 │
+ │  → Return ServiceCaptureResult  │
+ └──────────────┬──────────────────┘
+                │
+                ▼
+ ┌─────────────────────────────────┐
+ │ Telegram Worker (continued)     │
+ │  • Format HTML reply with emoji │
+ │    indicators                   │
+ │  • Send Telegram message        │
  └─────────────────────────────────┘
 ```
 
-Steps A and G use `Promise.all()` for parallelism. The rest is sequential because each step depends on the previous one's output.
+The same `runCapturePipeline()` function is called by both the Service Binding RPC (Telegram gateway) and the MCP `capture_note` tool handler. One capture process, multiple gateways.
 
 ## MCP server
 
@@ -156,7 +176,7 @@ The cost of double-embedding is negligible — roughly $0.00001 per note at curr
 
 The LLM prompt is split into two parts that live in different places:
 
-**System frame** — lives in code (`SYSTEM_FRAME` in `src/capture.ts`). This is the structural contract: the JSON schema the LLM must return, the allowed values for each enum field, the rules for entity extraction and linking, and the voice correction instructions. It changes only when the data model changes.
+**System frame** — lives in code (`SYSTEM_FRAME` in `mcp/src/capture.ts`). This is the structural contract: the JSON schema the LLM must return, the allowed values for each enum field, the rules for entity extraction and linking, and the voice correction instructions. It changes only when the data model changes.
 
 **Capture voice** — lives in the database (`capture_profiles` table, fetched at runtime by `getCaptureVoice()`). This is the stylistic layer: how titles should be phrased, how bodies should read, the traceability rule, tone preferences, examples of good and bad output. It can be edited in the Supabase SQL Editor without redeploying.
 
