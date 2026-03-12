@@ -135,32 +135,34 @@ function formatTelegramReply(result: ServiceCaptureResult): string {
   const typeIcon = TYPE_EMOJI[result.type] ?? '❓';
   const intentIcon = INTENT_EMOJI[result.intent] ?? '❓';
 
+  // Title and body are prominent — everything else is italic metadata
   const lines: string[] = [
     `<b>${esc(result.title)}</b>`,
-    sep,
+    '',
     esc(result.body),
     '',
-    `${typeIcon} ${result.type} · ${intentIcon} ${result.intent} · ${result.modality}`,
-    `🏷️ ${result.tags.map(esc).join(', ')}`,
+    sep,
+    `<i>${typeIcon} ${result.type} · ${intentIcon} ${result.intent} · ${result.modality}</i>`,
+    `<i>🏷️ ${result.tags.map(esc).join(', ')}</i>`,
   ];
 
   const linkedEntries = result.links
     .filter(l => l.to_title)
     .map(l => {
       const icon = LINK_EMOJI[l.link_type] ?? '🔗';
-      return `${icon} [[${esc(l.to_title)}]] <i>(${l.link_type})</i>`;
+      return `<i>${icon} ${esc(l.to_title)} (${l.link_type})</i>`;
     });
 
   if (linkedEntries.length > 0) {
-    lines.push(`Linked:\n${linkedEntries.join('\n')}`);
+    lines.push(linkedEntries.join('\n'));
   }
 
   if (result.corrections?.length) {
-    lines.push(`✏️ ${result.corrections.map(esc).join(', ')}`);
+    lines.push(`<i>✏️ ${result.corrections.map(esc).join(', ')}</i>`);
   }
 
   if (result.source_ref) {
-    lines.push(`📎 ${esc(result.source_ref)}`);
+    lines.push(`<i>📎 ${esc(result.source_ref)}</i>`);
   }
 
   if (result.entities.length > 0) {
@@ -168,7 +170,7 @@ function formatTelegramReply(result: ServiceCaptureResult): string {
       const icon = ENTITY_EMOJI[e.type] ?? '•';
       return `${icon} ${esc(e.name)}`;
     });
-    lines.push(`Entities: ${entityEntries.join(', ')}`);
+    lines.push(`<i>${entityEntries.join(', ')}</i>`);
   }
 
   return lines.join('\n').slice(0, 4096);
