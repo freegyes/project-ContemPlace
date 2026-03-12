@@ -65,6 +65,7 @@ export async function runCapturePipeline(
     body: capture.body,
     type: capture.type,
     intent: capture.intent,
+    modality: capture.modality,
     tags: capture.tags,
     source_ref: capture.source_ref,
     corrections: capture.corrections,

@@ -110,6 +110,7 @@ export interface ServiceCaptureResult {
   body: string;
   type: string;
   intent: string;
+  modality: string;
   tags: string[];
   source_ref: string | null;
   corrections: string[] | null;

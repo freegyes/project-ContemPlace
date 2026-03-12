@@ -111,37 +111,64 @@ async function processCapture(
   }
 }
 
+// ── Visual indicators for Telegram reply ─────────────────────────────────────
+// Emojis give each classification a consistent visual anchor so the user can
+// spot behavioral patterns at a glance without reading every label.
+
+const TYPE_EMOJI: Record<string, string> = {
+  idea: '💡', reflection: '🪞', source: '📎', lookup: '🔍',
+};
+const INTENT_EMOJI: Record<string, string> = {
+  reflect: '🧘', plan: '🗺️', create: '🛠️', remember: '📌', reference: '📖', log: '📝',
+};
+const LINK_EMOJI: Record<string, string> = {
+  extends: '🔗', contradicts: '⚡', supports: '🤝', 'is-example-of': '📐', 'duplicate-of': '♊',
+};
+const ENTITY_EMOJI: Record<string, string> = {
+  person: '👤', place: '📍', tool: '🔧', project: '📦', concept: '💠',
+};
+
 function formatTelegramReply(result: ServiceCaptureResult): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const sep = '──────────────────────';
+
+  const typeIcon = TYPE_EMOJI[result.type] ?? '❓';
+  const intentIcon = INTENT_EMOJI[result.intent] ?? '❓';
 
   const lines: string[] = [
     `<b>${esc(result.title)}</b>`,
     sep,
     esc(result.body),
     '',
-    `<i>${result.type} · ${result.intent} · ${result.tags.map(esc).join(', ')}</i>`,
+    `${typeIcon} ${result.type} · ${intentIcon} ${result.intent} · ${result.modality}`,
+    `🏷️ ${result.tags.map(esc).join(', ')}`,
   ];
 
-  const linkedTitles = result.links
-    .map(l => l.to_title ? `[[${esc(l.to_title)}]]` : null)
-    .filter((t): t is string => t !== null);
+  const linkedEntries = result.links
+    .filter(l => l.to_title)
+    .map(l => {
+      const icon = LINK_EMOJI[l.link_type] ?? '🔗';
+      return `${icon} [[${esc(l.to_title)}]] <i>(${l.link_type})</i>`;
+    });
 
-  if (linkedTitles.length > 0) {
-    lines.push(`Linked: ${linkedTitles.join(', ')}`);
+  if (linkedEntries.length > 0) {
+    lines.push(`Linked:\n${linkedEntries.join('\n')}`);
   }
 
   if (result.corrections?.length) {
-    lines.push(`Corrections: ${result.corrections.map(esc).join(', ')}`);
+    lines.push(`✏️ ${result.corrections.map(esc).join(', ')}`);
   }
 
   if (result.source_ref) {
-    lines.push(`Source: ${esc(result.source_ref)}`);
+    lines.push(`📎 ${esc(result.source_ref)}`);
   }
 
   if (result.entities.length > 0) {
-    const entityNames = result.entities.map(e => esc(e.name)).join(', ');
-    lines.push(`Entities: ${entityNames}`);
+    const entityEntries = result.entities.map(e => {
+      const icon = ENTITY_EMOJI[e.type] ?? '•';
+      return `${icon} ${esc(e.name)}`;
+    });
+    lines.push(`Entities: ${entityEntries.join(', ')}`);
   }
 
   return lines.join('\n').slice(0, 4096);
