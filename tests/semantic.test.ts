@@ -7,12 +7,16 @@
  * This is not a unit test. It fires the full capture pipeline — embedding,
  * LLM, DB — and checks that the system organises things usefully.
  *
- * Fixtures are grouped into 4 topic clusters:
+ * Fixtures are grouped into topic clusters:
  *   A: Voice capture workflow
  *   B: Kit synthesizer building
  *   C: Creative philosophy
  *   D: Laser fabrication technique
  *   E: Standalone (URL note, typo correction)
+ *   F: Question handling
+ *   G: Short input entity extraction
+ *   H: Tag priority
+ *   I: Personal convictions (first-person beliefs about process/design)
  *
  * Related notes within a cluster are captured in order so the second note
  * can find the first in the vector search (capture-time linking).
@@ -149,6 +153,15 @@ const FIXTURES = {
 
   // Cluster H: Tag priority — specific subject must appear (#52)
   H1_specific_subject: `Build a cimbalom from tin cans and scrap materials — tune the cans by filling them with different amounts of sand, strike with chopstick mallets.`,
+
+  // Cluster I: Personal convictions — first-person beliefs about process and design
+  I1_docs_as_deliverable: `I believe documentation is part of the deliverable, not a follow-up task. Code changes without corresponding doc updates are incomplete work — the same as shipping without tests. I learned this the hard way when a feature shipped with five stale docs files.`,
+
+  I2_issues_as_thinking: `I prefer managing pieces of in-flight work as GitHub issues. Not as a task tracker — as a thinking medium. The issue is where the question lives, comments are where decisions accumulate, and closing it with a resolution is the conclusion.`,
+
+  I3_invisible_systems: `The best tool is one the user never thinks about. They capture freely, trust that the system handles the rest. If they're administrating, routing, or worrying about what happens on the other side, the design failed.`,
+
+  I4_emergent_over_imposed: `If the emergent pattern yields a good result, don't take up unnecessary overhead management tasks just for the sake of it. Don't pre-categorize or add process when the natural structure works. Just make sure it works.`,
 } as const;
 
 // ── Captured results (populated in beforeAll) ─────────────────────────────────
@@ -170,7 +183,7 @@ beforeAll(async () => {
     results[key as keyof typeof FIXTURES] = await capture(text);
   }
   notes = results as NotesMap;
-}, 300_000); // 5 min — 11 captures × ~15s each + headroom
+}, 420_000); // 7 min — 20 captures × ~15s each + headroom
 
 afterAll(async () => {
   const db = supabase();
@@ -533,5 +546,122 @@ describe('Cluster H — Tag priority for specific subjects', () => {
 
   it('H1 specific subject: intent is create or plan', () => {
     expect(['create', 'plan']).toContain(notes.H1_specific_subject.intent);
+  });
+});
+
+// ── Cluster I: Personal convictions ──────────────────────────────────────────
+
+describe('Cluster I — Personal convictions', () => {
+  // Classification: conviction-shaped input should be reflection, not idea
+  it('I1 docs as deliverable: type is reflection', () => {
+    expect(notes.I1_docs_as_deliverable.type).toBe('reflection');
+  });
+
+  it('I2 issues as thinking: type is reflection or idea', () => {
+    // "I prefer X" describes a workflow preference — LLM may read as concept (idea)
+    // rather than personal insight (reflection). Both are defensible.
+    expect(['reflection', 'idea']).toContain(notes.I2_issues_as_thinking.type);
+  });
+
+  it('I3 invisible systems: type is reflection or idea', () => {
+    // Could go either way — it's a design principle stated as conviction
+    expect(['reflection', 'idea']).toContain(notes.I3_invisible_systems.type);
+  });
+
+  it('I4 emergent over imposed: type is reflection or idea', () => {
+    expect(['reflection', 'idea']).toContain(notes.I4_emergent_over_imposed.type);
+  });
+
+  // Intent: beliefs are about remembering or reflecting
+  it('I1 docs as deliverable: intent is remember or reflect', () => {
+    expect(['remember', 'reflect']).toContain(notes.I1_docs_as_deliverable.intent);
+  });
+
+  it('I2 issues as thinking: intent is remember or reflect', () => {
+    expect(['remember', 'reflect']).toContain(notes.I2_issues_as_thinking.intent);
+  });
+
+  it('I3 invisible systems: intent is remember or reflect', () => {
+    expect(['remember', 'reflect']).toContain(notes.I3_invisible_systems.intent);
+  });
+
+  it('I4 emergent over imposed: intent is remember, reflect, or plan', () => {
+    // Imperative mood ("don't do X, just make sure Y works") reads as forward-looking
+    // guidance, so LLM may classify as plan. All three are defensible.
+    expect(['remember', 'reflect', 'plan']).toContain(notes.I4_emergent_over_imposed.intent);
+  });
+
+  // Tags: should surface the specific topic, not just generic "beliefs"
+  it('I1 docs as deliverable: tags include documentation-related term', () => {
+    expect(hasAnyTag(notes.I1_docs_as_deliverable, ['documentation', 'software', 'development', 'quality'])).toBe(true);
+  });
+
+  it('I2 issues as thinking: tags include project management term', () => {
+    expect(hasAnyTag(notes.I2_issues_as_thinking, ['github', 'project', 'workflow', 'issue', 'development'])).toBe(true);
+  });
+
+  it('I3 invisible systems: tags include design or UX term', () => {
+    expect(hasAnyTag(notes.I3_invisible_systems, ['design', 'ux', 'product', 'user-experience', 'tool'])).toBe(true);
+  });
+
+  it('I4 emergent over imposed: tags include emergence or structure term', () => {
+    expect(hasAnyTag(notes.I4_emergent_over_imposed, ['emergence', 'structure', 'process', 'design', 'organization', 'pattern'])).toBe(true);
+  });
+
+  // Body preservation: first-person stance should survive capture
+  it('I1 docs as deliverable: body preserves conviction substance', () => {
+    const body = notes.I1_docs_as_deliverable.body.toLowerCase();
+    // The agent may condense "documentation" to "doc" — check for either
+    expect(body.includes('doc') || body.includes('documentation')).toBe(true);
+    // The core claim should survive: docs are part of shipping, not separate
+    expect(body.includes('incomplete') || body.includes('deliverable') || body.includes('shipping')).toBe(true);
+  });
+
+  it('I3 invisible systems: body preserves design principle', () => {
+    const body = notes.I3_invisible_systems.body.toLowerCase();
+    expect(body.includes('user') || body.includes('tool') || body.includes('system')).toBe(true);
+  });
+
+  // Linking: I3 (invisible systems) and I4 (emergent over imposed) share
+  // a philosophical thread — trusting systems over controlling them.
+  // At least one cross-conviction link should form.
+  it('at least one pair of conviction notes is linked', async () => {
+    const ids = [
+      notes.I1_docs_as_deliverable.id,
+      notes.I2_issues_as_thinking.id,
+      notes.I3_invisible_systems.id,
+      notes.I4_emergent_over_imposed.id,
+    ];
+    const db = supabase();
+    const { data } = await db
+      .from('links')
+      .select('from_id, to_id')
+      .in('from_id', ids)
+      .in('to_id', ids);
+    // At least one intra-cluster link should exist
+    expect((data ?? []).length).toBeGreaterThan(0);
+  });
+});
+
+// ── Search quality: conviction retrieval ──────────────────────────────────────
+
+describe('Search — conviction retrieval', () => {
+  it('"beliefs about documentation" surfaces I1', async () => {
+    const results = await search('beliefs about documentation practices');
+    const ids = results.map(r => r.id);
+    expect(ids).toContain(notes.I1_docs_as_deliverable.id);
+  });
+
+  it('"design philosophy user experience" surfaces I3 or I4', async () => {
+    const results = await search('design philosophy user experience invisible system');
+    const ids = results.map(r => r.id);
+    const convictionIds = [notes.I3_invisible_systems.id, notes.I4_emergent_over_imposed.id];
+    expect(ids.some(id => convictionIds.includes(id))).toBe(true);
+  });
+
+  it('"how does this user manage projects" surfaces I2', async () => {
+    const results = await search('project management workflow GitHub issues tracking');
+    const ids = results.map(r => r.id);
+    expect(ids).toContain(notes.I2_issues_as_thinking.id);
   });
 });

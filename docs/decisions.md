@@ -571,3 +571,13 @@ Option B chosen because: zero external dependencies, everything lives in Worker 
 **Validation:** 60/60 semantic tests pass (15 new F/G/H clusters covering all fixed issues). All question-type fixtures correctly classified as `lookup` with preserved question form.
 
 **Risk:** Body length relaxation may produce less atomic notes for medium-length inputs. Tag count inflation possible with wider 2-7 range. Both monitored post-deploy.
+
+## Conviction-type input: no special handling needed (2026-03-12)
+
+**Decision:** First-person beliefs about process, design, and values ("I believe documentation is part of the deliverable") are a valid content pattern for ContemPlace. No special type, tag convention, or capture pipeline change needed — the existing framework handles them naturally.
+
+**Why:** The capture agent classifies these as `reflection` (first-person insight) with `remember` or `reflect` intent, which is correct. Tags surface the specific topic (documentation, project-management, product-design), not a generic "belief" category. The body preserves the first-person stance. Semantic search retrieves them accurately — "what are my beliefs about documentation" surfaces the right notes without any conviction-specific tag.
+
+A dedicated `belief` tag was considered and rejected. It would only add value for the access pattern "list all my beliefs regardless of topic" — which is not how people query their own convictions. The natural query is topical ("what do I think about testing?"), and the existing embedding + search handles this. Adding a classification burden (is this a belief? a preference? a lesson?) contradicts the project's core principle: emergent structure over imposed structure.
+
+**Validation:** Added as permanent Cluster I in `tests/semantic.test.ts` — 4 conviction fixtures with assertions on type, intent, tags, body preservation, intra-cluster linking, and cross-topic retrieval. These test a content pattern no existing cluster covers (first-person declarative beliefs vs topical content in clusters A-H).
