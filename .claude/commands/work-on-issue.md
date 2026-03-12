@@ -14,6 +14,7 @@ $ARGUMENTS — the issue number (e.g., "#47", "47") or a short description of wh
 2. **Fetch related issues** referenced in the body or that share labels/topics.
 3. **Read the relevant source files** — whatever the issue touches. Use the project layout in CLAUDE.md to find the right files. Read them, don't guess.
 4. **Check memory** — search MEMORY.md and topic files in the memory directory for prior context on this area.
+5. **Check the note database** — if the issue touches capture quality, linking, search, or tag behavior, use `search_notes` or `list_recent` via MCP to surface real-world examples. The notes themselves are evidence of how the system behaves.
 
 ### Phase 2: Hypothesis check
 
@@ -29,9 +30,13 @@ This doesn't need to be heavy. For a clear bug fix, it's one line: "The problem 
 
 **If the hypothesis check reframes the problem**, the specialist reviews in Phase 3 work from the reframed version, not the original issue body. Note the reframing explicitly so the user can see what shifted.
 
-### Phase 3: Specialist review (parallel)
+### Phase 3: Specialist review
 
-Launch **two Plan agents in parallel** to evaluate the design before any code is written:
+Scale the review to the size of the change:
+
+- **Small changes** (config tweaks, test fixes, description updates): Skip Phase 3 entirely. State why in one line: "Skipping specialist review — single-file config change with no architectural impact."
+- **Medium changes** (new tool handler, prompt tuning, single-feature additions): Launch **one Plan agent** covering both design concerns and implementation specifics.
+- **Large changes** (new Workers, schema migrations, multi-file refactors, architectural shifts): Launch **two Plan agents in parallel:**
 
 **Agent A — Best practices and design concerns:**
 - Research best practices relevant to the task
@@ -45,11 +50,11 @@ Launch **two Plan agents in parallel** to evaluate the design before any code is
 - Draft the minimal set of changes needed
 - Flag prerequisites (schema changes, seed data, config, etc.)
 
-Both agents receive: the **validated problem statement from Phase 2** (not just the raw issue body), relevant source code, and the project's hard constraints from CLAUDE.md. Both return structured findings. Both are told to do research only — no code writing.
+All agents receive: the **validated problem statement from Phase 2** (not just the raw issue body), relevant source code, and the project's hard constraints from CLAUDE.md. All return structured findings. All are told to do research only — no code writing.
 
 ### Phase 4: Synthesize and present the plan
 
-Combine both reviews into a clear plan:
+Combine the review findings into a clear plan:
 - **Priority-ordered list of changes** — what to do first, what depends on what
 - **Design decisions surfaced** — with recommendations, presented as a table
 - **Risks and mitigations** — anything the reviews flagged
@@ -64,16 +69,20 @@ Present this to the user. Wait for confirmation or adjustments before proceeding
 3. **Typecheck** — `npx tsc --noEmit` (and `-p` for sub-projects if touched)
 4. **Run relevant unit tests** — the ones that cover the changed code
 5. **Commit** with conventional commit message, refs the issue number
+6. **Push the branch and create a PR** — with summary and test plan checklist. Creating the PR early makes the diff visible and gives a URL to reference. The PR body can be updated as verification progresses.
 
 ### Phase 6: Verify
 
-1. **Deploy** to the live stack if the change touches a Worker
-2. **Run smoke/integration tests** against the live deployment
-3. **Verify manually** if the tests don't cover the specific behavior (e.g., check a curl response)
+1. **Deploy in dependency order** — MCP Worker → Telegram Worker → Gardener Worker. Only deploy Workers that changed or whose dependencies changed (e.g., Telegram Worker must redeploy if MCP Worker changed because of the Service Binding).
+2. **Run smoke/integration tests** against the live deployment.
+3. **Test MCP tools directly** if the change touches the MCP Worker or capture pipeline — call the affected tools via MCP and verify the response, not just via test harnesses.
+4. **Verify manually** if the tests don't cover the specific behavior (e.g., send a real Telegram message, check a curl response).
+
+**Pre-existing failures:** If verification surfaces a bug that predates your change (e.g., a test that was already broken), fix it in the same branch if it's small and related. If it's unrelated or large, open a separate issue and note it in the PR body. Don't let a pre-existing bug block the merge, but don't silently ignore it either.
 
 ### Phase 7: Ship
 
-1. **Push the branch and create a PR** — with summary, test plan checklist
+1. **Update the PR body** with completed test plan checkboxes
 2. **Merge** (if tests pass and user approves)
 3. **Clean up** — delete the feature branch
 
@@ -91,7 +100,5 @@ After merging, do the full housekeeping sweep:
 
 ### Calibration notes
 
-- **Small changes** (config tweaks, description updates, test fixes): Phase 2 (hypothesis check) can be a single sentence. Phase 3 (specialist review) can be lighter — one agent instead of two, or skip if the change is obviously safe.
-- **Large changes** (new Workers, schema migrations, multi-file refactors): Phase 2 and Phase 3 are both critical. Phase 2 catches wrong frames; Phase 3 catches design mistakes within the right frame.
 - **Design-only issues** (labeled `question`): Phase 2 is especially important — design questions are where wrong frames do the most damage. Phase 3 is the main output. Skip Phases 5-7.
 - If the user says "just do it" or "skip the review" — respect that and go straight to implementation.
