@@ -13,6 +13,10 @@ const oauthCapture = vi.hoisted(() => ({
   fetch: vi.fn(),
 }));
 
+vi.mock('cloudflare:workers', () => ({
+  WorkerEntrypoint: class WorkerEntrypoint { env: unknown; constructor() { this.env = {}; } },
+}));
+
 vi.mock('@cloudflare/workers-oauth-provider', () => ({
   OAuthProvider: vi.fn().mockImplementation((options: Record<string, unknown>) => {
     oauthCapture.options = options;
@@ -42,6 +46,10 @@ vi.mock('../mcp/src/embed', () => ({
   createOpenAIClient: vi.fn().mockReturnValue({}),
   embedText: vi.fn(),
   buildEmbeddingInput: vi.fn(),
+}));
+
+vi.mock('../mcp/src/pipeline', () => ({
+  runCapturePipeline: vi.fn(),
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────

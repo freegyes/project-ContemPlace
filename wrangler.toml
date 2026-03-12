@@ -1,9 +1,9 @@
 name = "contemplace"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-04-03"
 compatibility_flags = ["nodejs_compat"]
 
-[vars]
-CAPTURE_MODEL = "anthropic/claude-haiku-4-5"
-EMBED_MODEL = "openai/text-embedding-3-small"
-MATCH_THRESHOLD = "0.60"
+[[services]]
+binding = "CAPTURE_SERVICE"
+service = "mcp-contemplace"
+entrypoint = "CaptureService"

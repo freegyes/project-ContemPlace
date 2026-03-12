@@ -99,3 +99,21 @@ export interface LinkWithTitle {
   created_by: string;
   direction: 'outbound' | 'inbound';
 }
+
+// ── Service Binding result ──────────────────────────────────────────────────
+// Rich result returned by CaptureService.capture() — designed for all gateways.
+// All fields are strings, arrays, or null — safe for structured cloning across Service Bindings.
+
+export interface ServiceCaptureResult {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  intent: string;
+  tags: string[];
+  source_ref: string | null;
+  corrections: string[] | null;
+  entities: Array<{ name: string; type: string }>;
+  links: Array<{ to_id: string; to_title: string; link_type: string }>;
+  source: string;
+}

@@ -29,6 +29,10 @@ vi.mock('../mcp/src/tools', () => ({
   handleSearchChunks: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
 }));
 
+vi.mock('cloudflare:workers', () => ({
+  WorkerEntrypoint: class WorkerEntrypoint { env: unknown; constructor() { this.env = {}; } },
+}));
+
 vi.mock('@cloudflare/workers-oauth-provider', () => ({
   OAuthProvider: vi.fn().mockImplementation(() => ({ fetch: vi.fn() })),
 }));
@@ -41,6 +45,10 @@ vi.mock('../mcp/src/embed', () => ({
   createOpenAIClient: vi.fn().mockReturnValue({}),
   embedText: vi.fn(),
   buildEmbeddingInput: vi.fn(),
+}));
+
+vi.mock('../mcp/src/pipeline', () => ({
+  runCapturePipeline: vi.fn(),
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────

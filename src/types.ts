@@ -1,15 +1,37 @@
 // ── Cloudflare Worker Env ───────────────────────────────────────────────────
 
+// CaptureService stub for Service Binding typing.
+// The actual implementation lives in mcp/src/index.ts (WorkerEntrypoint).
+// At runtime, Cloudflare resolves this via the [[services]] binding in wrangler.toml.
+export interface CaptureServiceStub {
+  capture(rawInput: string, source: string): Promise<ServiceCaptureResult>;
+}
+
 export interface Env {
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_WEBHOOK_SECRET: string;
-  OPENROUTER_API_KEY: string;
+  ALLOWED_CHAT_IDS: string;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
-  ALLOWED_CHAT_IDS: string;
-  CAPTURE_MODEL: string;
-  EMBED_MODEL: string;
-  MATCH_THRESHOLD: string;
+  CAPTURE_SERVICE: CaptureServiceStub;
+}
+
+// ── Service Binding result ──────────────────────────────────────────────────
+// Mirrors mcp/src/types.ts ServiceCaptureResult.
+// Defined locally to avoid cross-project tsconfig dependencies.
+
+export interface ServiceCaptureResult {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  intent: string;
+  tags: string[];
+  source_ref: string | null;
+  corrections: string[] | null;
+  entities: Array<{ name: string; type: string }>;
+  links: Array<{ to_id: string; to_title: string; link_type: string }>;
+  source: string;
 }
 
 // ── Telegram Types ──────────────────────────────────────────────────────────
@@ -46,59 +68,4 @@ export interface TelegramUpdate {
   edited_message?: TelegramMessage;
   channel_post?: unknown;
   callback_query?: unknown;
-}
-
-// ── Note Types ──────────────────────────────────────────────────────────────
-
-export type NoteType = 'idea' | 'reflection' | 'source' | 'lookup';
-
-// Capture-time link types (LLM-assigned)
-export type CaptureLinkType = 'extends' | 'contradicts' | 'supports' | 'is-example-of' | 'duplicate-of';
-
-// All link types (capture + gardening)
-export type LinkType = CaptureLinkType
-  | 'is-similar-to' | 'is-part-of' | 'follows' | 'is-derived-from';
-
-// 6 values — 'wish' merged into 'plan' [Review fix 10-§2]
-export type Intent = 'reflect' | 'plan' | 'create' | 'remember' | 'reference' | 'log';
-
-export type Modality = 'text' | 'link' | 'list' | 'mixed';
-
-export interface Entity {
-  name: string;
-  type: 'person' | 'place' | 'tool' | 'project' | 'concept';
-}
-
-export interface CaptureLink {
-  to_id: string;
-  link_type: CaptureLinkType;
-}
-
-export interface CaptureResult {
-  title: string;
-  body: string;
-  type: NoteType;
-  tags: string[];
-  source_ref: string | null;
-  links: CaptureLink[];
-  corrections: string[] | null;
-  intent: Intent;
-  modality: Modality;
-  entities: Entity[];
-}
-
-export interface MatchedNote {
-  id: string;
-  title: string;
-  body: string;
-  raw_input: string;
-  type: string;
-  tags: string[];
-  source_ref: string | null;
-  source: string;
-  intent: string | null;
-  modality: string | null;
-  entities: unknown;
-  created_at: string;
-  similarity: number;
 }

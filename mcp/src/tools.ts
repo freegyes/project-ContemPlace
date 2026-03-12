@@ -1,11 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type OpenAI from 'openai';
 import type { Config } from './config';
-import { embedText, buildEmbeddingInput } from './embed';
-import { runCaptureAgent } from './capture';
-import { getCaptureVoice, findRelatedNotes, insertNote, insertLinks, logEnrichments,
-         fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, searchChunks,
+import { embedText } from './embed';
+import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, searchChunks,
          listUnmatchedTags, insertConcept } from './db';
+import { runCapturePipeline } from './pipeline';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -375,47 +374,17 @@ export async function handleCaptureNote(
   }
 
   try {
-    // Step 1: embed + fetch capture voice in parallel
-    const [rawEmbedding, captureVoice] = await Promise.all([
-      embedText(openai, config, text),
-      getCaptureVoice(db),
-    ]);
-
-    // Step 2: find related notes
-    const relatedNotes = await findRelatedNotes(db, rawEmbedding, config.matchThreshold);
-
-    // Step 3: run capture LLM
-    const capture = await runCaptureAgent(openai, config, text, relatedNotes, captureVoice);
-
-    // Step 4: augmented embedding (fallback to raw on failure)
-    let finalEmbedding = rawEmbedding;
-    let embeddingType = 'augmented';
-    try {
-      finalEmbedding = await embedText(openai, config, buildEmbeddingInput(text, capture));
-    } catch (embedErr) {
-      console.warn(JSON.stringify({ event: 'augmented_embed_fallback', error: String(embedErr) }));
-      embeddingType = 'raw_fallback';
-    }
-
-    // Step 5: insert note + links
-    const noteId = await insertNote(db, capture, finalEmbedding, text, source);
-    await insertLinks(db, noteId, capture.links);
-
-    // Step 6: log enrichments
-    await logEnrichments(db, noteId, [
-      { enrichment_type: 'capture', model_used: config.captureModel },
-      { enrichment_type: embeddingType, model_used: config.embedModel },
-    ]);
+    const result = await runCapturePipeline(text, source, db, openai, config);
 
     return toolSuccess({
-      id: noteId,
-      title: capture.title,
-      body: capture.body,
-      type: capture.type,
-      intent: capture.intent,
-      tags: capture.tags,
-      links_created: capture.links.length,
-      source,
+      id: result.id,
+      title: result.title,
+      body: result.body,
+      type: result.type,
+      intent: result.intent,
+      tags: result.tags,
+      links_created: result.links.length,
+      source: result.source,
     });
   } catch (err) {
     console.error(JSON.stringify({ event: 'capture_note_error', error: String(err) }));

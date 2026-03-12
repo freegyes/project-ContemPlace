@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCaptureResponse } from '../src/capture';
+import { parseCaptureResponse } from '../mcp/src/capture';
 
 const VALID_BASE = {
   title: 'Test title',

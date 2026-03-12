@@ -1,11 +1,14 @@
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
+import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createClient } from '@supabase/supabase-js';
 import { loadConfig } from './config';
 import { timingSafeEqual } from './auth';
 import { createOpenAIClient } from './embed';
 import { TOOL_DEFINITIONS, handleSearchNotes, handleSearchChunks, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleListUnmatchedTags, handlePromoteConcept } from './tools';
+import { runCapturePipeline } from './pipeline';
 import { AuthHandler } from './oauth';
 import type { Env } from './types';
+import type { ServiceCaptureResult } from './types';
 
 // ── JSON-RPC helpers ─────────────────────────────────────────────────────────
 
@@ -158,6 +161,19 @@ const oauthProvider = new OAuthProvider<Env>({
     console.error(JSON.stringify({ event: 'oauth_error', code, description, status }));
   },
 });
+
+// ── CaptureService RPC entrypoint (for Service Binding from Telegram Worker) ─
+// Named export — coexists with the OAuthProvider default export.
+// The Telegram Worker binds to this via [[services]] in wrangler.toml.
+
+export class CaptureService extends WorkerEntrypoint<Env> {
+  async capture(rawInput: string, source: string): Promise<ServiceCaptureResult> {
+    const config = loadConfig(this.env);
+    const db = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
+    const openai = createOpenAIClient(config);
+    return runCapturePipeline(rawInput, source, db, openai, config);
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildEmbeddingInput } from '../mcp/src/embed';
-import { buildEmbeddingInput as mainBuildEmbeddingInput } from '../src/embed';
 import type { CaptureResult } from '../mcp/src/types';
-import type { CaptureResult as MainCaptureResult } from '../src/types';
 
 const BASE_CAPTURE: CaptureResult = {
   title: 'Test Note',
@@ -50,13 +48,5 @@ describe('buildEmbeddingInput (mcp/src/embed.ts)', () => {
       const result = buildEmbeddingInput('x', { ...BASE_CAPTURE, type });
       expect(result).toContain(`[Type: ${type}]`);
     }
-  });
-
-  // Parity test: both copies must produce identical output for the same input.
-  // If mcp/src/embed.ts drifts from src/embed.ts, this fails.
-  it('produces identical output to main worker src/embed.ts', () => {
-    const mcpResult = buildEmbeddingInput('the text', BASE_CAPTURE);
-    const mainResult = mainBuildEmbeddingInput('the text', BASE_CAPTURE as unknown as MainCaptureResult);
-    expect(mcpResult).toBe(mainResult);
   });
 });

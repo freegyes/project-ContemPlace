@@ -543,7 +543,7 @@ describe('handleCaptureNote', () => {
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(logEnrichments)).toHaveBeenCalledWith(mockDb, VALID_UUID, [
         { enrichment_type: 'capture', model_used: MOCK_CONFIG.captureModel },
-        { enrichment_type: 'augmented', model_used: MOCK_CONFIG.embedModel },
+        { enrichment_type: 'embedding_augmented', model_used: MOCK_CONFIG.embedModel },
       ]);
     });
 
@@ -579,7 +579,7 @@ describe('handleCaptureNote', () => {
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(logEnrichments)).toHaveBeenCalledWith(mockDb, expect.any(String), [
         { enrichment_type: 'capture', model_used: MOCK_CONFIG.captureModel },
-        { enrichment_type: 'raw_fallback', model_used: MOCK_CONFIG.embedModel },
+        { enrichment_type: 'embedding_raw_fallback', model_used: MOCK_CONFIG.embedModel },
       ]);
     });
   });
