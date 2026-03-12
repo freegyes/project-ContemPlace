@@ -581,3 +581,23 @@ Option B chosen because: zero external dependencies, everything lives in Worker 
 A dedicated `belief` tag was considered and rejected. It would only add value for the access pattern "list all my beliefs regardless of topic" — which is not how people query their own convictions. The natural query is topical ("what do I think about testing?"), and the existing embedding + search handles this. Adding a classification burden (is this a belief? a preference? a lesson?) contradicts the project's core principle: emergent structure over imposed structure.
 
 **Validation:** Added as permanent Cluster I in `tests/semantic.test.ts` — 4 conviction fixtures with assertions on type, intent, tags, body preservation, intra-cluster linking, and cross-topic retrieval. These test a content pattern no existing cluster covers (first-person declarative beliefs vs topical content in clusters A-H).
+
+## Single capture path via Service Bindings (2026-03-12)
+
+**Decision:** The Telegram Worker will delegate capture to the MCP Worker via a Cloudflare Service Binding instead of running its own copy of the capture pipeline. One capture process, multiple gateways.
+
+**Context:** Issue #46. The Telegram Worker and MCP Worker duplicated ~530 lines of capture logic (capture.ts, embed.ts, shared DB functions, shared types). Parity tests (24 tests across 3 files) enforced sync, but a real-world links bug demonstrated that architectural duplication — not just code duplication — is the root problem. The `duplicate-of` link type was defined in the parser and SYSTEM_FRAME but missing from the DB CHECK constraint, causing silent link insertion failures. The bug affected both Workers equally, but the architectural duplication meant the fix had to be applied and verified in two places. More critically, the planned smart capture router (#27) would require implementing input-type detection and specialized handlers in two places — untenable.
+
+**Why not shared library (Option B)?** A shared library eliminates code duplication but not architectural duplication. The orchestration (embed → find related → LLM → re-embed → insert → link → log) would still be assembled independently in each Worker. A bug in the assembly isn't caught by parity tests on individual functions. Option A eliminates the entire category of divergence risk.
+
+**Why not merge Workers (Option D)?** OAuthProvider owns the MCP Worker's entire fetch handler. Telegram webhook auth and OAuth 2.1 are fundamentally different protocols. Merging them couples failure modes and shares the 50-subrequest free-tier budget.
+
+**Implementation:** The MCP Worker exports a `CaptureService` class extending `WorkerEntrypoint` with a `capture(rawInput, source)` method. The Telegram Worker declares a Service Binding in `wrangler.toml` and calls `env.CAPTURE_SERVICE.capture(text, 'telegram')` — direct RPC, no HTTP, no auth overhead. Both the MCP `capture_note` tool handler and the Telegram adapter call the same internal function.
+
+**CaptureResult contract:** One rich result designed for all gateways — includes id, title, body, type, intent, tags, corrections, entities, source_ref, and links with resolved titles. Telegram formats it as HTML. MCP returns it as JSON. Future gateways use the same result.
+
+**Coupling assessment:** For a single-user system on CF Workers, the operational coupling risk is negligible. Workers don't have traditional downtime — deploys are atomic (~1-2s), and CF routes to the previous version during deployment. Service Bindings are in-process, platform-managed. The logical coupling is desirable: capture behavior changes everywhere at once.
+
+**What goes away:** `src/capture.ts`, `src/embed.ts`, shared functions in `src/db.ts`, 3 parity test files (24 tests), `processCapture` in `src/index.ts` (~107 lines). The Telegram Worker becomes a thin webhook adapter (~20 lines of capture logic).
+
+**Open questions:** (1) Whether the gardener's `embed.ts` should also use a Service Binding or keep its own copy given its batch-oriented pattern. (2) Whether the MCP Worker should be renamed to reflect its broader role (e.g., `contemplace-core`). (3) `WorkerEntrypoint` compatibility with OAuthProvider needs a spike to verify coexistence.
