@@ -58,7 +58,7 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<Re
 }
 
 async function capture(text: string): Promise<{ id: string; title: string }> {
-  const result = await callTool('capture_note', { text, source: SOURCE });
+  const result = await callTool('capture_note', { raw_input: text, source: SOURCE });
   if (result['isError']) throw new Error(`capture_note failed: ${JSON.stringify(result)}`);
   return { id: result['id'] as string, title: result['title'] as string };
 }
