@@ -19,19 +19,12 @@ export interface Env {
 
 // ── Note Types ──────────────────────────────────────────────────────────────
 
-export type NoteType = 'idea' | 'reflection' | 'source' | 'lookup';
-
 // Capture-time link types (LLM-assigned)
 export type CaptureLinkType = 'extends' | 'contradicts' | 'supports' | 'is-example-of' | 'duplicate-of';
 
 // All link types (capture + gardening)
 export type LinkType = CaptureLinkType
   | 'is-similar-to' | 'is-part-of' | 'follows' | 'is-derived-from';
-
-// 6 values — 'wish' merged into 'plan' [Review fix 10-§2]
-export type Intent = 'reflect' | 'plan' | 'create' | 'remember' | 'reference' | 'log';
-
-export type Modality = 'text' | 'link' | 'list' | 'mixed';
 
 export interface Entity {
   name: string;
@@ -46,13 +39,10 @@ export interface CaptureLink {
 export interface CaptureResult {
   title: string;
   body: string;
-  type: NoteType;
   tags: string[];
   source_ref: string | null;
   links: CaptureLink[];
   corrections: string[] | null;
-  intent: Intent;
-  modality: Modality;
   entities: Entity[];
 }
 
@@ -61,12 +51,9 @@ export interface MatchedNote {
   title: string;
   body: string;
   raw_input: string;
-  type: string;
   tags: string[];
   source_ref: string | null;
   source: string;
-  intent: string | null;
-  modality: string | null;
   entities: unknown;
   created_at: string;
   similarity: number;
@@ -79,9 +66,6 @@ export interface NoteRow {
   title: string;
   body: string;
   raw_input: string;
-  type: string;
-  intent: string | null;
-  modality: string | null;
   tags: string[];
   entities: Entity[];
   corrections: string[] | null;
@@ -108,9 +92,6 @@ export interface ServiceCaptureResult {
   id: string;
   title: string;
   body: string;
-  type: string;
-  intent: string;
-  modality: string;
   tags: string[];
   source_ref: string | null;
   corrections: string[] | null;

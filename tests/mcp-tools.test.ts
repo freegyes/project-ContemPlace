@@ -34,12 +34,9 @@ vi.mock('../mcp/src/capture', () => ({
   runCaptureAgent: vi.fn().mockResolvedValue({
     title: 'Mock Note',
     body: 'Mock body.',
-    type: 'idea',
     tags: ['mock'],
     source_ref: null,
     corrections: null,
-    intent: 'remember',
-    modality: 'text',
     entities: [],
     links: [],
   } satisfies CaptureResult),
@@ -97,9 +94,6 @@ const MOCK_NOTE_ROW = {
   title: 'A Note',
   body: 'The body.',
   raw_input: 'the raw input',
-  type: 'idea',
-  intent: 'remember',
-  modality: 'text',
   tags: ['tag'],
   entities: [],
   corrections: null,
@@ -146,43 +140,32 @@ describe('handleSearchNotes', () => {
       expect(r.content[0]!.text).toMatch(/1000 character/);
     });
 
-    it('returns error for invalid filter_type', async () => {
-      const r = toolResult(await handleSearchNotes({ query: 'test', filter_type: 'bogus' }, mockDb, mockOpenAI, MOCK_CONFIG));
-      expect(r.isError).toBe(true);
-      expect(r.content[0]!.text).toMatch(/filter_type/);
-    });
-
-    it('returns error for invalid filter_intent', async () => {
-      const r = toolResult(await handleSearchNotes({ query: 'test', filter_intent: 'wish' }, mockDb, mockOpenAI, MOCK_CONFIG));
-      expect(r.isError).toBe(true);
-      expect(r.content[0]!.text).toMatch(/filter_intent/);
-    });
   });
 
   describe('clamping', () => {
     it('defaults limit to 5 when not provided', async () => {
       await handleSearchNotes({ query: 'test' }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), 5, undefined, undefined, undefined);
+      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), 5, undefined);
     });
 
     it('clamps limit above 20 down to 20', async () => {
       await handleSearchNotes({ query: 'test', limit: 99 }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), 20, undefined, undefined, undefined);
+      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), 20, undefined);
     });
 
     it('clamps limit below 1 up to 1', async () => {
       await handleSearchNotes({ query: 'test', limit: 0 }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), 1, undefined, undefined, undefined);
+      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), 1, undefined);
     });
 
     it('defaults threshold to config.searchThreshold when not provided', async () => {
       await handleSearchNotes({ query: 'test' }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), MOCK_CONFIG.searchThreshold, expect.any(Number), undefined, undefined, undefined);
+      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), MOCK_CONFIG.searchThreshold, expect.any(Number), undefined);
     });
 
     it('clamps threshold above 1 down to 1', async () => {
       await handleSearchNotes({ query: 'test', threshold: 1.5 }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), 1, expect.any(Number), undefined, undefined, undefined);
+      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), 1, expect.any(Number), undefined);
     });
   });
 
@@ -195,7 +178,7 @@ describe('handleSearchNotes', () => {
 
     it('passes filter_tags as array to searchNotes', async () => {
       await handleSearchNotes({ query: 'test', filter_tags: ['tag1', 'tag2'] }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), expect.any(Number), undefined, undefined, ['tag1', 'tag2']);
+      expect(vi.mocked(searchNotes)).toHaveBeenCalledWith(mockDb, expect.any(Array), expect.any(Number), expect.any(Number), ['tag1', 'tag2']);
     });
 
     it('returns isError: false on success', async () => {
@@ -216,12 +199,9 @@ describe('handleSearchNotes', () => {
         title: 'A Note',
         body: 'body',
         raw_input: 'raw',
-        type: 'idea',
         tags: ['t'],
         source_ref: null,
         source: 'telegram',
-        intent: 'remember',
-        modality: 'text',
         entities: null,
         created_at: '2026-01-01',
         similarity: 0.82,
@@ -333,30 +313,19 @@ describe('handleListRecent', () => {
   describe('input validation', () => {
     it('defaults limit to 10 when not provided', async () => {
       await handleListRecent({}, mockDb);
-      expect(vi.mocked(listRecentNotes)).toHaveBeenCalledWith(mockDb, 10, undefined, undefined);
+      expect(vi.mocked(listRecentNotes)).toHaveBeenCalledWith(mockDb, 10);
     });
 
     it('clamps limit above 50 down to 50', async () => {
       await handleListRecent({ limit: 999 }, mockDb);
-      expect(vi.mocked(listRecentNotes)).toHaveBeenCalledWith(mockDb, 50, undefined, undefined);
+      expect(vi.mocked(listRecentNotes)).toHaveBeenCalledWith(mockDb, 50);
     });
 
     it('clamps limit below 1 up to 1', async () => {
       await handleListRecent({ limit: 0 }, mockDb);
-      expect(vi.mocked(listRecentNotes)).toHaveBeenCalledWith(mockDb, 1, undefined, undefined);
+      expect(vi.mocked(listRecentNotes)).toHaveBeenCalledWith(mockDb, 1);
     });
 
-    it('returns error for invalid filter_type', async () => {
-      const r = toolResult(await handleListRecent({ filter_type: 'bogus' }, mockDb));
-      expect(r.isError).toBe(true);
-      expect(r.content[0]!.text).toMatch(/filter_type/);
-    });
-
-    it('returns error for invalid filter_intent', async () => {
-      const r = toolResult(await handleListRecent({ filter_intent: 'wish' }, mockDb));
-      expect(r.isError).toBe(true);
-      expect(r.content[0]!.text).toMatch(/filter_intent/);
-    });
   });
 
   describe('happy path', () => {
@@ -366,11 +335,6 @@ describe('handleListRecent', () => {
       const body = JSON.parse(r.content[0]!.text);
       expect(body.count).toBe(1);
       expect(body.notes).toHaveLength(1);
-    });
-
-    it('passes filter_type and filter_intent to listRecentNotes', async () => {
-      await handleListRecent({ filter_type: 'idea', filter_intent: 'plan' }, mockDb);
-      expect(vi.mocked(listRecentNotes)).toHaveBeenCalledWith(mockDb, expect.any(Number), 'idea', 'plan');
     });
 
     it('returns toolError on DB exception', async () => {
@@ -788,8 +752,6 @@ describe('handleSearchChunks', () => {
     chunk_index: 0,
     content: 'Some paragraph text from a long note.',
     note_title: 'A Long Note',
-    note_type: 'idea',
-    note_intent: 'remember',
     note_tags: ['cooking', 'project'],
     similarity: 0.72,
   };
@@ -823,7 +785,6 @@ describe('handleSearchChunks', () => {
       expect(data.results[0].chunk_id).toBe(MOCK_CHUNK.chunk_id);
       expect(data.results[0].note_id).toBe(VALID_UUID);
       expect(data.results[0].note_title).toBe('A Long Note');
-      expect(data.results[0].note_type).toBe('idea');
       expect(data.results[0].note_tags).toEqual(['cooking', 'project']);
       expect(data.results[0].content).toBe(MOCK_CHUNK.content);
       expect(data.results[0].score).toBe(0.72);

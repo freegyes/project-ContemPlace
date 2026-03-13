@@ -240,8 +240,6 @@ describe('MCP Worker — capture_note, get_note, get_related', () => {
     expect(typeof result['id']).toBe('string');
     expect(typeof result['title']).toBe('string');
     expect(typeof result['body']).toBe('string');
-    expect(['idea', 'reflection', 'source', 'lookup']).toContain(result['type']);
-    expect(['reflect', 'plan', 'create', 'remember', 'reference', 'log']).toContain(result['intent']);
     expect(Array.isArray(result['tags'])).toBe(true);
     expect(result['source']).toBe('mcp-smoke-test');
     capturedId = result['id'] as string;
@@ -309,10 +307,4 @@ describe('MCP Worker — input validation (live)', () => {
     expect(toolResult['isError']).toBe(true);
   });
 
-  it('list_recent with invalid filter_type returns isError: true', async () => {
-    const res = await callTool('list_recent', { filter_type: 'bogus' });
-    const body = await res.json() as Record<string, unknown>;
-    const toolResult = body['result'] as Record<string, unknown>;
-    expect(toolResult['isError']).toBe(true);
-  });
 });

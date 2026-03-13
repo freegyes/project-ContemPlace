@@ -8,8 +8,6 @@ import { runCapturePipeline } from './pipeline';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const VALID_TYPES = ['idea', 'reflection', 'source', 'lookup'] as const;
-const VALID_INTENTS = ['reflect', 'plan', 'create', 'remember', 'reference', 'log'] as const;
 const VALID_SCHEMES = ['domains', 'tools', 'people', 'places'] as const;
 const SOURCE_RE = /^[a-zA-Z0-9_-]+$/;
 const PREF_LABEL_RE = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
@@ -36,8 +34,6 @@ export const TOOL_DEFINITIONS = [
         query: { type: 'string', description: 'Natural language search query, max 1000 characters' },
         limit: { type: 'number', description: 'Number of results to return (default 5, max 20)' },
         threshold: { type: 'number', description: 'Minimum similarity score (default 0.35, range 0.0–1.0)' },
-        filter_type: { type: 'string', enum: ['idea', 'reflection', 'source', 'lookup'], description: 'Note form: idea (default/general), reflection (explicit personal insight), source (has URL), lookup (research prompt)' },
-        filter_intent: { type: 'string', enum: ['reflect', 'plan', 'create', 'remember', 'reference', 'log'], description: 'User purpose: reflect (processing feelings), plan (future action, aspirations, wishes), create (specific thing to build), remember (storing a fact, no URL), reference (external content, URL present), log (recording what happened)' },
         filter_tags: { type: 'array', items: { type: 'string' }, description: 'Notes must contain all listed tags' },
       },
       required: ['query'],
@@ -61,8 +57,6 @@ export const TOOL_DEFINITIONS = [
       type: 'object',
       properties: {
         limit: { type: 'number', description: 'Number of notes to return (default 10, max 50)' },
-        filter_type: { type: 'string', enum: ['idea', 'reflection', 'source', 'lookup'], description: 'Note form: idea (default/general), reflection (explicit personal insight), source (has URL), lookup (research prompt)' },
-        filter_intent: { type: 'string', enum: ['reflect', 'plan', 'create', 'remember', 'reference', 'log'], description: 'User purpose: reflect (processing feelings), plan (future action, aspirations, wishes), create (specific thing to build), remember (storing a fact, no URL), reference (external content, URL present), log (recording what happened)' },
       },
       required: [],
     },
@@ -81,7 +75,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'capture_note',
-    description: 'Capture a thought as a permanent note. Required parameter: raw_input (the user\'s verbatim words). The server embeds, finds related notes, and automatically generates a structured note (title, body, type, intent, tags, entities, links). Do not pre-structure, summarize, or clean up the input. Voice dictation errors are expected and corrected server-side. Side effect: creates a persistent note.',
+    description: 'Capture a thought as a permanent note. Required parameter: raw_input (the user\'s verbatim words). The server embeds, finds related notes, and automatically generates a structured note (title, body, tags, entities, links). Do not pre-structure, summarize, or clean up the input. Voice dictation errors are expected and corrected server-side. Side effect: creates a persistent note.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -118,7 +112,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'search_chunks',
-    description: 'Search within note paragraphs by semantic similarity. Only notes with body > 1500 characters are chunked — most short notes only appear in search_notes. Use this when looking for specific information buried in a longer note (e.g., imports, detailed write-ups). Results include parent note metadata (type, intent, tags).',
+    description: 'Search within note paragraphs by semantic similarity. Only notes with body > 1500 characters are chunked — most short notes only appear in search_notes. Use this when looking for specific information buried in a longer note (e.g., imports, detailed write-ups). Results include parent note metadata (tags).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -145,27 +139,16 @@ export async function handleSearchNotes(
 
   const limit = clamp(args['limit'] as number | undefined, 1, 20, 5);
   const threshold = clamp(args['threshold'] as number | undefined, 0, 1, config.searchThreshold);
-
-  const filterType = args['filter_type'] as string | undefined;
-  if (filterType && !(VALID_TYPES as readonly string[]).includes(filterType)) {
-    return toolError(`Invalid filter_type: "${filterType}"`);
-  }
-  const filterIntent = args['filter_intent'] as string | undefined;
-  if (filterIntent && !(VALID_INTENTS as readonly string[]).includes(filterIntent)) {
-    return toolError(`Invalid filter_intent: "${filterIntent}"`);
-  }
   const filterTags = Array.isArray(args['filter_tags']) ? args['filter_tags'] as string[] : undefined;
 
   try {
     const embedding = await embedText(openai, config, query);
-    const results = await searchNotes(db, embedding, threshold, limit, filterType, filterIntent, filterTags);
+    const results = await searchNotes(db, embedding, threshold, limit, filterTags);
     return toolSuccess({
       results: results.map(n => ({
         id: n.id,
         title: n.title,
         body: n.body,
-        type: n.type,
-        intent: n.intent,
         tags: n.tags,
         score: n.similarity,
         created_at: n.created_at,
@@ -201,17 +184,9 @@ export async function handleListRecent(
   db: SupabaseClient,
 ): Promise<object> {
   const limit = clamp(args['limit'] as number | undefined, 1, 50, 10);
-  const filterType = args['filter_type'] as string | undefined;
-  if (filterType && !(VALID_TYPES as readonly string[]).includes(filterType)) {
-    return toolError(`Invalid filter_type: "${filterType}"`);
-  }
-  const filterIntent = args['filter_intent'] as string | undefined;
-  if (filterIntent && !(VALID_INTENTS as readonly string[]).includes(filterIntent)) {
-    return toolError(`Invalid filter_intent: "${filterIntent}"`);
-  }
 
   try {
-    const notes = await listRecentNotes(db, limit, filterType, filterIntent);
+    const notes = await listRecentNotes(db, limit);
     return toolSuccess({ notes, count: notes.length });
   } catch (err) {
     console.error(JSON.stringify({ event: 'list_recent_error', error: String(err) }));
@@ -342,8 +317,6 @@ export async function handleSearchChunks(
         chunk_id: c.chunk_id,
         note_id: c.note_id,
         note_title: c.note_title,
-        note_type: c.note_type,
-        note_intent: c.note_intent,
         note_tags: c.note_tags,
         chunk_index: c.chunk_index,
         content: c.content,
@@ -380,8 +353,6 @@ export async function handleCaptureNote(
       id: result.id,
       title: result.title,
       body: result.body,
-      type: result.type,
-      intent: result.intent,
       tags: result.tags,
       links_created: result.links.length,
       source: result.source,
