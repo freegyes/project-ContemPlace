@@ -16,13 +16,13 @@ The core table. Each row is a captured note with both the user's raw input and t
 | `updated_at` | timestamptz | trigger | Via `update_updated_at()` trigger |
 | `title` | text | LLM | Claim or descriptive phrase |
 | `body` | text | LLM | 1–8 sentences (scales with input length), atomic |
-| `type` | text | LLM | `idea`, `reflection`, `source`, `lookup` |
+| `type` | text | LLM | `idea`, `reflection`, `source`, `lookup` — **deprecated, removal in #110** |
 | `tags` | text[] | LLM | Free-form tags from input |
 | `source_ref` | text | LLM | URL if present |
 | `source` | text | system | Always set. Currently `telegram`, `mcp`, or `semantic-test`. |
 | `corrections` | text[] | LLM | Voice dictation fixes |
-| `intent` | text | LLM | `reflect`, `plan`, `create`, `remember`, `reference`, `log` |
-| `modality` | text | LLM | `text`, `link`, `list`, `mixed` |
+| `intent` | text | LLM | `reflect`, `plan`, `create`, `remember`, `reference`, `log` — **deprecated, removal in #110** |
+| `modality` | text | LLM | `text`, `link`, `list`, `mixed` — **deprecated, removal in #110** |
 | `entities` | jsonb | LLM | `[{name, type}]` — proper nouns |
 | `summary` | text | gardener | Auto-generated summary (unpopulated) |
 | `refined_tags` | text[] | gardener | Normalized via SKOS — pref_labels only |
@@ -45,7 +45,7 @@ The core table. Each row is a captured note with both the user's raw input and t
 | `notes_created_idx` | B-tree (desc) | Recency ordering |
 | `notes_active_idx` | B-tree (desc) | Active notes only (where `archived_at is null`) |
 | `notes_null_embedding_idx` | B-tree | Find notes missing embeddings for retry |
-| `notes_intent_idx` | B-tree | Filter by intent (partial: non-null only) |
+| `notes_intent_idx` | B-tree | Filter by intent (partial: non-null only) — **deprecated, removal in #110** |
 | `notes_entities_idx` | GIN (jsonb_path_ops) | Entity containment queries with smaller index |
 
 ### links
@@ -178,6 +178,8 @@ Returns: `id`, `title`, `body`, `raw_input`, `type`, `tags`, `source_ref`, `sour
 
 Filters are composable — any combination of type, source, tags, intent, and full-text search can be applied. All filters are optional; passing NULL skips the filter.
 
+> **Pending (#110):** `filter_type` and `filter_intent` parameters, and `type`/`intent`/`modality` return columns, will be removed.
+
 Excludes archived notes and notes without embeddings.
 
 ### match_chunks
@@ -195,6 +197,8 @@ match_chunks(
 Returns: `chunk_id`, `note_id`, `chunk_index`, `content`, `note_title`, `note_type`, `note_intent`, `note_tags`, `similarity`.
 
 Joins `note_chunks` with `notes` to include note metadata alongside chunk content. Excludes archived notes and chunks without embeddings. Uses `OPERATOR(extensions.<=>)` for pgvector cosine distance.
+
+> **Pending (#110):** `note_type` and `note_intent` return columns will be removed.
 
 ### batch_update_refined_tags
 

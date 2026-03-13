@@ -20,7 +20,7 @@ Expanded the data model and capture logic. The schema was rebuilt from scratch (
 
 Delivered:
 - **Schema v2:** 8 tables (notes, links, concepts, note_concepts, note_chunks, enrichment_log, capture_profiles, processed_updates) with RLS, HNSW indexes, and seeded data
-- **Classification taxonomy:** `intent` (6 values), `modality` (4 values), `entities` (proper nouns with typed categories)
+- **Classification taxonomy:** `intent` (6 values), `modality` (4 values), `entities` (proper nouns with typed categories) — *type/intent/modality deprecated in #110*
 - **Two-pass embedding:** Raw text for lookup, metadata-augmented for storage, with fallback
 - **System prompt split:** Structural contract in code (`SYSTEM_FRAME`), stylistic rules in database (`capture_profiles`)
 - **Enrichment log:** Audit trail per note per enrichment type, batched inserts
@@ -35,10 +35,10 @@ Delivered:
 Exposes the note database to AI agents via the Model Context Protocol. The primary client is Claude Code (CLI). Deployed as a separate Cloudflare Worker at `mcp-contemplace.adamfreisinger.workers.dev`.
 
 Eight tools:
-- **`search_notes`** — semantic search via `match_notes()` with optional type/intent/tag filters
+- **`search_notes`** — semantic search via `match_notes()` with optional tag filters (type/intent filters deprecated in #110)
 - **`search_chunks`** — chunk-level semantic search via `match_chunks()` for fine-grained RAG retrieval
 - **`get_note`** — full note retrieval with linked notes and entity data
-- **`list_recent`** — recent notes with optional facet filtering
+- **`list_recent`** — recent notes, newest first (type/intent filters deprecated in #110)
 - **`get_related`** — notes connected to a given note via the `links` table
 - **`capture_note`** — full capture pipeline (embed → related lookup → LLM → store), same logic as Telegram but synchronous and source-tagged
 - **`list_unmatched_tags`** — tags that haven't matched any SKOS concept, with frequency; for vocabulary curation
@@ -56,7 +56,7 @@ In scope after the MCP server is live: import scripts for **ChatGPT memory expor
 
 First live test against 6 notes via Claude Code confirmed all five tools work correctly. One configuration issue found:
 
-**Threshold mismatch** — `search_notes` returned 0 results at the default threshold (0.60). Dropping to 0.30 surfaced relevant results (scores 0.41–0.49). The root cause is that stored embeddings are metadata-augmented (`[Type: idea] [Intent: plan] [Tags: …] text`) while search queries are bare natural language. The single `MATCH_THRESHOLD` env var was calibrated for capture-time related-note lookup (higher precision needed), not for agent search (broader exploration).
+**Threshold mismatch** — `search_notes` returned 0 results at the default threshold (0.60). Dropping to 0.30 surfaced relevant results (scores 0.41–0.49). The root cause is that stored embeddings are metadata-augmented (`[Tags: …] text`) while search queries are bare natural language. The single `MATCH_THRESHOLD` env var was calibrated for capture-time related-note lookup (higher precision needed), not for agent search (broader exploration). (Note: augmentation previously also included `[Type: X] [Intent: Y]` prefixes, removed in #110.)
 
 Fix: add `MCP_SEARCH_THRESHOLD` (default 0.35) as a separate config value used only by `handleSearchNotes`. `MATCH_THRESHOLD` (0.60) stays for `findRelatedNotes` inside `capture_note`. See `docs/decisions.md` for full analysis.
 
@@ -155,7 +155,7 @@ What moved to user-side:
 
 **Associative trails** — Curated or auto-generated sequences of notes that tell a story or trace a line of thinking. The `trails` and `trail_steps` tables were designed but not created in v2.
 
-**Type inheritance** — A `note_types` table that defines custom types with inheritance, allowing user-defined specializations beyond the four base types.
+**Type inheritance** — Originally planned as a `note_types` table for custom types with inheritance. Moot after #110 removed type classification from the capture pipeline.
 
 **Location extraction** — For input channels that support geotags (future mobile app), extract and store location data.
 

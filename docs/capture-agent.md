@@ -1,34 +1,8 @@
 # Capture agent
 
-The capture agent is an LLM that turns raw user input into a structured note. It runs once per message, produces 10 fields in a single pass, and never asks the user for clarification.
+The capture agent is an LLM that turns raw user input into a structured note. It runs once per message, produces 7 fields in a single pass, and never asks the user for clarification.
 
-## The classification taxonomy
-
-### Type — what form the note takes
-
-| Value | Rule |
-|---|---|
-| `idea` | Default. A thought, observation, or plan that doesn't fit the other three. |
-| `reflection` | First-person personal insight. Requires an explicit signal of personal resonance — "this resonates with me", "I realized", "I felt". Topic alone is never enough; a note *about* mindfulness is not automatically a reflection. |
-| `source` | An external URL is included in the input. |
-| `lookup` | A question or set of questions to investigate — whether phrased as a command ("look into X"), a direct question ("what happens when X?"), or a conditional ("should X be done?"). The signal is interrogative intent, not specific phrasing. |
-
-### Intent — what the user is doing
-
-| Value | Rule |
-|---|---|
-| `reflect` | Processing an experience or feeling. |
-| `plan` | Future action, aspiration, or wish. (`wish` was merged into `plan` — wishing is planning at low resolution.) |
-| `create` | A specific thing to make — a project, an artifact, a piece of work. |
-| `remember` | Storing a fact or detail for later. No URL present. |
-| `reference` | Saving external content. URL present, or explicitly saving someone else's work. |
-| `log` | Recording what happened — a journal entry, an event, a status update. |
-
-Type and intent are independent facets. A `source` note can have `plan` intent (saving a link for a future project). A `reflection` can have `remember` intent (noting a personal insight as a fact to retain). The two dimensions capture different things: type describes the note's form, intent describes the user's purpose.
-
-### Modality — how the content is structured
-
-`text` (prose), `link` (URL with optional commentary), `list` (bullet points or enumerated items), `mixed` (combination).
+> **Note (2026-03-13):** `type`, `intent`, and `modality` were removed from the capture pipeline (#110, decision in #104). The classification complexity didn't justify the marginal retrieval value. The fields below — title, body, tags, entities, links, corrections, source_ref — are the capture output. Existing notes may still have type/intent/modality values from before the change.
 
 ## Entity extraction
 
@@ -44,7 +18,7 @@ Strict rules:
 
 ## Linking
 
-The agent receives the top 5 semantically related notes (with their titles, bodies, types, and intents) and can create typed links to them.
+The agent receives the top 5 semantically related notes (with their titles and bodies) and can create typed links to them.
 
 ### Link types (capture-time)
 
@@ -98,13 +72,10 @@ This rule exists because the capture LLM (Haiku) tends to add a summarizing conc
 
 ## Parser and fallbacks
 
-`parseCaptureResponse()` validates all 10 fields from the LLM's JSON output. When a field is missing or invalid, the parser applies a default and logs the event as structured JSON:
+`parseCaptureResponse()` validates fields from the LLM's JSON output. When a field is missing or invalid, the parser applies a default and logs the event as structured JSON:
 
 | Field | Invalid behavior | Default |
 |---|---|---|
-| `type` | Value not in enum | `idea` |
-| `intent` | Value not in enum or missing | `remember` |
-| `modality` | Value not in enum or missing | `text` |
 | `tags` | Not an array | `[]` |
 | `entities` | Invalid type, missing name, name > 200 chars | Filtered out (kept entities preserved) |
 | `links` | Invalid link_type, missing to_id | Filtered out |
@@ -112,7 +83,7 @@ This rule exists because the capture LLM (Haiku) tends to add a summarizing conc
 
 Every fallback produces a structured log line (`{event: "field_defaulted", field, raw_value, default}`) for prompt tuning. If the LLM returns invalid JSON entirely, the error is logged with the first 200 characters of the raw response.
 
-The parser is covered by 17 unit tests (`tests/parser.test.ts`) that run locally with no network dependencies.
+The parser is covered by unit tests (`tests/parser.test.ts`) that run locally with no network dependencies.
 
 ## Tuning the capture voice
 

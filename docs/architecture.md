@@ -70,7 +70,7 @@ Telegram sends a webhook POST for every message. The Worker must respond quickly
  │      notes + today's date)      │
  │                                 │
  │  D. Parse + validate response   │
- │     (10 fields, logged defaults │
+ │     (7 fields, logged defaults  │
  │      for invalid values)        │
  │                                 │
  │  E. Re-embed with metadata      │
@@ -101,16 +101,16 @@ The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth
 
 | Tool | Operation |
 |---|---|
-| `search_notes` | Semantic search via `match_notes()` with optional facet filters |
+| `search_notes` | Semantic search via `match_notes()` with optional tag filters |
 | `search_chunks` | Chunk-level semantic search via `match_chunks()` for fine-grained RAG |
 | `get_note` | Full note retrieval by UUID |
-| `list_recent` | Recent notes with optional filtering |
+| `list_recent` | Recent notes, newest first |
 | `get_related` | All linked notes in both directions |
 | `capture_note` | Full capture pipeline (same logic as Telegram, synchronous) |
 | `list_unmatched_tags` | Tags without SKOS concept matches, for vocabulary curation |
 | `promote_concept` | Insert new SKOS concept interactively |
 
-Tool descriptions in `TOOL_DEFINITIONS` (mcp/src/tools.ts) include behavioral guidance for connecting agents — what kind of input to pass, how to interpret results, when to use each tool. The `capture_note` description explicitly instructs agents to pass user's raw words without cleaning up or pre-structuring. Filter enum descriptions explain the classification taxonomy. These descriptions are the only guidance a connecting agent receives about how to use ContemPlace.
+Tool descriptions in `TOOL_DEFINITIONS` (mcp/src/tools.ts) include behavioral guidance for connecting agents — what kind of input to pass, how to interpret results, when to use each tool. The `capture_note` description explicitly instructs agents to pass user's raw words without cleaning up or pre-structuring. These descriptions are the only guidance a connecting agent receives about how to use ContemPlace.
 
 The search threshold (`MCP_SEARCH_THRESHOLD`, default 0.35) is lower than the capture threshold (`MATCH_THRESHOLD`, 0.60) because stored embeddings are metadata-augmented while search queries are bare natural language.
 
@@ -162,13 +162,13 @@ Every note gets embedded twice:
 
 1. **Raw embedding** — the user's exact input text, embedded before the LLM runs. Used to find related notes via `match_notes()`. This is the lookup embedding.
 
-2. **Augmented embedding** — after the LLM classifies the note, `buildEmbeddingInput()` prepends metadata: `[Type: idea] [Intent: plan] [Tags: cooking, project] The actual text...`. This is stored in the `notes.embedding` column.
+2. **Augmented embedding** — after the LLM structures the note, `buildEmbeddingInput()` prepends tags: `[Tags: cooking, project] The actual text...`. This is stored in the `notes.embedding` column.
 
-The augmented embedding bakes organizational context into the vector space. Two notes about "cooking" and "woodworking" that share the intent `plan` will be slightly closer in vector space than they would be from raw text alone. This matters for downstream retrieval — an agent searching for "things the user is planning" benefits from intent being part of the vector.
+The augmented embedding bakes organizational context into the vector space. Two notes that share tags will be slightly closer in vector space than they would be from raw text alone. If the augmented embedding fails (API error, timeout), the system falls back to the raw embedding and logs an `augmented_embed_fallback` enrichment entry. The note is never lost.
 
-If the augmented embedding fails (API error, timeout), the system falls back to the raw embedding and logs an `augmented_embed_fallback` enrichment entry. The note is never lost.
+> **History:** Before #110, augmentation also included `[Type: X] [Intent: Y]` prefixes. These were dropped — the marginal vector space benefit didn't justify the classification complexity.
 
-Chunk embeddings use a lighter prefix: `{title} [{tags}]: {chunk_text}` — tags for topic anchoring without type/intent (those are note-level concerns).
+Chunk embeddings use a similar prefix: `{title} [{tags}]: {chunk_text}` — tags for topic anchoring.
 
 The cost of double-embedding is negligible — roughly $0.00001 per note at current `text-embedding-3-small` pricing.
 
@@ -182,7 +182,7 @@ The LLM prompt is split into two parts that live in different places:
 
 This split exists because structural changes (adding a new field, a new enum value) require code changes anyway, but stylistic tuning (shorter titles, different tone) should be instant. Any capture interface — Telegram, a future MCP tool, a CLI — fetches the same capture voice from the same table, ensuring consistent note style regardless of entry point.
 
-The user message, related notes (with their type and intent metadata), and today's date are injected as the user turn. Related notes are provided so the LLM can create typed links; the date is provided so it can resolve relative time references ("yesterday", "next week").
+The user message, related notes, and today's date are injected as the user turn. Related notes are provided so the LLM can create typed links; the date is provided so it can resolve relative time references ("yesterday", "next week").
 
 ## Error handling
 
@@ -192,7 +192,7 @@ The system distinguishes between errors the user should see and errors that need
 - **Console logs:** Full structured JSON with the error, the input that caused it, and the processing stage. Visible in the Cloudflare Workers dashboard.
 - **Gardener alerts:** Best-effort Telegram message to a configured chat ID on pipeline failure. HTML-escaped, truncated to 1000 chars, never throws.
 
-The parser (`parseCaptureResponse`) handles malformed LLM output gracefully. Each of the 10 fields has a fallback default (e.g., invalid type defaults to `idea`, missing intent defaults to `remember`). Every fallback is logged as structured JSON so prompt tuning issues can be diagnosed from logs.
+The parser (`parseCaptureResponse`) handles malformed LLM output gracefully. Each field has a fallback default. Every fallback is logged as structured JSON so prompt tuning issues can be diagnosed from logs.
 
 ## Deduplication
 

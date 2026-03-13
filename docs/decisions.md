@@ -703,3 +703,13 @@ A dedicated `belief` tag was considered and rejected. It would only add value fo
 - **Telegram** — low-friction, on-the-go, optimized for quick atomic captures
 - **OAuth MCP (Claude.ai, ChatGPT)** — agent-mediated capture for complex input; the agent helps decompose before sending to `capture_note`
 - **Static token MCP (Claude Code)** — same agent-mediated capture from the terminal
+
+## Drop type, intent, and modality from capture pipeline (2026-03-13)
+
+**Decision:** Remove `type` (idea/reflection/source/lookup), `intent` (reflect/plan/create/remember/reference/log), and `modality` (text/link/list/mixed) from the capture pipeline. Stop classifying, stop storing, stop exposing as filters.
+
+**Why:** Investigation (#104) examined every consumer of these fields. The only non-redundant signals were reflection detection (personal processing vs general note) and the plan→create→log lifecycle (temporal orientation). Neither justifies ~40 lines of taxonomy rules in SYSTEM_FRAME, ongoing prompt-tuning burden (multiple past issues were type/intent misclassification), or 10-field LLM output. `source` type is fully redundant with `source_ref IS NOT NULL`. `modality` had zero consumers. Tags and embeddings carry sufficient signal for retrieval.
+
+**Embedding impact:** Stored embeddings are augmented with `[Type: X] [Intent: Y] [Tags: ...] text`. After removal, augmentation becomes `[Tags: ...] text`. This creates a vector space mismatch between old and new notes. Options: accept the drift (type/intent prefixes are a small fraction of total text), re-embed all existing notes, or fresh start. Decision on migration path deferred to implementation (#110).
+
+**What stays:** title, body, tags, entities, links, corrections, source_ref — all serve retrieval or user feedback with clear value.

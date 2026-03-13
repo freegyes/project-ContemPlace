@@ -32,6 +32,7 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 | Gardening pipeline | ✅ Complete — similarity linker, tag normalization, chunk generation · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
 | OAuth 2.1 (Claude.ai web) | ✅ Live — Auth Code + PKCE, DCR, static key fallback · [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
 | Dashboard | 💡 Planned — [#101](https://github.com/freegyes/project-ContemPlace/issues/101) |
+| Leaner capture (drop type/intent/modality) | 🔜 Implementation — [#110](https://github.com/freegyes/project-ContemPlace/issues/110) |
 | URL handling + input awareness | 💡 Design phase — [#27](https://github.com/freegyes/project-ContemPlace/issues/27) |
 | Import tools | 💡 Planned — [#13](https://github.com/freegyes/project-ContemPlace/issues/13), [#14](https://github.com/freegyes/project-ContemPlace/issues/14) |
 
@@ -56,10 +57,10 @@ The MCP server is the primary interface. Eight tools, usable by any MCP-capable 
 
 | Tool | What it does |
 |---|---|
-| `search_notes` | Search notes by meaning. Ranked results with body text. Optional filters. |
+| `search_notes` | Search notes by meaning. Ranked results with body text. Optional tag filter. |
 | `search_chunks` | Search within paragraphs of long notes (body > 1500 chars). |
 | `get_note` | Fetch a single note — body, raw_input (source of truth), entities, links, corrections. |
-| `list_recent` | Most recent notes, newest first. Optional filters. |
+| `list_recent` | Most recent notes, newest first. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
 | `capture_note` | Pass raw words — the server runs the full capture pipeline. Do not pre-structure. |
 | `list_unmatched_tags` | Tags without SKOS concept matches, with frequency. Curation workflow. |
@@ -169,15 +170,10 @@ The capture agent structures each note in a single LLM pass:
 | **links** | Edges to related notes |
 | **corrections** | Voice dictation fixes, applied silently and reported |
 | **source_ref** | URL if one was included |
-| **type** | `idea` / `reflection` / `source` / `lookup` |
-| **intent** | `reflect` / `plan` / `create` / `remember` / `reference` / `log` |
-| **modality** | `text` / `link` / `list` / `mixed` |
 
 The body follows a strict traceability rule: every sentence must trace back to something you actually said. The agent transcribes, not interprets.
 
 Input can come from voice dictation. The agent detects and silently corrects transcription errors, cross-referencing proper nouns against existing notes. Corrections are shown in the reply.
-
-*Note: type, intent, and modality are under review for removal ([#104](https://github.com/freegyes/project-ContemPlace/issues/104)). The core fields — title, body, tags, entities, links, corrections — are staying.*
 </details>
 
 ---
