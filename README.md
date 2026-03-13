@@ -31,8 +31,8 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 | MCP server | ✅ Live — 8 tools |
 | Gardening pipeline | ✅ Complete — similarity linker, tag normalization, chunk generation · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
 | OAuth 2.1 (Claude.ai web) | ✅ Live — Auth Code + PKCE, DCR, static key fallback · [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
-| Dashboard | 💡 Planned — [#12](https://github.com/freegyes/project-ContemPlace/issues/12) |
-| Smart capture router | 💡 Design phase — [#27](https://github.com/freegyes/project-ContemPlace/issues/27) |
+| Dashboard | 💡 Planned — [#101](https://github.com/freegyes/project-ContemPlace/issues/101) |
+| URL handling + input awareness | 💡 Design phase — [#27](https://github.com/freegyes/project-ContemPlace/issues/27) |
 | Import tools | 💡 Planned — [#13](https://github.com/freegyes/project-ContemPlace/issues/13), [#14](https://github.com/freegyes/project-ContemPlace/issues/14) |
 
 > [All open issues](https://github.com/freegyes/project-ContemPlace/issues) · [Roadmap](docs/roadmap.md) · [Decisions](docs/decisions.md)
@@ -40,14 +40,14 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 ## How it works
 
 1. You send a thought — raw text, voice transcription, a link, whatever
-2. The capture agent structures it: title, body, tags, type, intent, entities — and links it to related notes
-3. Your exact words are always preserved alongside the structured note — enrichment is non-destructive, so future agents can reinterpret the same input with better models
+2. The capture agent gives it a title, corrects voice errors, extracts entities and tags, and links it to related notes — your exact words are always preserved
+3. Enrichment is non-destructive: future agents can reinterpret the same raw input with better models
 4. A nightly gardener refines connections: similarity links, tag normalization, chunking for retrieval
 
 <div align="center">
 <img src="docs/assets/telegram-capture-demo.png" alt="Telegram bot capturing a note about withdiode.com — showing raw input, structured note with metadata, and link preview" width="320" />
 <br />
-<em>Telegram capture in action: raw input → structured note with type, tags, corrections, source URL, and entities.</em>
+<em>Telegram capture in action: raw input → structured note with title, tags, corrections, source URL, entities, and links.</em>
 </div>
 
 ## MCP tools
@@ -56,10 +56,10 @@ The MCP server is the primary interface. Eight tools, usable by any MCP-capable 
 
 | Tool | What it does |
 |---|---|
-| `search_notes` | Search notes by meaning. Ranked results with body text. Filter by type, intent, tags. |
+| `search_notes` | Search notes by meaning. Ranked results with body text. Optional filters. |
 | `search_chunks` | Search within paragraphs of long notes (body > 1500 chars). |
 | `get_note` | Fetch a single note — body, raw_input (source of truth), entities, links, corrections. |
-| `list_recent` | Most recent notes, newest first. Filter by type or intent. |
+| `list_recent` | Most recent notes, newest first. Optional filters. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
 | `capture_note` | Pass raw words — the server runs the full capture pipeline. Do not pre-structure. |
 | `list_unmatched_tags` | Tags without SKOS concept matches, with frequency. Curation workflow. |
@@ -79,13 +79,13 @@ The database + MCP server is the only required piece. Everything else is optiona
 | **Dashboard** | Browser-based view — search, browse, follow links, see the graph. | 💡 Planned |
 | **Obsidian import** | Pull an existing vault into the database. | 💡 Planned |
 | **ChatGPT memory import** | Rescue accumulated context from a proprietary format. | 💡 Planned |
-| **Smart capture router** | Auto-detect input type: short notes, URLs, brain dumps, lists. | 💡 Design phase |
+| **URL handling + input awareness** | Detect URLs for specialized capture; warn when input isn't atomic. | 💡 Design phase |
 
 ## Philosophy
 
 **Your context travels with you.** Any MCP-capable agent can read and write your knowledge base. Switch tools, try new agents, combine workflows — your accumulated context comes along.
 
-**You never think about the system.** Send a thought; structure emerges automatically. Tags, intent, entities, and links happen in the background. Low friction isn't a feature — it's the reason this works at all.
+**Low friction, aware curator.** The system makes capture easy. You know what it's optimized for — atomic notes in your own voice — and you're the gatekeeper. The system trusts you. It won't reject input or make you organize anything, but it works best when each note carries one idea. Complex inputs? Pre-process them yourself or let your agent help. The system handles everything gracefully, but atomic notes produce the best results.
 
 **Value compounds the more you use it.** Note 1 is just a note. Note 50 starts forming clusters. Note 200 has a graph where ideas reinforce, contradict, and extend each other — and you didn't build that graph manually. The gardening pipeline tightens the mesh in the background. The more you capture, the richer the context any agent has when it reads your memory.
 
@@ -93,7 +93,9 @@ The database + MCP server is the only required piece. Everything else is optiona
 
 **Your ideas become a graph you can explore.** Notes cluster around themes over time. Some nodes gain gravitational weight. Structure isn't imposed; it emerges from the accumulation of linked, gardened notes.
 
-**You own your data.** Postgres. Query it, export it, migrate it. Raw input is always preserved — not as a backup, but as the irreplaceable source of truth. Today's LLM interprets your words one way; tomorrow's can reinterpret the same raw input with better understanding. Enrichment is always additive, never destructive. No proprietary format, no walled garden.
+**Your voice is sacred.** The capture agent doesn't compress, interpret, or add inferred meanings. It transcribes, not synthesizes. Every sentence in the body traces back to something you actually said. Your raw input is always preserved as the irreplaceable source of truth.
+
+**You own your data.** Postgres. Query it, export it, migrate it. Today's LLM interprets your words one way; tomorrow's can reinterpret the same raw input with better understanding. Enrichment is always additive, never destructive. No proprietary format, no walled garden.
 
 ## Stack
 
@@ -125,7 +127,7 @@ All three require a Supabase database and Cloudflare account. Full prerequisites
 
 ### What kind of notes does this store?
 
-Anything you'd want to find again. The capture agent classifies each note by type and intent automatically. In practice, a typical database ends up with:
+Anything you'd want to find again. The system is optimized for atomic notes — one idea per note, in your own voice. In practice, a typical database ends up with:
 
 - **Project ideas** — things to build, one concept per note
 - **Technical references** — things you looked up and want to find again
@@ -133,7 +135,7 @@ Anything you'd want to find again. The capture agent classifies each note by typ
 - **Source notes** — references to videos, articles, or conversations that sparked ideas
 - **Reflections** — shorter, personal notes about energy, motivation, or creative identity
 
-The system doesn't care about categories. You never have to pick one. You send raw text; the capture agent figures out the rest. The patterns above aren't folders — they emerge from real usage.
+The system doesn't care about categories. You never have to pick one. You send raw text; the capture agent handles structuring. The patterns above aren't folders — they emerge from real usage.
 
 ### Why preserve the raw input?
 
@@ -141,39 +143,41 @@ Every note stores two things: the structured note (title, body, tags, links) and
 
 ### Does value really scale with more notes?
 
-Yes, and nonlinearly. A single note is just text with metadata. But the capture agent links each new note to existing ones — `extends`, `supports`, `contradicts` — so every note you add creates new edges in the graph. The nightly gardener finds similarity links you didn't ask for and normalizes tags so different phrasings converge. After a few hundred notes, ask any MCP agent "what are my recurring themes?" or "what contradicts this idea?" and the graph does the work. You never organized anything manually. The structure emerged from accumulation.
+Yes, and nonlinearly. A single note is just text with metadata. But the capture agent links each new note to existing ones, so every note you add creates new edges in the graph. The nightly gardener finds similarity links you didn't ask for and normalizes tags so different phrasings converge. After a few hundred notes, ask any MCP agent "what are my recurring themes?" or "what relates to this idea?" and the graph does the work. You never organized anything manually. The structure emerged from accumulation.
 
 ### How does structure emerge?
 
 No folders, no hierarchy, no manual organization. Every note is atomic — one idea, one reference, one reflection. Structure comes from three mechanisms:
 
-1. **Capture-time linking** — the LLM compares your note against existing notes and creates typed edges (`extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`)
-2. **Similarity linking** — the gardening pipeline finds notes with high cosine similarity and connects them with `is-similar-to` links
-3. **Tag normalization** — free-form tags are matched against a SKOS concept vocabulary, so "laser cutting" and "laser cutter" resolve to the same concept
+1. **Capture-time linking** — the LLM compares your note against existing notes and creates edges to related notes
+2. **Similarity linking** — the gardening pipeline finds notes with high cosine similarity and connects them
+3. **Tag normalization** — free-form tags are matched against a controlled vocabulary, so "laser cutting" and "laser cutter" resolve to the same concept
 
 Over time, clusters form naturally. Any MCP-capable agent can surface them — ask "what are my instrument-building ideas?" and the graph does the work.
 
 <details>
 <summary><strong>What the capture agent produces</strong></summary>
 
-Each note gets 10 fields from a single LLM pass:
+The capture agent structures each note in a single LLM pass:
 
 | Field | Purpose |
 |---|---|
 | **title** | A claim or insight — not a topic label |
-| **body** | 1–8 sentences (scales with input length), atomic, in the user's own voice |
+| **body** | Faithful to your words, as long as needed — no compression |
+| **tags** | Free-form, from the input |
+| **entities** | Proper nouns with types (person, place, tool, project, concept) |
+| **links** | Edges to related notes |
+| **corrections** | Voice dictation fixes, applied silently and reported |
+| **source_ref** | URL if one was included |
 | **type** | `idea` / `reflection` / `source` / `lookup` |
 | **intent** | `reflect` / `plan` / `create` / `remember` / `reference` / `log` |
 | **modality** | `text` / `link` / `list` / `mixed` |
-| **tags** | Free-form, from the input |
-| **entities** | Proper nouns with types (person, place, tool, project, concept) |
-| **links** | Typed edges to related notes |
-| **corrections** | Voice dictation fixes, applied silently and reported |
-| **source_ref** | URL if one was included |
 
 The body follows a strict traceability rule: every sentence must trace back to something you actually said. The agent transcribes, not interprets.
 
 Input can come from voice dictation. The agent detects and silently corrects transcription errors, cross-referencing proper nouns against existing notes. Corrections are shown in the reply.
+
+*Note: type, intent, and modality are under review for removal ([#104](https://github.com/freegyes/project-ContemPlace/issues/104)). The core fields — title, body, tags, entities, links, corrections — are staying.*
 </details>
 
 ---
