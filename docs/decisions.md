@@ -641,3 +641,65 @@ A dedicated `belief` tag was considered and rejected. It would only add value fo
 **Exception: persistent behavioral artifacts.** Some derived artifacts need to persist across sessions — "user's tone of voice," "capture editorial guidance," "personal context." These are already handled by existing mechanisms: `capture_profiles` (voice/style), `concepts` (SKOS vocabulary), and the proposed `get_capture_guidance` tool (#47). They're not MOCs — they're configuration, and they have dedicated storage.
 
 **What's deferred:** Gardener density detection (option 3 above). Maturity lifecycle — the `maturity` column exists but computing it requires real graph patterns to emerge. Wait for the corpus to grow before defining stages or scoring rules. Issue #82 (stale note review) will provide signal on whether the graph is actually compounding value.
+
+## Storage philosophy resolved: structured notes win (2026-03-13)
+
+**Decision:** Structured atomic notes with an organizational layer are the correct storage model for ContemPlace. Raw storage (Philosophy B) and dropping atomicity (Philosophy C) were both rejected. The organizational layer stays because it serves retrieval, discovery, and export — not because it's tradition.
+
+**Why:** Three philosophies were evaluated across three design sessions (#93):
+
+- **Philosophy A (current — confirmed):** Atomic structured notes with metadata (tags, links, entities, corrections, title). The organizational layer provides costless token scanning via titles at retrieval time, export convenience, and enables emergent features (hub nodes, gravitational discovery index).
+- **Philosophy B (raw storage — rejected):** The user explicitly wants the organizational layer and gardener enrichment. Pure vector embeddings are insufficient for the user's PKM mental model (MOCs, density-based discovery, tag-based exploration).
+- **Philosophy C (drop atomicity — rejected):** Atomicity is a quality gate, not just a size gate. LLM classification fidelity degrades with input complexity. Multi-topic inputs produce worse titles, tags, links, and embeddings.
+
+**Key principles established:**
+
+1. **User voice is sacred.** The capture LLM must not compress, hallucinate, add inferred meanings, or change input destructively. The body is transcription, not synthesis. Trust erodes when the system puts words in the user's mouth.
+2. **User is curator and gatekeeper.** No automatic capture. The user decides what goes in. Guard rails and warnings are fine, but the user is the quality gate. The system trusts the user is smart and capable.
+3. **Atomic notes are the optimized input type.** The system handles everything else gracefully but produces lesser results for non-atomic input. This is documented guidance, not architectural enforcement.
+4. **Low friction, aware curator.** Refined from the original "never think about the system" principle. The user understands what the system is optimized for and acts accordingly. The system makes capture easy, not invisible.
+
+**Capture LLM role clarified:**
+- **Keeps:** title (retrieval scanning), corrections (voice/typo/entity), entity extraction (proper nouns), tags (keyword retrieval), linking (graph building + user feedback)
+- **Drops:** compression, interpretation, added conclusions, inferred meanings
+
+**What's under investigation (separate issues):**
+- Drop type, intent, modality (#104) — 90% decided, needs impact analysis
+- SKOS vs free tags (#105) — maintenance burden may outweigh value
+- Typed links vs simple links (#106) — link types may not justify classification complexity
+- Note accretion (#103) — notes maturing over time, architecturally distant
+
+## Capture LLM: drop length constraint (2026-03-13)
+
+**Decision:** Remove the body length constraint from the SYSTEM_FRAME. Let the note body be as long as it needs to be.
+
+**Why:** The body length rules ("1-5 sentences," later "1-3 short, up to 8 long") were causing the LLM to compress and truncate, which conflicts with the "transcription not interpretation" principle. The user's voice should be preserved faithfully. If the input is long, the body is long. Atomicity is about idea scope (one idea per note), not character count.
+
+## Product principle refinement: low friction, aware curator (2026-03-13)
+
+**Decision:** The core product principle evolves from "the user must never think about the system" to "low friction, aware curator."
+
+**Why:** The original principle implied the system should handle any input invisibly. Three design sessions revealed this is both impossible (no single LLM can reliably decompose brain dumps) and undesirable (the user values being an active curator). The refined principle: the system makes capture easy and low-friction, the user knows what it's optimized for (atomic notes in their own voice), and the user's editorial judgment keeps the system hygienic.
+
+**What changes:** The system should be explicit about what makes a good note. Non-optimal input should produce a warning, not a rejection (#109). The MCP agent training pattern (#107) teaches connecting agents what the system expects.
+
+## MCP agent training pattern (2026-03-13)
+
+**Decision:** The system should store its own capture guidance as queryable content in the database. An agent connecting for the first time calls a training tool and receives: what the system is, what it expects, what the user prefers. Custom skills become invocable after training.
+
+**Why:** This supersedes #47 (publish SYSTEM_FRAME as spec). A static spec is less powerful than a living, updatable, queryable guidance layer. The `capture_profiles` table already stores editable capture voice — this pattern extends it to include user preferences, tone of voice, and custom skill definitions. The training tool assembles from all sources and serves as a portable onboarding device for any MCP-capable agent.
+
+**Design direction:** Tone of voice preferences stored as regular atomic notes (queryable via semantic search, naturally evolving). System expectations in `capture_profiles`. Custom skills could reference specific notes as skill definitions. Contradictions over time resolve via timestamps (newer wins). Tracked in #107.
+
+## Complex input is the user's responsibility (2026-03-13)
+
+**Decision:** The system is optimized for atomic notes. Complex inputs (brain dumps, multi-topic streams, lists) are the user's responsibility to pre-process — either manually or via an LLM agent using MCP tools.
+
+**Why:** The smart capture router (#27) originally envisioned the system auto-decomposing brain dumps. Three design sessions revealed this is fragile (LLM decomposition introduces extra failure points), and the user already has capable agents (Claude.ai via OAuth MCP, Claude Code via static token) that can do this interactively. The user curates before capture — this is the "aware curator" principle in action.
+
+**What remains of #27:** URL detection and specialized handling at capture time (URLs are confirmed as worth extra care). Non-optimal input detection (warn, don't reject). The scope is much narrower than originally envisioned.
+
+**Input channels already cover the workflow:**
+- **Telegram** — low-friction, on-the-go, optimized for quick atomic captures
+- **OAuth MCP (Claude.ai, ChatGPT)** — agent-mediated capture for complex input; the agent helps decompose before sending to `capture_note`
+- **Static token MCP (Claude Code)** — same agent-mediated capture from the terminal

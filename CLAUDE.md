@@ -350,7 +350,7 @@ Use `--skip-smoke` to skip step 7 and test manually.
 
 ## Product Intent
 
-**Core principle:** The user must never think about the system itself. They are free to think what they think and capture it anytime, anywhere, easily, without stressing about administration, routing, or what happens on the other side. They trust that the DB will contain it in an easily retrievable, useful manner. This is the foundational design principle — every architectural decision evaluates against it.
+**Core principle: low friction, aware curator.** The system makes capture easy and low-friction. The user knows what it's optimized for — atomic notes in their own voice — and acts as the gatekeeper and curator. The system trusts the user is smart and capable. Guard rails and warnings are fine, but the user's editorial judgment keeps the system hygienic. Every architectural decision evaluates against this.
 
 **The problem ContemPlace solves:** Every AI agent builds memory about you in its own proprietary garden — isolated, non-portable, and non-trivial to even extract. Switching to a new tool means starting from zero. ContemPlace inverts this: your memory lives in a database you own, any MCP-capable agent can read and write it, and your accumulated context travels with you. You stop being locked into any single agent's ecosystem.
 
@@ -362,22 +362,25 @@ The irreducible core is the **database + MCP surface**. That is the product. Eve
 
 Three layers, each with a clear job:
 
-1. **Input** — get stuff into the database. Can be the Telegram bot (zero-friction capture on the go), the smart capture router (future: auto-detects input type), or any MCP-capable agent the user brings (Claude CLI, custom scripts, other tools). The `capture_note` MCP tool is the universal input gate — the Telegram bot is one client of it.
-2. **Enrichment** — the gardening pipeline. This is the quality guarantee. No matter how raw or messy the input, gardening produces: normalized tags, similarity links, chunks for retrieval. It's what makes the database *useful* rather than just full.
+1. **Input** — get stuff into the database. The Telegram bot for quick on-the-go capture. Any MCP-capable agent (Claude.ai via OAuth, Claude Code via static token, custom scripts) for agent-mediated capture. The `capture_note` MCP tool is the universal input gate — the Telegram bot is one client of it.
+2. **Enrichment** — the gardening pipeline. This is the quality guarantee. No matter how raw or messy the input, gardening produces: similarity links, tag normalization, chunks for retrieval. It's what makes the database *useful* rather than just full.
 3. **Retrieval** — agents query the enriched graph via MCP. Vector search, chunk search, semantic tools. This is where the value compounds. The primary access pattern is agent-driven, not human-driven.
 
 ### Input quality: capture_note is a smart gate
 
-`capture_note` is the **write API**. There is no other supported input path. The server runs the full LLM pipeline internally — the user sends raw text, the system handles embedding, classification, linking, and storage. Quality is guaranteed by construction: every note exits the pipeline with all 10 structured fields, an embedding, and preserved raw input. The gardener can work with any note that passed through the gate.
+`capture_note` is the **write API**. There is no other supported input path. The server runs the full LLM pipeline internally — the user sends raw text, the system handles embedding, classification, linking, and storage. Quality is guaranteed by construction: every note exits the pipeline with structured fields, an embedding, and preserved raw input. The gardener can work with any note that passed through the gate.
 
-The smart capture router (issue #27) enhances what happens *inside* `capture_note` — routing different input types to specialized handlers. It's an upgrade to the gate, not a bypass.
+The system is optimized for atomic notes in the user's own voice. Complex inputs (brain dumps, multi-topic streams) are the user's responsibility to pre-process — either manually or via an LLM agent using MCP tools. The system handles everything gracefully, but atomic input produces the best results.
+
+### Capture LLM contract
+
+**Keeps:** title (retrieval scanning), corrections (voice/typo/entity), entity extraction, tags, linking. All serve retrieval or user feedback.
+
+**Must not:** compress input, hallucinate, add inferred meanings, change input destructively, add conclusions the user didn't express. The body is transcription, not synthesis. `raw_input` is the irreplaceable source of truth.
 
 ### Design implications
 
-The single capture path is implemented (PR #90, issue #46): the Telegram Worker delegates to the MCP Worker via Service Binding. Remaining items:
-- The smart capture router (#27) should enhance the MCP surface, not just the Telegram Worker.
-- The input quality contract needs formal definition (#45).
-- The SYSTEM_FRAME could be published as a spec for agent guidance (#47).
+The single capture path is implemented (PR #90, issue #46): the Telegram Worker delegates to the MCP Worker via Service Binding. The MCP agent training pattern (#107) will make capture guidance queryable — agents call a training tool and learn what the system expects.
 
 The `raw_input` column preserves the user's exact words. The structured note (title, body, tags, links) is the LLM's interpretation — useful for retrieval, but the raw input is the irreplaceable source of truth and must never be discarded.
 

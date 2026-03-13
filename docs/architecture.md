@@ -200,11 +200,15 @@ Telegram can deliver the same webhook multiple times. The `processed_updates` ta
 
 This runs *before* the 200 response, so dedup is synchronous and guaranteed even if the background processing fails.
 
-## Future direction: Smart Capture Router
+## Future direction: URL handling and input awareness
 
-The current capture pipeline handles one input type: text in → single note out. The planned evolution (issue #27) is a routing layer that detects input type and dispatches to specialized handlers — short notes use the current cheap/fast Haiku pipeline, URLs trigger content fetching and reference note creation, brain dumps route to a more capable model for decomposition into atomic ideas, lists get item-level extraction. Every handler produces standard notes through the same embed → store → link pipeline.
+The system is optimized for atomic notes in the user's own voice. Complex input (brain dumps, multi-topic streams) is the user's responsibility to pre-process — either manually or via an LLM agent using MCP tools.
 
-This is in design, not implemented. See `docs/decisions.md` for the ADR and issue #27 for the full design context.
+Two capture-time enhancements remain in scope (issue #27, narrowed):
+1. **URL detection** — when a URL is present, the pipeline should handle it differently (fetch content, cross-reference existing notes, build a reference note with real context).
+2. **Non-optimal input detection** — warn the user when input doesn't match the system's sweet spot (multi-topic, very long). The note is still captured; the warning is informational (#109).
+
+See `docs/decisions.md` for the full ADR on the storage philosophy decision (2026-03-13).
 
 ## Security boundaries
 

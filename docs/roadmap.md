@@ -137,19 +137,19 @@ Remaining implications:
 
 **Status:** Core architecture implemented. Remaining items tracked in issues #27 and #45.
 
-## Smart Capture Router (in design) — issue #27
+## Smart Capture Router (narrowed scope) — issue #27
 
-The capture pipeline currently handles one input type: text → single structured note. The smart capture router is an architectural evolution where the pipeline detects what kind of input it received and dispatches to the right processing strategy. The user's experience stays the same — toss anything in, forget about it — but the system gets smarter about what it produces.
+**Updated 2026-03-13:** The smart capture router's scope has narrowed significantly following the #93 storage philosophy decision. The system is optimized for atomic notes, and complex input pre-processing is the user's responsibility (via their own LLM agent or manual decomposition).
 
-Planned input handlers:
-- **Short note** — current Haiku pipeline, unchanged
-- **URL/link** — fetch content, cross-reference existing notes, build a reference note with real context
-- **Brain dump** — long stream-of-consciousness input routed to a more capable model that decomposes it into atomic ideas, each captured through the standard pipeline
-- **List** — individual items extracted as separate notes
+What remains:
+- **URL detection** — when a URL is present, the capture pipeline handles it differently (fetch content, cross-reference, build reference note). Confirmed as worth special care.
+- **Non-optimal input detection** — warn the user when input doesn't match the system's sweet spot (multi-topic, very long). Warning only, not rejection. Tracked in #109.
 
-**Research finding:** No shipping PKM product auto-splits at capture time. The industry converged on smarter retrieval or user-initiated splitting. ContemPlace's approach — automatic routing with specialized handlers that all produce standard atomic notes — is novel. The router classifies cheaply (rules first, then lightweight LLM if needed) and dispatches to handlers that may use different models at different costs.
+What moved to user-side:
+- **Brain dumps** — the user decomposes via an LLM agent (Claude.ai via OAuth MCP, Claude Code) before capturing. The MCP agent training pattern (#107) teaches agents how to help with this.
+- **Lists** — the user or agent splits items before capturing.
 
-**Status:** Architecture direction decided. Open design questions documented in issue #27 and `docs/decisions.md`. Implementation not started. Depends on the broader "MCP as core" architectural review.
+**Status:** Narrowed scope. URL handling is the main remaining system-side feature. Brain dump decomposition is a workflow, not a system component.
 
 ## Phase 3 — Associative trails and beyond (deferred)
 
