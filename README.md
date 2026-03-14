@@ -116,9 +116,9 @@ What do you want? Pick your path:
 
 | Goal | Deploy | Guide |
 |---|---|---|
-| **MCP access only** — search and capture via any agent | MCP Worker + Supabase | [Setup: MCP Worker](docs/setup.md#4-deploy-the-mcp-worker) |
-| **+ Telegram capture** — low-friction mobile input | Add the Telegram Worker | [Setup: Telegram Worker](docs/setup.md#3-deploy-the-telegram-capture-worker) |
-| **+ Background enrichment** — similarity linking | Add the Gardener Worker | [Setup: Gardener Worker](docs/setup.md#5-deploy-the-gardener-worker) |
+| **MCP access only** — search and capture via any agent | MCP Worker + Supabase | [Setup: MCP Worker](docs/setup.md#5-deploy-the-mcp-worker) |
+| **+ Telegram capture** — low-friction mobile input | Add the Telegram Worker | [Setup: Telegram Worker](docs/setup.md#6-deploy-the-telegram-capture-worker-optional) |
+| **+ Background enrichment** — similarity linking | Add the Gardener Worker | [Setup: Gardener Worker](docs/setup.md#7-deploy-the-gardener-worker-optional) |
 
 All three require a Supabase database and Cloudflare account. Full prerequisites and step-by-step instructions in the **[Setup guide](docs/setup.md)**.
 

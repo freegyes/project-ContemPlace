@@ -2,12 +2,16 @@
 
 Full step-by-step instructions for deploying ContemPlace. Pick the modules you need — the MCP Worker is the only required piece.
 
+Run all commands from the repository root unless stated otherwise.
+
 ## Prerequisites
 
-- [Cloudflare account](https://cloudflare.com) with Workers enabled
+- [Cloudflare account](https://cloudflare.com) with Workers enabled (free tier is fine)
 - [Supabase project](https://supabase.com) (free tier works; pgvector enabled by default)
-- [OpenRouter API key](https://openrouter.ai)
-- Node.js 18+, [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/), [Supabase CLI](https://supabase.com/docs/guides/cli)
+- [OpenRouter account](https://openrouter.ai) with API key and credits (typical usage: $2–3/month)
+- Node.js 18+
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) — `npm install -g wrangler`
+- [Supabase CLI](https://supabase.com/docs/guides/cli) — `brew install supabase/tap/supabase` (macOS) or [other methods](https://supabase.com/docs/guides/cli/getting-started#installing-the-supabase-cli)
 - Telegram bot token from [@BotFather](https://t.me/BotFather) (only if deploying the Telegram Worker)
 
 ## 1. Clone and install
@@ -18,81 +22,96 @@ cd project-ContemPlace
 npm install
 ```
 
-## 2. Database setup
+## 2. Authenticate CLIs
 
-### Configure local secrets
+```bash
+wrangler login          # opens browser → authorize with your Cloudflare account
+supabase login          # opens browser → authorize with your Supabase account
+```
+
+## 3. Configure secrets
+
+Two places store secrets, for different purposes:
+
+| Where | What it's for | How values get there |
+|---|---|---|
+| **`.dev.vars`** | Local development, tests, and the `deploy.sh` script | You edit the file |
+| **`wrangler secret put`** | Production — Cloudflare's encrypted store | Interactive prompt (paste the value when asked) |
+
+You need both. Every secret goes in `.dev.vars` *and* gets pushed via `wrangler secret put`. Start by creating `.dev.vars`:
 
 ```bash
 cp .dev.vars.example .dev.vars
-# fill in all values — this file is gitignored and is the single source of truth for local dev and tests
 ```
 
-### Link Supabase and apply the schema
+Fill in the values as you go through the steps below. The `.dev.vars.example` file lists every variable with placeholder values and comments explaining where each one comes from.
+
+**Note on `wrangler secret put`:** Each command is interactive — it prints `Enter a secret value:` and waits for you to paste. It does not accept the value as a command-line argument. Each Worker has its own secret scope: use `-c mcp/wrangler.toml` for the MCP Worker, `-c gardener/wrangler.toml` for the Gardener. No flag = the Telegram Worker.
+
+## 4. Database setup
+
+Find these in the Supabase dashboard:
+- **Project ref** — Project Settings → General (it's the string in your project URL: `https://<project-ref>.supabase.co`)
+- **Database password** — the one you set when creating the Supabase project
+- **`SUPABASE_URL`** — Project Settings → API → Project URL
+- **`SUPABASE_SERVICE_ROLE_KEY`** — same page → `service_role` key (not the `anon` key)
+
+Save `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.dev.vars` now — every Worker needs them.
 
 ```bash
-supabase login
 supabase link --project-ref YOUR_PROJECT_REF -p YOUR_DB_PASSWORD
 supabase db push --linked --yes
 ```
 
 The migrations create 5 tables, RLS policies, RPC functions (`match_notes`, `find_similar_pairs`), HNSW vector indexes, and seed the default capture voice profile.
 
-## 3. Deploy the Telegram capture Worker
+## 5. Deploy the MCP Worker
 
-The Telegram Worker is a thin webhook adapter — it delegates capture to the MCP Worker via a Service Binding. It only needs Telegram and Supabase (for dedup) secrets. AI model config lives on the MCP Worker.
-
-```bash
-wrangler secret put TELEGRAM_BOT_TOKEN
-wrangler secret put TELEGRAM_WEBHOOK_SECRET   # generate: openssl rand -hex 32
-wrangler secret put SUPABASE_URL
-wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-wrangler secret put ALLOWED_CHAT_IDS          # comma-separated Telegram chat IDs
-```
-
-Deploy:
-
-```bash
-bash scripts/deploy.sh    # schema + typecheck + unit tests + deploy + smoke tests
-# or just: wrangler deploy
-```
-
-### Register the Telegram webhook
-
-After deploying:
-
-```bash
-curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
-  -d "url=https://contemplace.YOUR_SUBDOMAIN.workers.dev" \
-  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
-  -d 'allowed_updates=["message"]'
-```
-
-Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"`
-
-Send a message to your bot to verify. You should get a structured confirmation back within ~5 seconds.
-
-The Telegram Worker has no configurable model/threshold settings — all capture configuration lives on the MCP Worker (see section 4).
-
-## 4. Deploy the MCP Worker
+The MCP Worker is the core — it hosts the capture pipeline, search tools, and auth. Deploy this first. The Telegram Worker depends on it via a Cloudflare Service Binding.
 
 ### Create the KV namespace
 
-The MCP Worker uses a KV namespace for OAuth token storage. Create it first:
+The MCP Worker uses Cloudflare KV (a key-value store) for OAuth token storage. Create it:
 
 ```bash
 wrangler kv namespace create OAUTH_KV -c mcp/wrangler.toml
+```
+
+Output looks like:
+
+```
+🌀 Creating namespace with title "mcp-contemplace-OAUTH_KV"
+✨ Success!
+Add the following to your configuration file in your kv_namespaces array:
+{ binding = "OAUTH_KV", id = "abc123def456..." }
+```
+
+Copy the `id` value. Open `mcp/wrangler.toml` and replace `YOUR_KV_NAMESPACE_ID` with it. Then create the preview namespace:
+
+```bash
 wrangler kv namespace create OAUTH_KV --preview -c mcp/wrangler.toml
 ```
 
-Each command outputs an `id`. Paste them into `mcp/wrangler.toml` under `[[kv_namespaces]]` — replace `YOUR_KV_NAMESPACE_ID` and `YOUR_KV_PREVIEW_ID` with the values you got.
+Same thing — copy the `id` from the output and replace `YOUR_KV_PREVIEW_ID` in `mcp/wrangler.toml`.
 
-To prevent git from showing your local KV IDs as a diff: `git update-index --skip-worktree mcp/wrangler.toml`
+Since these IDs are account-specific, your edit will show as a git diff. To suppress it: `git update-index --skip-worktree mcp/wrangler.toml`
 
-### Set secrets and deploy
+### Generate and save secrets
+
+Generate two secrets and save them in `.dev.vars`:
 
 ```bash
-wrangler secret put MCP_API_KEY -c mcp/wrangler.toml            # generate: openssl rand -hex 32
-wrangler secret put CONSENT_SECRET -c mcp/wrangler.toml         # generate: openssl rand -hex 16
+openssl rand -hex 32   # → save as MCP_API_KEY in .dev.vars
+openssl rand -hex 16   # → save as CONSENT_SECRET in .dev.vars
+```
+
+Also save your `OPENROUTER_API_KEY` in `.dev.vars` if you haven't already.
+
+### Push secrets to Cloudflare and deploy
+
+```bash
+wrangler secret put MCP_API_KEY -c mcp/wrangler.toml
+wrangler secret put CONSENT_SECRET -c mcp/wrangler.toml
 wrangler secret put SUPABASE_URL -c mcp/wrangler.toml
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c mcp/wrangler.toml
 wrangler secret put OPENROUTER_API_KEY -c mcp/wrangler.toml
@@ -100,9 +119,32 @@ wrangler secret put OPENROUTER_API_KEY -c mcp/wrangler.toml
 wrangler deploy -c mcp/wrangler.toml
 ```
 
+Wrangler prints the deployed URL after a successful deploy — something like `https://mcp-contemplace.your-subdomain.workers.dev`. Note it down; you'll need it for verification and client configuration.
+
+### Verify the deploy
+
+The MCP Worker requires authentication — opening the URL in a browser will return an error. That's expected. Verify with curl using your `MCP_API_KEY`:
+
+```bash
+curl -s https://mcp-contemplace.YOUR_SUBDOMAIN.workers.dev/mcp \
+  -H "Authorization: Bearer YOUR_MCP_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+```
+
+Replace `YOUR_SUBDOMAIN` with your Cloudflare subdomain (from the deploy output) and `YOUR_MCP_API_KEY` with the key you generated.
+
+A successful response looks like:
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"contemplace-mcp","version":"1.0.0"},"capabilities":{"tools":{}}}}
+```
+
+If you see `"Unauthorized"` or `"Forbidden"`: the `MCP_API_KEY` you pushed via `wrangler secret put` doesn't match the token in the curl command. Regenerate, push again, and retry.
+
 ### Connect from Claude.ai web
 
-Add a remote MCP server in Claude.ai settings. Enter the URL — OAuth handles the rest:
+Add a remote MCP server in Claude.ai settings → Integrations. Enter the URL — OAuth handles the rest automatically:
 
 ```
 https://mcp-contemplace.<subdomain>.workers.dev/mcp
@@ -110,7 +152,7 @@ https://mcp-contemplace.<subdomain>.workers.dev/mcp
 
 ### Connect from Claude Code CLI
 
-Add to your MCP config (`.claude/settings.json` or project-level):
+Add to your MCP config (`~/.claude/settings.json` or project-level `.claude/settings.json`):
 
 ```json
 {
@@ -146,23 +188,84 @@ Defaults live in `mcp/src/config.ts`. Override via `mcp/wrangler.toml` `[vars]`.
 
 **Threshold note:** The default search threshold is 0.35. Stored embeddings are metadata-augmented (`[Tags: ...] text`), while search queries are bare natural language. A lower threshold compensates for this vector space gap. You can override per call. See [decisions.md](decisions.md) for the full analysis.
 
-## 5. Deploy the Gardener Worker
+## 6. Deploy the Telegram capture Worker (optional)
+
+The Telegram Worker is a thin webhook adapter — it delegates capture to the MCP Worker via a Service Binding. It only needs Telegram and Supabase (for dedup) secrets. AI model config lives on the MCP Worker.
+
+**Important:** The MCP Worker (step 5) must be deployed first. The Telegram Worker binds to it at deploy time.
+
+### Generate secrets
+
+```bash
+openssl rand -hex 32   # → save as TELEGRAM_WEBHOOK_SECRET in .dev.vars
+```
+
+Get your Telegram bot token from [@BotFather](https://t.me/BotFather) and save it as `TELEGRAM_BOT_TOKEN` in `.dev.vars`.
+
+### Push secrets to Cloudflare and deploy
+
+```bash
+wrangler secret put TELEGRAM_BOT_TOKEN
+wrangler secret put TELEGRAM_WEBHOOK_SECRET
+wrangler secret put SUPABASE_URL
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+wrangler secret put ALLOWED_CHAT_IDS          # comma-separated Telegram chat IDs
+
+wrangler deploy
+```
+
+**Finding your chat ID:** Send any message to your bot first. Then open `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates` in a browser. Look for `"chat":{"id":123456789}` — that number is your chat ID.
+
+Note the deployed URL from the Wrangler output (e.g. `https://contemplace.your-subdomain.workers.dev`).
+
+### Register the Telegram webhook
+
+The webhook tells Telegram where to send messages. Replace the two values below with your bot token and the URL from the deploy output:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+  -d "url=https://contemplace.<YOUR_SUBDOMAIN>.workers.dev" \
+  -d "secret_token=<YOUR_TELEGRAM_WEBHOOK_SECRET>" \
+  -d 'allowed_updates=["message"]'
+```
+
+Verify the webhook is set:
+
+```bash
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
+```
+
+The `url` field in the response should match your Worker URL.
+
+### Verify
+
+Send a text message to your bot. You should get a structured confirmation back within ~5 seconds — a bold title, body text, tags, and optional linked/corrections lines.
+
+## 7. Deploy the Gardener Worker (optional)
+
+The gardener runs nightly at 02:00 UTC, creating similarity links between notes. Optional but recommended — it's what turns the database from a note store into a connected knowledge graph.
 
 ```bash
 wrangler secret put SUPABASE_URL -c gardener/wrangler.toml
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c gardener/wrangler.toml
-wrangler secret put TELEGRAM_BOT_TOKEN -c gardener/wrangler.toml        # optional — failure alerts
-wrangler secret put TELEGRAM_ALERT_CHAT_ID -c gardener/wrangler.toml    # optional — failure alerts
-wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml          # optional — enables POST /trigger
+
+# Optional — enables Telegram alerts on failure:
+wrangler secret put TELEGRAM_BOT_TOKEN -c gardener/wrangler.toml
+wrangler secret put TELEGRAM_ALERT_CHAT_ID -c gardener/wrangler.toml
+
+# Optional — enables POST /trigger for manual runs:
+wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml
 
 wrangler deploy -c gardener/wrangler.toml
 ```
 
-The gardener runs nightly at 02:00 UTC via cron trigger. You can also trigger it manually:
+### Verify
+
+Trigger a manual run (requires `GARDENER_API_KEY`):
 
 ```bash
-curl -X POST "https://contemplace-gardener.YOUR_SUBDOMAIN.workers.dev/trigger" \
-  -H "Authorization: Bearer <GARDENER_API_KEY>"
+curl -X POST "https://contemplace-gardener.<YOUR_SUBDOMAIN>.workers.dev/trigger" \
+  -H "Authorization: Bearer <YOUR_GARDENER_API_KEY>"
 ```
 
 ### Configuration
@@ -173,11 +276,50 @@ curl -X POST "https://contemplace-gardener.YOUR_SUBDOMAIN.workers.dev/trigger" \
 
 Defaults live in `gardener/src/config.ts`. Override via `gardener/wrangler.toml` `[vars]`.
 
+## Subsequent deploys
+
+After the first-time setup, you don't need to repeat the secret and KV steps. Use `deploy.sh` for all future deploys — it handles schema migration, typechecking, unit tests, and deploying all three Workers in the correct order:
+
+```bash
+bash scripts/deploy.sh              # full deploy with smoke tests
+bash scripts/deploy.sh --skip-smoke # skip end-to-end smoke tests
+```
+
+The script reads secrets from `.dev.vars` and deploys Workers in dependency order (MCP → Telegram → Gardener). It will fail early if KV namespace IDs in `mcp/wrangler.toml` are still placeholders.
+
 ## Tuning capture behavior
 
 The LLM's title and body style rules live in the `capture_profiles` database table, not in code. Edit the `default` row to change how notes are written — no redeployment needed.
 
 The structural contract (JSON schema, field enums, link rules) lives in `SYSTEM_FRAME` in `mcp/src/capture.ts`. Changes there require a deploy.
+
+## Troubleshooting
+
+### "Unauthorized" or "invalid or missing token" when hitting the MCP Worker URL
+
+The MCP Worker requires authentication on every request. You cannot test it by opening the URL in a browser — that will always fail. Use the curl command from step 5 with your `MCP_API_KEY`, or connect via Claude.ai (OAuth) or Claude Code CLI (static token).
+
+If curl with the correct token still fails: the `MCP_API_KEY` you pushed via `wrangler secret put` doesn't match the token you're sending. Run `wrangler secret put MCP_API_KEY -c mcp/wrangler.toml` again with the correct value.
+
+### Telegram bot doesn't respond
+
+Check in order:
+1. **Is the webhook registered?** Run `getWebhookInfo` (see step 6). The `url` field should match your Worker URL.
+2. **Is the MCP Worker deployed?** The Telegram Worker delegates to it via Service Binding. If the MCP Worker is down, capture silently fails.
+3. **Is your chat ID whitelisted?** Check `ALLOWED_CHAT_IDS`. Messages from non-whitelisted chats are silently ignored.
+4. **Check Worker logs:** `wrangler tail` shows real-time logs from the Telegram Worker.
+
+### `wrangler deploy` fails with KV namespace error
+
+The KV namespace ID in `mcp/wrangler.toml` is account-specific. If you cloned the repo, you need to create your own namespace — see step 5 "Create the KV namespace."
+
+### `wrangler secret put` or `wrangler deploy` fails with auth error
+
+Run `wrangler login` to re-authenticate with Cloudflare.
+
+### Schema migration fails
+
+Make sure the Supabase project is linked: `supabase link --project-ref YOUR_REF`. The deploy script uses `supabase db push --linked` which connects via the management API — no direct database port access required.
 
 ## Environment variables reference
 
