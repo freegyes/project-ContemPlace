@@ -207,9 +207,9 @@ CREATE TRIGGER capture_profiles_updated_at
 -- Seed the default capture voice (updated version from 20260312000001)
 INSERT INTO capture_profiles (name, capture_voice) VALUES ('default', '## Your capture style
 
-**Title**: A claim or insight when one is present. If the input doesn''t contain a claim, use a descriptive phrase.
+**Title**: A claim or insight when one is present. A good title lets you scan a list and know what the note says without opening it. If the input doesn''t contain a claim, use a descriptive phrase. Never a topic label.
 
-**Body**: Use the user''s own words. Every sentence must be traceable to the input. 1–3 sentences for short inputs. For longer inputs, use as many sentences as needed to preserve all actionable content — up to 8. Shorter is still better than padded.');
+**Body**: Use the user''s own words. Every sentence must be traceable to the input. Enough to land the idea, no more — shorter is better than padded, but completeness beats brevity when the idea requires it. Never compress, never add inferred meanings, never add a concluding sentence that summarizes what the user''s words already showed. Do not synthesize or interpret. The body is transcription, not synthesis.');
 
 -- ============================================================
 -- TELEGRAM DEDUPLICATION
