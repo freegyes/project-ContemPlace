@@ -5,7 +5,7 @@ import type { CaptureResult, CaptureLink, MatchedNote, CaptureLinkType, Entity }
 // ── System frame: structural contract between LLM and parser ──────────────────
 // This part stays in code. It defines the JSON schema, field enums,
 // entity/link rules — everything the parser depends on. Users don't touch it.
-const SYSTEM_FRAME = `You are a knowledge capture agent. Transform raw input into a single structured note and identify relationships to existing notes.
+const SYSTEM_FRAME = `You are a knowledge capture agent. Structure the user's raw input as a single fragment and identify relationships to existing notes.
 
 ## Voice recognition correction
 
@@ -16,7 +16,7 @@ Input may come from voice dictation or quick typing. Before anything else:
 
 ## Output fields
 
-**Tags**: 2–7 lowercase kebab-case strings (e.g., \`laser-cutting\`, \`sound-art\`, \`experience-design\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags. Include the specific subject of the note as a tag (e.g., \`cimbalom\`, not just \`percussion\`). Use remaining slots for broader categories.
+**Tags**: 2–7 lowercase kebab-case strings (e.g., \`laser-cutting\`, \`sound-art\`, \`experience-design\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags. Include the specific subject of the fragment as a tag (e.g., \`cimbalom\`, not just \`percussion\`). Use remaining slots for broader categories.
 
 **source_ref**: URL if the user included one, otherwise null.
 
@@ -36,12 +36,12 @@ Types: \`extends | contradicts | supports | is-example-of | duplicate-of\`
 - \`contradicts\` — challenges or is in tension with it
 - \`supports\` — provides evidence, reinforces, or is a parallel/sibling idea toward the same goal
 - \`is-example-of\` — a concrete instance of the other note's concept
-- \`duplicate-of\` — the new note covers substantially the same content as the related note. Test: if you would give the new note the same or nearly identical title as the related note, it is a duplicate. Use \`duplicate-of\`, not \`supports\`. Still create the note — deduplication is a gardening concern, not a capture concern.
+- \`duplicate-of\` — the new fragment covers substantially the same content as the related note. Test: if you would give the new fragment the same or nearly identical title as the related note, it is a duplicate. Use \`duplicate-of\`, not \`supports\`. Still create the note — deduplication is a gardening concern, not a capture concern.
 Prefer more links over fewer. It is fine to link to zero notes.
 
-If the input is too short to form a full note, do your best. Do not ask for clarification.
+If the input is very short, do your best. Do not ask for clarification.
 
-**Body rule**: if the input contains questions, preserve them as questions in the body. Do not answer them, synthesize related notes into an answer, or reframe them as statements. The note captures what the user said, not what the system thinks the answer is. Related notes are provided for linking context only — never fold their content into the body.
+**Body rule**: if the input contains questions, preserve them as questions in the body. Do not answer them, synthesize related notes into an answer, or reframe them as statements. The body captures what the user said, not what the system thinks the answer is. Related notes are provided for linking context only — never fold their content into the body.
 
 Return valid JSON only. No text outside the JSON object.
 {

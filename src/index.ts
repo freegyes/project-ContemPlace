@@ -56,7 +56,7 @@ export default {
     // ── 6. /start command ────────────────────────────────────────────────────
     if (text.trim() === '/start') {
       ctx.waitUntil(
-        sendTelegramMessage(config, chatId, 'ContemPlace is running. Send me any text to capture it as a note.')
+        sendTelegramMessage(config, chatId, 'ContemPlace is running. Send me any text to capture it.')
       );
       return new Response('ok', { status: 200 });
     }
@@ -106,7 +106,7 @@ async function processCapture(
     await sendTelegramMessage(
       config,
       chatId,
-      'Something went wrong capturing your note. Check the Worker logs for details.',
+      'Something went wrong capturing that. Check the Worker logs for details.',
     );
   }
 }

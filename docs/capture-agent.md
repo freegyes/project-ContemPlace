@@ -1,24 +1,24 @@
 # Capture agent
 
-The capture agent is an LLM that turns raw user input into a structured note. It runs once per message, produces 7 fields in a single pass, and never asks the user for clarification.
+The capture agent is an LLM that turns raw user input into a structured fragment. It runs once per message, produces 7 fields in a single pass, and never asks the user for clarification.
 
 > **Note (2026-03-13):** `type`, `intent`, and `modality` were removed from the capture pipeline (#110, decision in #104). The classification complexity didn't justify the marginal retrieval value. The fields below — title, body, tags, entities, links, corrections, source_ref — are the capture output. Existing notes may still have type/intent/modality values from before the change.
 
-## What is an atomic note?
+## What goes in?
 
-An atomic note captures one idea in the user's own voice — something that earns a single claim as its title without needing "and" to connect two separate points.
+The system captures idea fragments — whatever the user sends, in their own voice. A fragment can be a focused single thought, a rough observation, a question, a quote, a reflection. No pressure to be atomic or complete. The capture pipeline structures each fragment (title, body, tags, entities, links) and preserves the user's exact words in `raw_input`.
 
-**Properties:**
-- **One central claim or question.** If the note needs two titles to be honest, it's two notes.
+Fragments with these properties produce the best immediate results from the capture pipeline:
+- **One central claim or question.** A single claim title covers the fragment honestly.
 - **Self-contained.** A reader gets the point without chasing dependencies.
-- **Voice-preserving.** Reads like the user talking — their words, their phrasing. Mid-thought starts are fine. Throat-clearing is not.
-- **Complete but not padded.** Enough to land the idea, no more. A 20-word note that makes its point beats a 100-word note that circles it.
+- **Voice-preserving.** Reads like the user talking — their words, their phrasing. Mid-thought starts are fine.
+- **Complete but not padded.** Enough to land the idea, no more.
 
-**What atomic doesn't mean:** Not "short" (a complex idea with examples might be 200 words). Not "simple" (nuanced positions are fine). Not "permanent" (notes may grow through accretion — atomicity governs the capture event, not the note's final form).
+These are ideals, not requirements. Every fragment is captured faithfully regardless of how close it is to these properties. The value of a fragment doesn't come only from its individual structure — it also comes from how it connects to and accumulates with other fragments over time. The synthesis layer (planned) builds higher-order structures from accumulated fragments.
 
 ### Title model
 
-The title states the note's claim or poses its question. It never merely labels a topic.
+The title states the fragment's claim or poses its question. It never merely labels a topic.
 
 - **Claim title** (default): "Espresso workflow needs a dedicated grinder"
 - **Question title** (for exploratory input): "Is SKOS overkill for a personal tag vocabulary?"
@@ -29,27 +29,29 @@ The claim must be the user's claim, derivable from their words — never editori
 ### Descriptive range (not prescriptive)
 
 - Sweet spot: 20–150 words in the body, 1–4 sentences
-- Below 20 words: fragment — captured but thin
-- Above 300 words: likely multi-idea — captured with soft warning
+- Below 20 words: thin but captured — may gain value through links and accumulation
+- Above 300 words: likely contains multiple ideas — the capture pipeline picks one for the title, which means the others get weaker structuring
 
-These are descriptions of where good atomic notes tend to land, not targets. Word count is a weak proxy for idea count. The real test is the title: if a single claim title covers the note honestly, it's atomic regardless of length.
+These are descriptions of where focused fragments tend to land, not targets. Word count is a weak proxy. The real test is the title: if a single claim title covers the fragment honestly, the pipeline will produce good structure regardless of length.
 
-### Non-atomic input
+### Multi-fragment input
 
-The system captures everything faithfully — it never rejects input. Non-atomic input (brain dumps, multi-topic streams, long lists) produces degraded structured outputs: the title can only name one idea, tags blur across topics, links become ambiguous. The user is warned softly but the note is always stored with `raw_input` preserved.
+The system captures everything faithfully — it never rejects input. When input contains multiple ideas, the structured output is degraded: the title can only name one idea, tags blur across topics, links become ambiguous. The fragment is still stored with `raw_input` preserved.
 
-Detection heuristics (2+ signals trigger a soft nudge):
+Detection heuristics (used as quality signals for the capture LLM, not as user-facing warnings):
 
 | Signal | Threshold |
 |---|---|
-| Word count < 10 | Fragment flag |
-| Word count > 300 | Multi-idea flag |
+| Word count < 10 | Thin fragment |
+| Word count > 300 | Likely multi-idea |
 | Enumerated list | 3+ items |
 | Multiple paragraphs | 3+ |
 | Tag spread across 3+ domains | Scatter signal |
 | Title requires "and" between unrelated clauses | Multi-idea signal |
 
-For full research basis, see [#108](https://github.com/freegyes/project-ContemPlace/issues/108).
+These heuristics help the capture LLM assess how to structure its output. The implications for user-facing behavior (whether/how to surface these signals) need design work — see #116.
+
+For the original research basis, see [#108](https://github.com/freegyes/project-ContemPlace/issues/108).
 
 ## Entity extraction
 
@@ -134,7 +136,7 @@ The parser is covered by unit tests (`tests/parser.test.ts`) that run locally wi
 
 ## Tuning the capture voice
 
-The stylistic rules live in the `capture_profiles` table, not in code. To change how titles are phrased, how bodies read, or what examples the LLM sees:
+The stylistic rules live in the `capture_profiles` table, not in code. To change how titles are phrased, how the body reads, or what examples the LLM sees:
 
 ```sql
 UPDATE capture_profiles
@@ -144,4 +146,4 @@ WHERE name = 'default';
 
 No redeployment needed. The next capture will fetch the updated voice.
 
-The structural contract (JSON schema, enum values, extraction rules) lives in `SYSTEM_FRAME` in `src/capture.ts`. Changing that requires a code deployment. This split is intentional — structural changes are rare and need testing; stylistic tuning should be instant.
+The structural contract (JSON schema, enum values, extraction rules) lives in `SYSTEM_FRAME` in `mcp/src/capture.ts`. Changing that requires a code deployment. This split is intentional — structural changes are rare and need testing; stylistic tuning should be instant.

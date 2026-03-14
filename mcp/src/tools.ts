@@ -75,7 +75,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'capture_note',
-    description: 'Capture a thought as a permanent note. Required parameter: raw_input (the user\'s verbatim words). The server embeds, finds related notes, and automatically generates a structured note (title, body, tags, entities, links). Do not pre-structure, summarize, or clean up the input. Voice dictation errors are expected and corrected server-side. Side effect: creates a persistent note.',
+    description: 'Capture an idea fragment. Required parameter: raw_input (the user\'s verbatim words). The server embeds, finds related notes, and structures the fragment (title, body, tags, entities, links). Do not pre-structure, summarize, or clean up the input. Voice dictation errors are expected and corrected server-side. Side effect: creates a persistent fragment.',
     inputSchema: {
       type: 'object',
       properties: {
