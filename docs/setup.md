@@ -101,8 +101,8 @@ Since these IDs are account-specific, your edit will show as a git diff. To supp
 Generate two secrets and save them in `.dev.vars`:
 
 ```bash
-openssl rand -hex 32   # → save as MCP_API_KEY in .dev.vars
-openssl rand -hex 16   # → save as CONSENT_SECRET in .dev.vars
+openssl rand -hex 32   # → save as MCP_API_KEY in .dev.vars (your static Bearer token for API access)
+openssl rand -hex 16   # → save as CONSENT_SECRET in .dev.vars (passphrase for the OAuth consent page)
 ```
 
 Also save your `OPENROUTER_API_KEY` in `.dev.vars` if you haven't already.
@@ -172,7 +172,7 @@ Add to your MCP config (`~/.claude/settings.json` or project-level `.claude/sett
 
 Two paths, both permanent:
 
-- **OAuth 2.1** — Authorization Code + PKCE for browser-based clients (Claude.ai web, ChatGPT, Cursor). Dynamic Client Registration — no manual credentials needed.
+- **OAuth 2.1** — Authorization Code + PKCE for browser-based clients (Claude.ai web, ChatGPT, Cursor). Dynamic Client Registration — no manual credentials needed. The consent page asks for a passphrase — this is your `CONSENT_SECRET`.
 - **Static Bearer token** — the `MCP_API_KEY` you generated earlier. Send it as `Authorization: Bearer <MCP_API_KEY>` for API/SDK callers (Claude Code CLI, Anthropic API, OpenAI Responses API). It never expires.
 
 ### Configuration
