@@ -173,7 +173,7 @@ Add to your MCP config (`~/.claude/settings.json` or project-level `.claude/sett
 Two paths, both permanent:
 
 - **OAuth 2.1** — Authorization Code + PKCE for browser-based clients (Claude.ai web, ChatGPT, Cursor). Dynamic Client Registration — no manual credentials needed.
-- **Static Bearer token** — `Authorization: Bearer <MCP_API_KEY>` for API/SDK callers (Claude Code CLI, Anthropic API, OpenAI Responses API).
+- **Static Bearer token** — the `MCP_API_KEY` you generated earlier. Send it as `Authorization: Bearer <MCP_API_KEY>` for API/SDK callers (Claude Code CLI, Anthropic API, OpenAI Responses API). It never expires.
 
 ### Configuration
 
