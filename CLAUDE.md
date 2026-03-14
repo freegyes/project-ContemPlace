@@ -85,21 +85,21 @@ scripts/
 supabase/
   config.toml
   migrations/
-    20260309000000_v2_schema.sql   # Current schema (v2 — full drop-and-recreate from v1)
+    20260314000000_v3_schema.sql   # Current schema (v3 — clean-slate, no type/intent/modality)
   seed/
     seed_concepts.sql              # SKOS starter vocabulary (~30 concepts, 4 schemes — run manually in SQL Editor)
 tests/
-  parser.test.ts              # Unit tests for mcp/src/capture.ts parseCaptureResponse (18 tests, no network)
+  parser.test.ts              # Unit tests for mcp/src/capture.ts parseCaptureResponse (12 tests, no network)
   smoke.test.ts               # Smoke tests against the live Telegram Worker
   mcp-auth.test.ts            # Unit tests for mcp/src/auth.ts
   mcp-config.test.ts          # Unit tests for mcp/src/config.ts
-  mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts (7 tests)
+  mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts (5 tests)
   mcp-tools.test.ts           # Unit tests for all 8 MCP tool handlers (mocked deps, no network)
   mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (27 tests, no network)
   mcp-index.test.ts           # Unit tests for OAuthProvider config + resolveExternalToken (15 tests)
   mcp-oauth.test.ts           # Unit tests for consent page rendering, AuthHandler, CONSENT_SECRET validation (27 tests)
   mcp-smoke.test.ts           # Smoke tests against the live MCP Worker
-  semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (78 tests, hits live stack)
+  semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (52 tests, hits live stack)
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
   gardener-normalize.test.ts  # Unit tests for tag matching: lexicalMatch, semanticMatch, resolveNoteTags (23 tests)
   gardener-embed.test.ts      # Parity tests for gardener/src/embed.ts vs mcp/src/embed.ts (2 tests)
@@ -252,12 +252,12 @@ npx wrangler dev -c gardener/wrangler.toml --test-scheduled
 6. **Return 200 to Telegram** (everything below runs in `ctx.waitUntil()`)
 7. In parallel: embed raw message text, fetch capture voice from `capture_profiles`, send `typing` action
 8. Call `match_notes(embedding, threshold, count=5)` for related notes
-9. Call capture LLM with (system frame + capture voice) + raw message + related notes (with type/intent metadata) + today's date
-10. Parse JSON response, validate all 10 fields with logged fallback defaults
+9. Call capture LLM with (system frame + capture voice) + raw message + related notes + today's date
+10. Parse JSON response, validate all 7 fields with logged fallback defaults
 11. Re-embed with metadata augmentation (`buildEmbeddingInput`). On failure, fall back to raw embedding and log `augmented_embed_fallback`
-12. Insert note into `notes` with augmented embedding, `raw_input`, `intent`, `modality`, `entities`, `corrections`, `embedded_at`; insert links into `links`
+12. Insert note into `notes` with augmented embedding, `raw_input`, `entities`, `corrections`, `embedded_at`; insert links into `links`
 13. In parallel: insert two `enrichment_log` rows (capture + embedding); send HTML-formatted confirmation to Telegram
-14. Telegram reply format: bold title, separator line, body, italic `type · intent · tags` line, optional Linked/Corrections/Source/Entities lines. Message capped at 4096 chars.
+14. Telegram reply format: bold title, separator line, body, italic `tags` line, optional Linked/Corrections/Source/Entities lines. Message capped at 4096 chars.
 15. On any error in steps 7–13: send generic error to Telegram, log full details to console
 
 ## Capture Agent Output Format
@@ -268,12 +268,9 @@ The LLM returns this JSON and nothing else:
 {
   "title": "...",
   "body": "...",
-  "type": "idea|reflection|source|lookup",
   "tags": ["...", "..."],
   "source_ref": null,
   "corrections": ["garbled → corrected"] | null,
-  "intent": "reflect|plan|create|remember|reference|log",
-  "modality": "text|link|list|mixed",
   "entities": [{"name": "...", "type": "person|place|tool|project|concept"}],
   "links": [
     { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of|duplicate-of" }
@@ -281,20 +278,14 @@ The LLM returns this JSON and nothing else:
 }
 ```
 
-**Type rules:** `reflection` = first-person personal insight (explicit signal required); `lookup` = investigative prompt only; `source` = external URL included; `idea` = default.
-
-**Intent rules (6 values):** `reflect` = processing experience/feeling; `plan` = future action, aspirations, wishes; `create` = specific thing to make; `remember` = storing a fact/detail; `reference` = external content (URL present or explicitly saving someone else's work); `log` = recording what happened. `remember` vs `reference`: use `remember` when no URL, `reference` when URL present. `wish` was merged into `plan`.
-
-**Type and intent are independent facets** — a `source` note can have `plan` intent, a `reflection` can have `remember` intent.
-
 **Link types:** `extends` = builds on/deepens; `contradicts` = challenges; `supports` = reinforces or parallel/sibling idea toward same goal; `is-example-of` = concrete instance; `duplicate-of` = covers substantially the same content as an existing note (note is still created; deduplication is a gardening concern).
 
 **Entity extraction:** proper nouns only, explicitly in the input — not from related notes, not from training data. Use corrected name from `corrections` field if applicable.
 
-## Schema (v2)
+## Schema (v3)
 
 8 tables total:
-- `notes` — core notes with 9 new v2 columns (intent, modality, entities, corrections, summary, refined_tags, categories, metadata, importance_score, maturity, archived_at, embedding, embedded_at, content_tsv)
+- `notes` — core notes with entities, corrections, summary, refined_tags, categories, metadata, importance_score, maturity, archived_at, embedding, embedded_at, content_tsv (no type/intent/modality — dropped in v3)
 - `links` — 9 link types (5 capture-time + 4 gardening-time); includes context, confidence, created_by
 - `concepts` — SKOS controlled vocabulary (scheme, pref_label, alt_labels, definition, embedding)
 - `note_concepts` — junction: notes ↔ concepts
@@ -303,7 +294,7 @@ The LLM returns this JSON and nothing else:
 - `capture_profiles` — user-editable stylistic prompt rules; seeded with 'default' profile
 - `processed_updates` — Telegram dedup
 
-RPC functions in `public` schema: `match_notes` (hybrid vector + full-text, 8 params), `match_chunks` (chunk-level vector search, returns note metadata), `batch_update_refined_tags` (JSONB batch update), `find_similar_pairs` (self-join cosine similarity).
+RPC functions in `public` schema: `match_notes` (hybrid vector + full-text, 6 params), `match_chunks` (chunk-level vector search, returns note metadata), `batch_update_refined_tags` (JSONB batch update), `find_similar_pairs` (self-join cosine similarity).
 
 ## Registering the Telegram Webhook
 
@@ -325,7 +316,8 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 8 tools (`search_notes`, `search_chunks`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Also hosts `CaptureService` entrypoint for Service Binding RPC (PR #90, issue #46) — single capture pipeline for all gateways. Tagged `v2.0.0`.
 - **Phase 2b (complete):** Gardening pipeline — nightly similarity linker, SKOS tag normalization, chunk generation. Maturity scoring deferred. Tagged `v2.5.0`.
 - **Phase 2c (complete):** OAuth 2.1 for MCP server. Authorization Code + PKCE via `@cloudflare/workers-oauth-provider`, DCR enabled, `resolveExternalToken` for static token bypass, consent page protected by `CONSENT_SECRET`. Verified with Claude.ai web connector. Cursor/ChatGPT verification deferred (#102). Tagged `v3.0.0`.
-- **Phase 3 (deferred):** Associative trails, type inheritance (`note_types`), location extraction.
+- **v3.1.0 (complete):** Drop type/intent/modality from capture pipeline (#110). Clean-slate v3 schema. 10-field → 7-field LLM contract. Embedding format simplified to `[Tags: ...] text`. Corpus re-captured from raw_input.
+- **Phase 3 (deferred):** Associative trails, location extraction.
 
 ## Deploy
 
@@ -370,7 +362,7 @@ Three layers, each with a clear job:
 
 `capture_note` is the **write API**. There is no other supported input path. The server runs the full LLM pipeline internally — the user sends raw text, the system handles embedding, classification, linking, and storage. Quality is guaranteed by construction: every note exits the pipeline with structured fields, an embedding, and preserved raw input. The gardener can work with any note that passed through the gate.
 
-The system is optimized for atomic notes in the user's own voice. Complex inputs (brain dumps, multi-topic streams) are the user's responsibility to pre-process — either manually or via an LLM agent using MCP tools. The system handles everything gracefully, but atomic input produces the best results.
+The system is optimized for atomic notes — one idea per note, in the user's own voice. An atomic note earns a single claim as its title without needing "and" to connect two separate points. It's self-contained, voice-preserving, and complete without being padded. Title model: claim primary, question secondary, topic labels never. Typical range: 20–150 words, 1–4 sentences — but these are descriptive, not prescriptive. Word count is a weak proxy; idea count is the real measure. Complex inputs (brain dumps, multi-topic streams) are the user's responsibility to pre-process — either manually or via an LLM agent using MCP tools. The system handles everything gracefully, but atomic input produces the best results. Full definition: [#108](https://github.com/freegyes/project-ContemPlace/issues/108), `docs/capture-agent.md`.
 
 ### Capture LLM contract
 
