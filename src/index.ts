@@ -118,10 +118,6 @@ async function processCapture(
 const LINK_EMOJI: Record<string, string> = {
   extends: '🔗', contradicts: '⚡', supports: '🤝', 'is-example-of': '📐', 'duplicate-of': '♊',
 };
-const ENTITY_EMOJI: Record<string, string> = {
-  person: '👤', place: '📍', tool: '🔧', project: '📦', concept: '💠',
-};
-
 function formatTelegramReply(result: ServiceCaptureResult): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const sep = '──────────────────────';
@@ -153,14 +149,6 @@ function formatTelegramReply(result: ServiceCaptureResult): string {
 
   if (result.source_ref) {
     lines.push(`<i>📎 ${esc(result.source_ref)}</i>`);
-  }
-
-  if (result.entities.length > 0) {
-    const entityEntries = result.entities.map(e => {
-      const icon = ENTITY_EMOJI[e.type] ?? '•';
-      return `${icon} ${esc(e.name)}`;
-    });
-    lines.push(`<i>${entityEntries.join(', ')}</i>`);
   }
 
   return lines.join('\n').slice(0, 4096);

@@ -5,56 +5,26 @@ import { buildContext } from '../gardener/src/similarity';
 
 describe('buildContext', () => {
   it('returns just the similarity score when no overlap', () => {
-    const a = { tags: ['cooking'], entities: [] };
-    const b = { tags: ['music'], entities: [] };
+    const a = { tags: ['cooking'] };
+    const b = { tags: ['music'] };
     expect(buildContext(a, b, 0.73)).toBe('Similarity: 0.73');
   });
 
   it('includes a single shared tag', () => {
-    const a = { tags: ['cooking', 'kitchen'], entities: [] };
-    const b = { tags: ['kitchen', 'renovation'], entities: [] };
+    const a = { tags: ['cooking', 'kitchen'] };
+    const b = { tags: ['kitchen', 'renovation'] };
     expect(buildContext(a, b, 0.82)).toBe('Similarity: 0.82; shared tags: kitchen');
   });
 
   it('includes multiple shared tags', () => {
-    const a = { tags: ['cooking', 'kitchen', 'diy'], entities: [] };
-    const b = { tags: ['kitchen', 'diy', 'tools'], entities: [] };
+    const a = { tags: ['cooking', 'kitchen', 'diy'] };
+    const b = { tags: ['kitchen', 'diy', 'tools'] };
     expect(buildContext(a, b, 0.75)).toBe('Similarity: 0.75; shared tags: kitchen, diy');
   });
 
-  it('includes shared entities', () => {
-    const a = { tags: [], entities: [{ name: 'IKEA', type: 'tool' }, { name: 'Adam', type: 'person' }] };
-    const b = { tags: [], entities: [{ name: 'IKEA', type: 'tool' }, { name: 'Bob', type: 'person' }] };
-    expect(buildContext(a, b, 0.70)).toBe('Similarity: 0.70; shared entities: IKEA [tool]');
-  });
-
-  it('includes both shared tags and shared entities', () => {
-    const a = { tags: ['workshop'], entities: [{ name: 'IKEA', type: 'tool' }] };
-    const b = { tags: ['workshop'], entities: [{ name: 'IKEA', type: 'tool' }] };
-    expect(buildContext(a, b, 0.88)).toBe('Similarity: 0.88; shared tags: workshop; shared entities: IKEA [tool]');
-  });
-
-  it('entity name matching is case-insensitive', () => {
-    const a = { tags: [], entities: [{ name: 'ikea', type: 'tool' }] };
-    const b = { tags: [], entities: [{ name: 'IKEA', type: 'tool' }] };
-    expect(buildContext(a, b, 0.74)).toBe('Similarity: 0.74; shared entities: IKEA [tool]');
-  });
-
-  it('handles malformed entity objects gracefully', () => {
-    const a = { tags: [], entities: [{ name: 'IKEA', type: 'tool' }] };
-    const b = { tags: [], entities: 'not an array' };
-    expect(buildContext(a, b, 0.71)).toBe('Similarity: 0.71');
-  });
-
-  it('handles null/missing entities gracefully', () => {
-    const a = { tags: ['project'], entities: null };
-    const b = { tags: ['project'], entities: undefined };
-    expect(buildContext(a, b, 0.76)).toBe('Similarity: 0.76; shared tags: project');
-  });
-
   it('formats similarity to 2 decimal places', () => {
-    const a = { tags: [], entities: [] };
-    const b = { tags: [], entities: [] };
+    const a = { tags: [] };
+    const b = { tags: [] };
     expect(buildContext(a, b, 0.7)).toBe('Similarity: 0.70');
     expect(buildContext(a, b, 1.0)).toBe('Similarity: 1.00');
     expect(buildContext(a, b, 0.8234)).toBe('Similarity: 0.82');

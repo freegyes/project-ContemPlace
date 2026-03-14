@@ -97,7 +97,7 @@ describe('Worker happy path', () => {
     const db = supabase();
     const { data, error } = await db
       .from('notes')
-      .select('id, title, embedding, entities, embedded_at')
+      .select('id, title, embedding, embedded_at')
       .eq('raw_input', '[SMOKE-TEST] Constraints make creative work stronger.')
       .order('created_at', { ascending: false })
       .limit(1);
@@ -109,7 +109,6 @@ describe('Worker happy path', () => {
     const note = data![0]!;
     expect(note.embedding).not.toBeNull();
     expect(note.embedded_at).not.toBeNull();
-    expect(note.entities).not.toBeNull();
 
     // Verify enrichment log entries [Review fix 12-§1b]
     const { data: logs } = await db

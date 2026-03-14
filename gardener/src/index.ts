@@ -402,7 +402,7 @@ export async function runSimilarityLinker(env: Env): Promise<{
   // 1. Clean slate
   const linksDeleted = await deleteGardenerSimilarityLinks(db);
 
-  // 2. Fetch notes (for tags/entities needed by buildContext) and similar pairs in parallel
+  // 2. Fetch notes (for tags needed by buildContext) and similar pairs in parallel
   const [notes, pairs] = await Promise.all([
     fetchNotesForSimilarity(db),
     findSimilarPairs(db, config.similarityThreshold),

@@ -66,7 +66,7 @@ export async function runCapturePipeline(
     tags: capture.tags,
     source_ref: capture.source_ref,
     corrections: capture.corrections,
-    entities: capture.entities,
+    entities: [],
     links: resolvedLinks,
     source,
   };

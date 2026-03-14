@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import type { Config } from './config';
-import type { CaptureResult, CaptureLink, MatchedNote, CaptureLinkType, Entity } from './types';
+import type { CaptureResult, CaptureLink, MatchedNote, CaptureLinkType } from './types';
 
 // ── System frame: structural contract between LLM and parser ──────────────────
 // This part stays in code. It defines the JSON schema, field enums,
@@ -19,16 +19,6 @@ Input may come from voice dictation or quick typing. Before anything else:
 **Tags**: 2–7 lowercase kebab-case strings (e.g., \`laser-cutting\`, \`sound-art\`, \`experience-design\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags. Include the specific subject of the fragment as a tag (e.g., \`cimbalom\`, not just \`percussion\`). Use remaining slots for broader categories.
 
 **source_ref**: URL if the user included one, otherwise null.
-
-**Entities**: extract named entities **explicitly mentioned in the input text** — not from related notes, not from your training data, not inferred from context. Only extract proper nouns (capitalized in standard writing) or specific named things. Generic abstract nouns like "creativity", "constraints", "productivity" are NOT entities even if they match a type below. If a name is ambiguous or only implied, do not extract it. If you corrected a name in the \`corrections\` field, use the corrected version in entities. Entity extraction is separate from the body rule — extract entities based on meaning, even though the body preserves the user's exact words.
-Scan every input for proper nouns, regardless of length. A person mentioned by name must always appear in entities.
-Each entity has a name and type:
-- \`person\` — people (real names, nicknames, public figures)
-- \`place\` — locations, cities, venues
-- \`tool\` — software, apps, instruments, physical tools
-- \`project\` — named projects, initiatives, creative works
-- \`concept\` — named frameworks, methodologies, movements (e.g., "Zettelkasten", "GTD", "Wabi-sabi")
-Return an empty array if no clear named entities appear in the input.
 
 **Links**: for each related note provided, decide if a typed relationship applies.
 Types: \`extends | contradicts | supports | is-example-of | duplicate-of\`
@@ -50,7 +40,6 @@ Return valid JSON only. No text outside the JSON object.
   "tags": ["...", "..."],
   "source_ref": null,
   "corrections": ["garbled → corrected"] | null,
-  "entities": [{"name": "...", "type": "person|place|tool|project|concept"}],
   "links": [
     { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of|duplicate-of" }
   ]
@@ -66,7 +55,6 @@ function buildSystemPrompt(captureVoice: string): string {
 }
 
 const VALID_LINK_TYPES: readonly CaptureLinkType[] = ['extends', 'contradicts', 'supports', 'is-example-of', 'duplicate-of'];
-const VALID_ENTITY_TYPES = ['person', 'place', 'tool', 'project', 'concept'] as const;
 
 export async function runCaptureAgent(
   client: OpenAI,
@@ -127,32 +115,6 @@ export function parseCaptureResponse(raw: string): CaptureResult {
   if (typeof obj['body'] !== 'string') throw new Error('LLM response missing body');
   if (!Array.isArray(obj['tags'])) throw new Error('LLM response missing tags array');
 
-  // Truncate entity names at 200 chars, filter invalid types [Review fix 08-§1.2]
-  const entities: Entity[] = Array.isArray(obj['entities'])
-    ? (obj['entities'] as unknown[]).filter((e): e is Entity => {
-        if (typeof e !== 'object' || e === null) return false;
-        const ent = e as Record<string, unknown>;
-        return (
-          typeof ent['name'] === 'string' &&
-          ent['name'].length <= 200 &&
-          typeof ent['type'] === 'string' &&
-          (VALID_ENTITY_TYPES as readonly string[]).includes(ent['type'] as string)
-        );
-      })
-    : [];
-
-  // Log dropped entities for prompt tuning [Review fix 12-§5b]
-  if (Array.isArray(obj['entities'])) {
-    const totalCount = (obj['entities'] as unknown[]).length;
-    if (totalCount > entities.length) {
-      console.warn(JSON.stringify({
-        event: 'entities_filtered',
-        kept: entities.length,
-        dropped: totalCount - entities.length,
-      }));
-    }
-  }
-
   const links: CaptureLink[] = Array.isArray(obj['links'])
     ? (obj['links'] as unknown[]).filter((l): l is CaptureLink => {
         if (typeof l !== 'object' || l === null) return false;
@@ -175,6 +137,5 @@ export function parseCaptureResponse(raw: string): CaptureResult {
     source_ref: typeof obj['source_ref'] === 'string' ? obj['source_ref'] : null,
     links,
     corrections: corrections?.length ? corrections : null,
-    entities,
   };
 }

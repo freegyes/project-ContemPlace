@@ -17,17 +17,11 @@ export interface Env {
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
-export interface Entity {
-  name: string;
-  type: 'person' | 'place' | 'tool' | 'project' | 'concept';
-}
-
 // A note as fetched for similarity processing — includes embedding for RPC calls
-// and tags/entities for context generation.
+// and tags for context generation.
 export interface NoteForSimilarity {
   id: string;
   tags: string[];
-  entities: Entity[];
   embedding: number[];
 }
 

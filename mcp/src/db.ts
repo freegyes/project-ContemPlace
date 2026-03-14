@@ -82,7 +82,7 @@ export async function insertNote(
       source_ref: capture.source_ref,
       source,
       corrections: capture.corrections,
-      entities: capture.entities,
+      entities: [],
       embedding,
       embedded_at: new Date().toISOString(),
     })

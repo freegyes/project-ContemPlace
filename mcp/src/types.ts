@@ -43,7 +43,6 @@ export interface CaptureResult {
   source_ref: string | null;
   links: CaptureLink[];
   corrections: string[] | null;
-  entities: Entity[];
 }
 
 export interface MatchedNote {

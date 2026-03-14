@@ -9,7 +9,6 @@ const BASE_CAPTURE: CaptureResult = {
   source_ref: null,
   links: [],
   corrections: null,
-  entities: [],
 };
 
 describe('buildEmbeddingInput (mcp/src/embed.ts)', () => {

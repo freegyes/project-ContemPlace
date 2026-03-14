@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
-import type { Concept, Entity, NoteForSimilarity, NoteForTagNorm, NoteForChunking, SimilarityLink } from './types';
+import type { Concept, NoteForSimilarity, NoteForTagNorm, NoteForChunking, SimilarityLink } from './types';
 
 export function createSupabaseClient(config: Config): SupabaseClient {
   return createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -24,13 +24,13 @@ export async function deleteGardenerSimilarityLinks(db: SupabaseClient): Promise
   return (data as Array<{ id: string }> | null)?.length ?? 0;
 }
 
-// Fetch all active notes with embeddings, tags, and entities.
+// Fetch all active notes with embeddings and tags.
 // PostgREST returns pgvector columns as JSON arrays; parse defensively in case the
 // response comes back as a string in some environments.
 export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteForSimilarity[]> {
   const { data, error } = await db
     .from('notes')
-    .select('id, tags, entities, embedding')
+    .select('id, tags, embedding')
     .is('archived_at', null)
     .not('embedding', 'is', null);
 
@@ -41,14 +41,12 @@ export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteF
   const rows = (data as Array<{
     id: string;
     tags: string[] | null;
-    entities: unknown;
     embedding: number[] | string;
   }> | null) ?? [];
 
   return rows.map(row => ({
     id: row.id,
     tags: row.tags ?? [],
-    entities: Array.isArray(row.entities) ? (row.entities as Entity[]) : [],
     embedding: typeof row.embedding === 'string'
       ? (JSON.parse(row.embedding) as number[])
       : row.embedding,

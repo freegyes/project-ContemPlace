@@ -7,7 +7,6 @@ const VALID_BASE = {
   tags: ['test'],
   source_ref: null,
   corrections: null,
-  entities: [],
   links: [],
 };
 
@@ -19,42 +18,11 @@ describe('parseCaptureResponse', () => {
   it('parses valid complete JSON', () => {
     const result = parseCaptureResponse(make());
     expect(result.title).toBe('Test title');
-    expect(result.entities).toEqual([]);
   });
 
   it('strips markdown code fences', () => {
     const result = parseCaptureResponse('```json\n' + make() + '\n```');
     expect(result.title).toBe('Test title');
-  });
-
-  it('filters entities with invalid types', () => {
-    const result = parseCaptureResponse(make({
-      entities: [
-        { name: 'Claude', type: 'tool' },
-        { name: 'Acme', type: 'organization' },
-      ],
-    }));
-    expect(result.entities).toHaveLength(1);
-    expect(result.entities[0]!.name).toBe('Claude');
-  });
-
-  it('filters entities with names exceeding 200 chars', () => {
-    const result = parseCaptureResponse(make({
-      entities: [{ name: 'x'.repeat(201), type: 'tool' }],
-    }));
-    expect(result.entities).toHaveLength(0);
-  });
-
-  it('filters entities missing name field', () => {
-    const result = parseCaptureResponse(make({
-      entities: [{ type: 'tool' }],
-    }));
-    expect(result.entities).toHaveLength(0);
-  });
-
-  it('handles empty entities array', () => {
-    const result = parseCaptureResponse(make({ entities: [] }));
-    expect(result.entities).toEqual([]);
   });
 
   it('converts empty corrections array to null', () => {

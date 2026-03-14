@@ -14,7 +14,7 @@
  *   D: Laser fabrication technique
  *   E: Standalone (URL note, typo correction)
  *   F: Question handling
- *   G: Short input entity extraction
+ *   G: Short input with person name
  *   H: Tag priority
  *   I: Personal convictions (first-person beliefs about process/design)
  *
@@ -144,7 +144,7 @@ const FIXTURES = {
 
   F3_conditional_question: `Should ContemPlace eventually support importing notes from Obsidian, or is it better to keep the two systems separate and let MCP bridge them?`,
 
-  // Cluster G: Short input entity extraction (#51)
+  // Cluster G: Short input with person name (#51)
   G1_short_with_person: `Build found-object instruments like Nicolas Bras does — tin cans, scrap wood, salvaged springs as resonators.`,
 
   // Cluster H: Tag priority — specific subject must appear (#52)
@@ -421,18 +421,11 @@ describe('Cluster F — Question handling', () => {
   });
 });
 
-// ── Cluster G: Short input entity extraction (#51) ───────────────────────────
+// ── Cluster G: Short input with person name (#51) ────────────────────────────
 
-describe('Cluster G — Short input entity extraction', () => {
+describe('Cluster G — Short input with person name', () => {
   it('G1 short with person: captures successfully', () => {
     expect(typeof notes.G1_short_with_person.id).toBe('string');
-  });
-
-  it('G1 short with person: entities include Nicolas Bras', async () => {
-    const db = supabase();
-    const { data } = await db.from('notes').select('entities').eq('id', notes.G1_short_with_person.id).single();
-    const entities = (data as { entities: Array<{ name: string; type: string }> })?.entities ?? [];
-    expect(entities.some(e => e.name.toLowerCase().includes('nicolas bras') && e.type === 'person')).toBe(true);
   });
 
   it('G1 short with person: tags include instrument-related term', () => {

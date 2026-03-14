@@ -37,7 +37,6 @@ vi.mock('../mcp/src/capture', () => ({
     tags: ['mock'],
     source_ref: null,
     corrections: null,
-    entities: [],
     links: [],
   } satisfies CaptureResult),
   parseCaptureResponse: vi.fn(),
