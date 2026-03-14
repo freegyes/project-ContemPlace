@@ -820,3 +820,21 @@ The exception is `contradicts` (6 links, 2.8%). All 6 were reviewed and found ge
 - Migration reclassifies existing `extends`/`supports`/`is-example-of`/`duplicate-of` → `related`
 
 **Source:** Issue #106. Implementation bundled with #117 and #122 in a single schema simplification pass. Decision chain: #93 → #106.
+
+## Drop entity extraction from capture — defer to gardening (2026-03-14)
+
+**Decision:** Remove entity extraction from the capture pipeline. The `notes.entities` DB column stays (new notes get empty arrays), but the LLM no longer extracts entities at capture time.
+
+**Why:** Entity extraction was unused infrastructure. No retrieval tool, no MCP handler, no downstream consumer ever queried the structured `entities` data. The 5-type taxonomy (`person`, `place`, `tool`, `project`, `concept`) produced inconsistent classifications (#71) — the LLM struggled to distinguish `tool` from `project`, and `concept` was a catch-all that overlapped with tags.
+
+The value propositions that originally justified entity extraction all point to gardening-time extraction rather than capture-time:
+
+1. **Corrections dictionary** — cross-referencing entity names with voice corrections to build a persistent spelling/recognition dictionary. This requires corpus-wide context (all prior corrections for the same entity), which is available at gardening time but not at capture time.
+2. **Synthesis clustering** — grouping fragments by shared entities for MOC-like summaries. The gardener already has the full graph and can extract entities with better context than the capture LLM sees (5 related notes vs. full corpus).
+3. **Entity deduplication** — "Andy Matuschak" vs "Matuschak" vs "Andy M." collapsing to one canonical entity. This is inherently a corpus-wide operation.
+
+Removing entity extraction from capture simplifies the LLM contract from 7 fields to 6, reduces SYSTEM_FRAME by ~10 lines of entity rules, and eliminates a class of parser validation that was handling inconsistent LLM output.
+
+**What stays:** The `notes.entities` column remains in the schema. Existing notes retain their entities. New notes get `[]`. The `notes_entities_idx` GIN index stays. A future gardener phase can populate entities with full corpus context — tracked in a new issue.
+
+**Source:** Issue #113. Decision chain: #93 → #113.

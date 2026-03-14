@@ -70,7 +70,7 @@ Telegram sends a webhook POST for every message. The Worker must respond quickly
  │      notes + today's date)      │
  │                                 │
  │  D. Parse + validate response   │
- │     (7 fields, logged defaults  │
+ │     (6 fields, logged defaults  │
  │      for invalid values)        │
  │                                 │
  │  E. Re-embed with metadata      │
@@ -136,7 +136,7 @@ The Gardener Worker runs three phases sequentially, each error-isolated (a failu
  │  • find_similar_pairs() RPC     │
  │  • Clean-slate delete + reinsert│
  │  • Auto-context from shared     │
- │    tags + entities              │
+ │    tags                         │
  ├─────────────────────────────────┤
  │  Phase 3: Chunk generation      │
  │  • Fetch notes with body > 1500 │
@@ -176,7 +176,7 @@ The cost of double-embedding is negligible — roughly $0.00001 per note at curr
 
 The LLM prompt is split into two parts that live in different places:
 
-**System frame** — lives in code (`SYSTEM_FRAME` in `mcp/src/capture.ts`). This is the structural contract: the JSON schema the LLM must return, the allowed values for each enum field, the rules for entity extraction and linking, and the voice correction instructions. It changes only when the data model changes.
+**System frame** — lives in code (`SYSTEM_FRAME` in `mcp/src/capture.ts`). This is the structural contract: the JSON schema the LLM must return, the allowed values for each enum field, the rules for linking, and the voice correction instructions. It changes only when the data model changes.
 
 **Capture voice** — lives in the database (`capture_profiles` table, fetched at runtime by `getCaptureVoice()`). This is the stylistic layer: how titles should be phrased, how bodies should read, the traceability rule, tone preferences, examples of good and bad output. It can be edited in the Supabase SQL Editor without redeploying.
 
@@ -204,7 +204,7 @@ This runs *before* the 200 response, so dedup is synchronous and guaranteed even
 
 ### Fragment-first capture and synthesis layer
 
-The system captures idea fragments — whatever the user sends, in their own voice. Focused fragments produce the best immediate structuring, but all fragments are valuable raw material. The capture pipeline structures each fragment (title, body, tags, entities, links) and preserves the user's exact words. See `docs/decisions.md` for the fragment-first ADR (2026-03-14).
+The system captures idea fragments — whatever the user sends, in their own voice. Focused fragments produce the best immediate structuring, but all fragments are valuable raw material. The capture pipeline structures each fragment (title, body, tags, links) and preserves the user's exact words. See `docs/decisions.md` for the fragment-first ADR (2026-03-14).
 
 The planned synthesis layer (#116) will build higher-order structures from accumulated fragments: cluster detection, MOC-like synthesis notes, computed maturity from density and link patterns. This is a design-phase concept — the mechanism, schema implications, and gardener integration are open questions tracked in #116.
 

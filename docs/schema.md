@@ -20,7 +20,7 @@ The core table. Each row is a captured note with both the user's raw input and t
 | `source_ref` | text | LLM | URL if present |
 | `source` | text | system | Always set. Currently `telegram`, `mcp`, or `semantic-test`. |
 | `corrections` | text[] | LLM | Voice dictation fixes |
-| `entities` | jsonb | LLM | `[{name, type}]` — proper nouns |
+| `entities` | jsonb | LLM | `[{name, type}]` — proper nouns. New notes have empty arrays (`[]`); entity extraction moved out of capture pipeline (#113). Existing notes retain their entities. Column retained for future gardener-maintained entity extraction. |
 | `summary` | text | gardener | Auto-generated summary (unpopulated) |
 | `refined_tags` | text[] | gardener | Normalized via SKOS — pref_labels only |
 | `categories` | text[] | gardener | Broad categories (unpopulated) |

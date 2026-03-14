@@ -41,14 +41,14 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 ## How it works
 
 1. You send a thought — raw text, voice transcription, a link, whatever
-2. The capture agent gives it a title, corrects voice errors, extracts entities and tags, and links it to related notes — your exact words are always preserved
+2. The capture agent gives it a title, corrects voice errors, tags it, and links it to related notes — your exact words are always preserved
 3. Enrichment is non-destructive: future agents can reinterpret the same raw input with better models
 4. A nightly gardener refines connections: similarity links, tag normalization, chunking for retrieval
 
 <div align="center">
 <img src="docs/assets/telegram-capture-demo.png" alt="Telegram bot capturing a note about withdiode.com — showing raw input, structured note with metadata, and link preview" width="320" />
 <br />
-<em>Telegram capture in action: raw input → structured note with title, tags, corrections, source URL, entities, and links.</em>
+<em>Telegram capture in action: raw input → structured note with title, tags, corrections, source URL, and links.</em>
 </div>
 
 ## MCP tools
@@ -59,7 +59,7 @@ The MCP server is the primary interface. Eight tools, usable by any MCP-capable 
 |---|---|
 | `search_notes` | Search notes by meaning. Ranked results with body text. Optional tag filter. |
 | `search_chunks` | Search within paragraphs of long notes (body > 1500 chars). |
-| `get_note` | Fetch a single note — body, raw_input (source of truth), entities, links, corrections. |
+| `get_note` | Fetch a single note — body, raw_input (source of truth), links, corrections. |
 | `list_recent` | Most recent notes, newest first. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
 | `capture_note` | Pass raw words — the server runs the full capture pipeline. Do not pre-structure. |
@@ -86,7 +86,7 @@ The database + MCP server is the only required piece. Everything else is optiona
 
 **Your context travels with you.** Any MCP-capable agent can read and write your knowledge base. Switch tools, try new agents, combine workflows — your accumulated context comes along.
 
-**Capture fragments, not finished thoughts.** Send whatever is on your mind — a reflection, a quote, an observation, a question, a workflow idea. No pressure to make it perfect or atomic. The system structures each fragment (title, tags, links, entities) and preserves your exact words. Focused fragments produce the best immediate results, but everything is valuable raw material for the synthesis layer.
+**Capture fragments, not finished thoughts.** Send whatever is on your mind — a reflection, a quote, an observation, a question, a workflow idea. No pressure to make it perfect or atomic. The system structures each fragment (title, tags, links) and preserves your exact words. Focused fragments produce the best immediate results, but everything is valuable raw material for the synthesis layer.
 
 **You get the results without the process.** Most people organize notes because they want the results — findability, connections, patterns — not because they enjoy organizing. ContemPlace automates the gardening: similarity links, tag normalization, chunking, and (planned) cluster synthesis. You capture fragments; the system does the curation.
 
@@ -169,7 +169,6 @@ The capture agent structures each note in a single LLM pass:
 | **title** | A claim or question — never a topic label. States the note's point so you can scan a list without opening each one. |
 | **body** | Faithful to your words, as long as needed — no compression. Typically 1–4 sentences. |
 | **tags** | Free-form, from the input |
-| **entities** | Proper nouns with types (person, place, tool, project, concept) |
 | **links** | Edges to related notes |
 | **corrections** | Voice dictation fixes, applied silently and reported |
 | **source_ref** | URL if one was included |

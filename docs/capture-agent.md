@@ -1,12 +1,12 @@
 # Capture agent
 
-The capture agent is an LLM that turns raw user input into a structured fragment. It runs once per message, produces 7 fields in a single pass, and never asks the user for clarification.
+The capture agent is an LLM that turns raw user input into a structured fragment. It runs once per message, produces 6 fields in a single pass, and never asks the user for clarification.
 
-> **Note (2026-03-13):** `type`, `intent`, and `modality` were removed from the capture pipeline (#110, decision in #104). The classification complexity didn't justify the marginal retrieval value. The fields below — title, body, tags, entities, links, corrections, source_ref — are the capture output. Existing notes may still have type/intent/modality values from before the change.
+> **Note (2026-03-13):** `type`, `intent`, and `modality` were removed from the capture pipeline (#110, decision in #104). The classification complexity didn't justify the marginal retrieval value. The fields below — title, body, tags, links, corrections, source_ref — are the capture output. Existing notes may still have type/intent/modality values from before the change.
 
 ## What goes in?
 
-The system captures idea fragments — whatever the user sends, in their own voice. A fragment can be a focused single thought, a rough observation, a question, a quote, a reflection. No pressure to be atomic or complete. The capture pipeline structures each fragment (title, body, tags, entities, links) and preserves the user's exact words in `raw_input`.
+The system captures idea fragments — whatever the user sends, in their own voice. A fragment can be a focused single thought, a rough observation, a question, a quote, a reflection. No pressure to be atomic or complete. The capture pipeline structures each fragment (title, body, tags, links) and preserves the user's exact words in `raw_input`.
 
 Fragments with these properties produce the best immediate results from the capture pipeline:
 - **One central claim or question.** A single claim title covers the fragment honestly.
@@ -53,18 +53,6 @@ These heuristics help the capture LLM assess how to structure its output. The im
 
 For the original research basis, see [#108](https://github.com/freegyes/project-ContemPlace/issues/108).
 
-## Entity extraction
-
-The agent extracts proper nouns from the input with five type categories: `person`, `place`, `tool`, `project`, `concept`.
-
-Strict rules:
-- Only extract entities **explicitly mentioned** in the user's input
-- Never infer entities from related notes or training data
-- Scan every input for proper nouns, regardless of length — a person mentioned by name must always appear in entities
-- If a name was corrected via the `corrections` field, use the corrected version
-- Names over 200 characters are filtered out (likely parser artifacts)
-- Invalid entity types are filtered out
-
 ## Linking
 
 The agent receives the top 5 semantically related notes (with their titles and bodies) and can create typed links to them.
@@ -92,7 +80,7 @@ Four additional types are assigned by the gardener Worker, not the capture agent
 | `follows` | Temporal sequence | Planned |
 | `is-derived-from` | One note produced from another | Planned |
 
-`is-similar-to` links include auto-generated context from shared tags and entities, and `confidence` = cosine similarity score. Created by the gardener's similarity linker phase (clean-slate delete + reinsert each run).
+`is-similar-to` links include auto-generated context from shared tags, and `confidence` = cosine similarity score. Created by the gardener's similarity linker phase (clean-slate delete + reinsert each run).
 
 ## Voice correction
 
@@ -126,7 +114,6 @@ This rule exists because the capture LLM (Haiku) tends to add a summarizing conc
 | Field | Invalid behavior | Default |
 |---|---|---|
 | `tags` | Not an array | `[]` |
-| `entities` | Invalid type, missing name, name > 200 chars | Filtered out (kept entities preserved) |
 | `links` | Invalid link_type, missing to_id | Filtered out |
 | `corrections` | Not an array | `null` |
 

@@ -28,7 +28,7 @@ The capture flow is **async**: the Worker returns 200 to Telegram immediately, t
 **Single capture path:** The Telegram Worker delegates capture to the MCP Worker via a Cloudflare Service Binding (in-process RPC, no HTTP hop). The capture pipeline lives in `mcp/src/pipeline.ts` — one source of truth for all gateways.
 
 **System frame / capture voice split:** The system prompt is split into two parts:
-- **System frame** (`SYSTEM_FRAME` constant in `mcp/src/capture.ts`) — structural contract: JSON schema, field enums, entity/link rules, voice correction instructions. Lives in code. Do not put stylistic rules here.
+- **System frame** (`SYSTEM_FRAME` constant in `mcp/src/capture.ts`) — structural contract: JSON schema, field enums, link rules, voice correction instructions. Lives in code. Do not put stylistic rules here.
 - **Capture voice** (stored in `capture_profiles` DB table, fetched at runtime) — title style, body rules, traceability, tone, examples. User-editable without code deployment. Any capture interface (Telegram, MCP, CLI) fetches the same profile.
 
 ```
@@ -75,7 +75,7 @@ gardener/
     db.ts            # Similarity DB ops + tag normalization DB ops + chunk generation DB ops
     embed.ts         # embedText, batchEmbedTexts — OpenRouter via openai SDK (copy of src/embed.ts pattern)
     normalize.ts     # Tag matching logic: lexicalMatch, semanticMatch, cosineSimilarity, resolveNoteTags
-    similarity.ts    # buildContext() — auto-generates link context from shared tags + entities
+    similarity.ts    # buildContext() — auto-generates link context from shared tags
     chunk.ts         # splitIntoChunks, buildChunkEmbeddingInput — paragraph-boundary splitting for long notes
     alert.ts         # sendAlert() — best-effort Telegram failure notification
     auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
@@ -240,7 +240,7 @@ npx wrangler dev -c gardener/wrangler.toml --test-scheduled
 10. **Two-pass embedding**: first embed uses raw text (for finding related notes); second embed uses `buildEmbeddingInput()` with metadata augmentation (for storage). If the second embed fails, fall back to the raw embedding — never lose the note.
 11. **RPC functions must be in the `public` schema** with `set search_path = 'public, extensions'`. Functions in the `extensions` schema are not visible to PostgREST's `.rpc()` by default. Use explicit `public.table_name` references and `OPERATOR(extensions.<=>)` for pgvector operators — the connection pooler's execution context does not reliably resolve these via `search_path`.
 12. **Stylistic prompt rules (title style, body rules, traceability) must come from `capture_profiles` table**, never hardcoded in source. Edit the DB row to tune capture behavior without redeploying.
-13. **JSONB columns (`entities`, `metadata`) contain LLM-generated content** — never interpolate their values into raw SQL strings.
+13. **JSONB columns (`entities`, `metadata`) contain LLM-generated or system-generated content** — never interpolate their values into raw SQL strings.
 
 ## Corpus Re-capture Checklist
 
@@ -269,11 +269,11 @@ Script note: Python's default `urllib` user-agent gets blocked by Cloudflare bot
 7. In parallel: embed raw message text, fetch capture voice from `capture_profiles`, send `typing` action
 8. Call `match_notes(embedding, threshold, count=5)` for related notes
 9. Call capture LLM with (system frame + capture voice) + raw message + related notes + today's date
-10. Parse JSON response, validate all 7 fields with logged fallback defaults
+10. Parse JSON response, validate all 6 fields with logged fallback defaults
 11. Re-embed with metadata augmentation (`buildEmbeddingInput`). On failure, fall back to raw embedding and log `augmented_embed_fallback`
-12. Insert note into `notes` with augmented embedding, `raw_input`, `entities`, `corrections`, `embedded_at`; insert links into `links`
+12. Insert note into `notes` with augmented embedding, `raw_input`, `corrections`, `embedded_at`; insert links into `links`
 13. In parallel: insert two `enrichment_log` rows (capture + embedding); send HTML-formatted confirmation to Telegram
-14. Telegram reply format: bold title, separator line, body, italic `tags` line, optional Linked/Corrections/Source/Entities lines. Message capped at 4096 chars.
+14. Telegram reply format: bold title, separator line, body, italic `tags` line, optional Linked/Corrections/Source lines. Message capped at 4096 chars.
 15. On any error in steps 7–13: send generic error to Telegram, log full details to console
 
 ## Capture Agent Output Format
@@ -287,7 +287,6 @@ The LLM returns this JSON and nothing else:
   "tags": ["...", "..."],
   "source_ref": null,
   "corrections": ["garbled → corrected"] | null,
-  "entities": [{"name": "...", "type": "person|place|tool|project|concept"}],
   "links": [
     { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of|duplicate-of" }
   ]
@@ -295,8 +294,6 @@ The LLM returns this JSON and nothing else:
 ```
 
 **Link types:** `extends` = builds on/deepens; `contradicts` = challenges; `supports` = reinforces or parallel/sibling idea toward same goal; `is-example-of` = concrete instance; `duplicate-of` = covers substantially the same content as an existing note (note is still created; deduplication is a gardening concern).
-
-**Entity extraction:** proper nouns only, explicitly in the input — not from related notes, not from training data. Use corrected name from `corrections` field if applicable.
 
 ## Schema (v3)
 
@@ -332,7 +329,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 8 tools (`search_notes`, `search_chunks`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Also hosts `CaptureService` entrypoint for Service Binding RPC (PR #90, issue #46) — single capture pipeline for all gateways. Tagged `v2.0.0`.
 - **Phase 2b (complete):** Gardening pipeline — nightly similarity linker, SKOS tag normalization, chunk generation. Maturity scoring deferred. Tagged `v2.5.0`.
 - **Phase 2c (complete):** OAuth 2.1 for MCP server. Authorization Code + PKCE via `@cloudflare/workers-oauth-provider`, DCR enabled, `resolveExternalToken` for static token bypass, consent page protected by `CONSENT_SECRET`. Verified with Claude.ai web connector. Cursor/ChatGPT verification deferred (#102). Tagged `v3.0.0`.
-- **v3.1.0 (complete):** Drop type/intent/modality from capture pipeline (#110). Clean-slate v3 schema. 10-field → 7-field LLM contract. Embedding format simplified to `[Tags: ...] text`. Corpus re-captured from raw_input.
+- **v3.1.0 (complete):** Drop type/intent/modality from capture pipeline (#110). Clean-slate v3 schema. 10-field → 7-field → 6-field LLM contract (entities removed from capture in #113). Embedding format simplified to `[Tags: ...] text`. Corpus re-captured from raw_input.
 - **Phase 3 (deferred):** Associative trails, location extraction.
 
 ## Deploy
@@ -382,7 +379,7 @@ The system captures idea fragments — whatever the user sends, in their own voi
 
 ### Capture LLM contract
 
-**Keeps:** title (retrieval scanning), corrections (voice/typo/entity), entity extraction, tags, linking. All serve retrieval or user feedback.
+**Keeps:** title (retrieval scanning), corrections (voice/typo fixes), tags, linking. All serve retrieval or user feedback.
 
 **Must not:** compress input, hallucinate, add inferred meanings, change input destructively, add conclusions the user didn't express. The body is transcription, not synthesis. `raw_input` is the irreplaceable source of truth.
 
@@ -398,7 +395,7 @@ The system is a faithful mirror, not a co-author. This applies to the capture pi
 
 The single capture path is implemented (PR #90, issue #46): the Telegram Worker delegates to the MCP Worker via Service Binding. The MCP agent training pattern (#107) will make capture guidance queryable — agents call a training tool and learn what the system expects.
 
-The `raw_input` column preserves the user's exact words. The structured note (title, body, tags, links) is the LLM's interpretation — useful for retrieval, but the raw input is the irreplaceable source of truth and must never be discarded.
+The `raw_input` column preserves the user's exact words. The structured fragment (title, body, tags, links) is the LLM's interpretation — useful for retrieval, but the raw input is the irreplaceable source of truth and must never be discarded.
 
 A synthesis layer (#116) is planned: the gardener will detect clusters of related fragments and generate MOC-like summaries. The trust contract constrains this — synthesis must be analytical and traceable, never inferential. Design is open; see #116.
 
