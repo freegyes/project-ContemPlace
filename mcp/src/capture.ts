@@ -21,13 +21,10 @@ Input may come from voice dictation or quick typing. Before anything else:
 **source_ref**: URL if the user included one, otherwise null.
 
 **Links**: for each related note provided, decide if a typed relationship applies.
-Types: \`extends | contradicts | supports | is-example-of | duplicate-of\`
-- \`extends\` — builds on, deepens, or expands the other note's idea
+Types: \`contradicts | related\`
 - \`contradicts\` — challenges or is in tension with it
-- \`supports\` — provides evidence, reinforces, or is a parallel/sibling idea toward the same goal
-- \`is-example-of\` — a concrete instance of the other note's concept
-- \`duplicate-of\` — the new fragment covers substantially the same content as the related note. Test: if you would give the new fragment the same or nearly identical title as the related note, it is a duplicate. Use \`duplicate-of\`, not \`supports\`. Still create the note — deduplication is a gardening concern, not a capture concern.
-Prefer more links over fewer. It is fine to link to zero notes.
+- \`related\` — builds on, deepens, supports, parallels, is an example of, or otherwise connects to it
+Prefer fewer links over many. It is fine to link to zero notes.
 
 If the input is very short, do your best. Do not ask for clarification.
 
@@ -41,7 +38,7 @@ Return valid JSON only. No text outside the JSON object.
   "source_ref": null,
   "corrections": ["garbled → corrected"] | null,
   "links": [
-    { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of|duplicate-of" }
+    { "to_id": "<uuid>", "link_type": "contradicts|related" }
   ]
 }`;
 
@@ -54,7 +51,7 @@ function buildSystemPrompt(captureVoice: string): string {
   return SYSTEM_FRAME + '\n\n' + captureVoice;
 }
 
-const VALID_LINK_TYPES: readonly CaptureLinkType[] = ['extends', 'contradicts', 'supports', 'is-example-of', 'duplicate-of'];
+const VALID_LINK_TYPES: readonly CaptureLinkType[] = ['contradicts', 'related'];
 
 export async function runCaptureAgent(
   client: OpenAI,

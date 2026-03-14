@@ -20,11 +20,10 @@ export interface Env {
 // ── Note Types ──────────────────────────────────────────────────────────────
 
 // Capture-time link types (LLM-assigned)
-export type CaptureLinkType = 'extends' | 'contradicts' | 'supports' | 'is-example-of' | 'duplicate-of';
+export type CaptureLinkType = 'contradicts' | 'related';
 
 // All link types (capture + gardening)
-export type LinkType = CaptureLinkType
-  | 'is-similar-to' | 'is-part-of' | 'follows' | 'is-derived-from';
+export type LinkType = CaptureLinkType | 'is-similar-to';
 
 export interface Entity {
   name: string;

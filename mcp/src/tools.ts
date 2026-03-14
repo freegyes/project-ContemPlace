@@ -2,15 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type OpenAI from 'openai';
 import type { Config } from './config';
 import { embedText } from './embed';
-import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, searchChunks,
-         listUnmatchedTags, insertConcept } from './db';
+import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes } from './db';
 import { runCapturePipeline } from './pipeline';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const VALID_SCHEMES = ['domains', 'tools', 'people', 'places'] as const;
 const SOURCE_RE = /^[a-zA-Z0-9_-]+$/;
-const PREF_LABEL_RE = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 function toolSuccess(result: unknown): object {
   return { content: [{ type: 'text', text: JSON.stringify(result) }], isError: false };
@@ -27,7 +24,7 @@ function clamp(val: number | undefined, min: number, max: number, def: number): 
 export const TOOL_DEFINITIONS = [
   {
     name: 'search_notes',
-    description: 'Search notes by meaning. Returns ranked results with body text included — no need to call get_note just to read content. Scores: above 0.50 is a strong match, 0.35–0.50 is moderate. For finding specific passages within long notes, use search_chunks instead.',
+    description: 'Search notes by meaning. Returns ranked results with body text included — no need to call get_note just to read content. Scores: above 0.50 is a strong match, 0.35–0.50 is moderate.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -63,7 +60,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'get_related',
-    description: 'Get all notes linked to a given note, in both directions. Link types: extends (builds on), contradicts (challenges), supports (reinforces or parallel effort), is-example-of (concrete instance), duplicate-of (same content as existing note), is-similar-to (auto-detected by gardener). The direction field shows whether the queried note is source (outbound) or target (inbound). created_by distinguishes capture-time links from gardener-detected ones.',
+    description: 'Get all notes linked to a given note, in both directions. Link types: contradicts (challenges), related (builds on, supports, parallels), is-similar-to (auto-detected by gardener). The direction field shows whether the queried note is source (outbound) or target (inbound). created_by distinguishes capture-time links from gardener-detected ones.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -83,44 +80,6 @@ export const TOOL_DEFINITIONS = [
         source: { type: 'string', description: 'Identifies where this note came from. Default "mcp" is fine. Use a specific label when known — e.g., "claude-code", "obsidian-import". Alphanumeric/hyphens/underscores, max 100 chars.' },
       },
       required: ['raw_input'],
-    },
-  },
-  {
-    name: 'list_unmatched_tags',
-    description: 'List tags that don\'t match any concept in the controlled vocabulary, ordered by frequency. Part of the curation workflow: list unmatched tags → review with the user → promote worthy ones via promote_concept (which enables synonym collapse on the next gardener run). Surface these opportunistically during knowledge browsing — do not auto-promote without user input.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        min_count: { type: 'number', description: 'Only show tags that appear on at least this many notes (default 1, max 100)' },
-      },
-      required: [],
-    },
-  },
-  {
-    name: 'promote_concept',
-    description: 'Add a new concept to the controlled vocabulary. On the next gardener run, notes tagged with the pref_label or any alt_label get their refined_tags normalized to the canonical label. Always confirm with the user before promoting. Include alt_labels for all known synonyms — this is what enables normalization.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        pref_label: { type: 'string', description: 'Canonical label in kebab-case (e.g. "laser-cutting"), max 100 chars' },
-        scheme: { type: 'string', enum: ['domains', 'tools', 'people', 'places'], description: 'Vocabulary scheme: domains (topic areas like "woodworking"), tools (software/hardware like "obsidian"), people (named individuals), places (locations)' },
-        alt_labels: { type: 'array', items: { type: 'string' }, description: 'Synonym labels for tag normalization — include all known variants (max 20, each max 100 chars)' },
-        definition: { type: 'string', description: 'Short definition (max 500 chars). Improves semantic matching accuracy for fuzzy tag resolution.' },
-      },
-      required: ['pref_label', 'scheme'],
-    },
-  },
-  {
-    name: 'search_chunks',
-    description: 'Search within note paragraphs by semantic similarity. Only notes with body > 1500 characters are chunked — most short notes only appear in search_notes. Use this when looking for specific information buried in a longer note (e.g., imports, detailed write-ups). Results include parent note metadata (tags).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Natural language search query, max 1000 characters' },
-        limit: { type: 'number', description: 'Number of results to return (default 10, max 50)' },
-        threshold: { type: 'number', description: 'Minimum similarity score (default 0.35, range 0.0–1.0)' },
-      },
-      required: ['query'],
     },
   },
 ];
@@ -211,122 +170,6 @@ export async function handleGetRelated(
   } catch (err) {
     console.error(JSON.stringify({ event: 'get_related_error', error: String(err), id }));
     return toolError('Database error. Try again.');
-  }
-}
-
-// Normalize a label to kebab-case: lowercase, trim, spaces→hyphens, strip invalid chars.
-function normalizeLabel(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-export async function handleListUnmatchedTags(
-  args: Record<string, unknown>,
-  db: SupabaseClient,
-): Promise<object> {
-  const minCount = clamp(args['min_count'] as number | undefined, 1, 100, 1);
-
-  try {
-    const tags = await listUnmatchedTags(db, minCount);
-    return toolSuccess({ tags, count: tags.length });
-  } catch (err) {
-    console.error(JSON.stringify({ event: 'list_unmatched_tags_error', error: String(err) }));
-    return toolError('Database error. Try again.');
-  }
-}
-
-export async function handlePromoteConcept(
-  args: Record<string, unknown>,
-  db: SupabaseClient,
-): Promise<object> {
-  // Validate scheme
-  const scheme = args['scheme'];
-  if (typeof scheme !== 'string') return toolError('scheme is required');
-  if (!(VALID_SCHEMES as readonly string[]).includes(scheme)) {
-    return toolError(`Invalid scheme: "${scheme}". Must be one of: ${VALID_SCHEMES.join(', ')}`);
-  }
-
-  // Validate and normalize pref_label
-  const rawLabel = args['pref_label'];
-  if (typeof rawLabel !== 'string' || rawLabel.trim().length === 0) return toolError('pref_label is required');
-  if (rawLabel.length > 100) return toolError('pref_label exceeds 100 character limit');
-  const prefLabel = normalizeLabel(rawLabel);
-  if (!PREF_LABEL_RE.test(prefLabel)) return toolError(`Invalid pref_label after normalization: "${prefLabel}"`);
-
-  // Validate alt_labels
-  let altLabels: string[] = [];
-  if (Array.isArray(args['alt_labels'])) {
-    if (args['alt_labels'].length > 20) return toolError('alt_labels exceeds 20 element limit');
-    for (const label of args['alt_labels']) {
-      if (typeof label !== 'string') return toolError('Each alt_label must be a string');
-      if (label.length > 100) return toolError(`alt_label "${label}" exceeds 100 character limit`);
-    }
-    altLabels = [...new Set(
-      (args['alt_labels'] as string[]).map(l => l.toLowerCase().trim()).filter(l => l.length > 0),
-    )];
-  }
-
-  // Validate definition
-  let definition: string | null = null;
-  if (typeof args['definition'] === 'string') {
-    if (args['definition'].length > 500) return toolError('definition exceeds 500 character limit');
-    definition = args['definition'].trim() || null;
-  }
-
-  try {
-    const concept = await insertConcept(db, scheme, prefLabel, altLabels, definition);
-    return toolSuccess({
-      id: concept.id,
-      scheme: concept.scheme,
-      pref_label: concept.pref_label,
-      message: 'Concept created. Embedding and tag matching will be applied on the next gardener run.',
-    });
-  } catch (err) {
-    const msg = String(err);
-    if (msg.includes('DUPLICATE')) {
-      return toolError(msg.replace('DUPLICATE: ', ''));
-    }
-    console.error(JSON.stringify({ event: 'promote_concept_error', error: msg }));
-    return toolError('Database error. Try again.');
-  }
-}
-
-export async function handleSearchChunks(
-  args: Record<string, unknown>,
-  db: SupabaseClient,
-  openai: OpenAI,
-  config: Config,
-): Promise<object> {
-  const query = args['query'];
-  if (typeof query !== 'string' || query.length === 0) return toolError('query is required');
-  if (query.length > 1000) return toolError('query exceeds 1000 character limit');
-
-  const limit = clamp(args['limit'] as number | undefined, 1, 50, 10);
-  const threshold = clamp(args['threshold'] as number | undefined, 0, 1, config.searchThreshold);
-
-  try {
-    const embedding = await embedText(openai, config, query);
-    const results = await searchChunks(db, embedding, threshold, limit);
-    return toolSuccess({
-      results: results.map(c => ({
-        chunk_id: c.chunk_id,
-        note_id: c.note_id,
-        note_title: c.note_title,
-        note_tags: c.note_tags,
-        chunk_index: c.chunk_index,
-        content: c.content,
-        score: c.similarity,
-      })),
-      count: results.length,
-    });
-  } catch (err) {
-    console.error(JSON.stringify({ event: 'search_chunks_error', error: String(err) }));
-    return toolError('Chunk search failed. Try again.');
   }
 }
 

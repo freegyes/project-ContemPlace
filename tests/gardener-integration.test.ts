@@ -185,7 +185,7 @@ describe('Gardener integration — is-similar-to links via get_related', () => {
   it('noteA may have both capture-time and gardener links (no dedup collision)', async () => {
     const links = await getRelated(noteA.id);
     // noteB was captured after noteA, so the capture pipeline may have created
-    // a capture-time link (extends/supports) in addition to the gardener is-similar-to.
+    // a capture-time link (contradicts/related) in addition to the gardener is-similar-to.
     // Both should appear — they are different link types.
     const toB = links.filter(l => l.to_id === noteB.id);
     const gardenerLinks = toB.filter(l => l.created_by === 'gardener');

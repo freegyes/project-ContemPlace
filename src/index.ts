@@ -116,7 +116,7 @@ async function processCapture(
 // spot behavioral patterns at a glance without reading every label.
 
 const LINK_EMOJI: Record<string, string> = {
-  extends: '🔗', contradicts: '⚡', supports: '🤝', 'is-example-of': '📐', 'duplicate-of': '♊',
+  contradicts: '⚡', related: '🔗',
 };
 function formatTelegramReply(result: ServiceCaptureResult): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

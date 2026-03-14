@@ -66,7 +66,7 @@ echo ""
 
 # ── Step 3: Unit tests ────────────────────────────────────────────────────────
 echo "▶  3/7  Unit tests..."
-npx vitest run tests/parser.test.ts tests/gardener-similarity.test.ts tests/gardener-normalize.test.ts tests/gardener-embed.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts
+npx vitest run tests/parser.test.ts tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts
 echo ""
 
 # ── Step 4: Deploy MCP Worker (must deploy before Telegram — Service Binding target) ─

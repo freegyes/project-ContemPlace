@@ -15,18 +15,12 @@ vi.mock('../mcp/src/tools', () => ({
     { name: 'list_recent', description: 'List', inputSchema: { type: 'object', properties: {} } },
     { name: 'get_related', description: 'Related', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
     { name: 'capture_note', description: 'Capture', inputSchema: { type: 'object', properties: { raw_input: { type: 'string' } }, required: ['raw_input'] } },
-    { name: 'list_unmatched_tags', description: 'List unmatched', inputSchema: { type: 'object', properties: {} } },
-    { name: 'promote_concept', description: 'Promote', inputSchema: { type: 'object', properties: { pref_label: { type: 'string' }, scheme: { type: 'string' } }, required: ['pref_label', 'scheme'] } },
-    { name: 'search_chunks', description: 'Search chunks', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } },
   ],
   handleSearchNotes: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleGetNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleListRecent: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleGetRelated: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleCaptureNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
-  handleListUnmatchedTags: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
-  handlePromoteConcept: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
-  handleSearchChunks: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
 }));
 
 vi.mock('cloudflare:workers', () => ({
@@ -53,7 +47,7 @@ vi.mock('../mcp/src/pipeline', () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 import { handleMcpRequest } from '../mcp/src/index';
-import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleListUnmatchedTags, handlePromoteConcept, handleSearchChunks } from '../mcp/src/tools';
+import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote } from '../mcp/src/tools';
 
 const MOCK_TOOL_RESULT = { content: [{ type: 'text', text: '{"ok":true}' }], isError: false };
 
@@ -165,11 +159,11 @@ describe('handleMcpRequest — JSON-RPC dispatch', () => {
       expect(Array.isArray(tools)).toBe(true);
     });
 
-    it('returns exactly 8 tool definitions', async () => {
+    it('returns exactly 5 tool definitions', async () => {
       const res = await dispatch('tools/list');
       const body = await parseRpc(res);
       const tools = (body['result'] as Record<string, unknown>)?.['tools'] as unknown[];
-      expect(tools).toHaveLength(8);
+      expect(tools).toHaveLength(5);
     });
 
     it('each tool definition has name, description, inputSchema', async () => {
@@ -208,21 +202,6 @@ describe('handleMcpRequest — JSON-RPC dispatch', () => {
     it('dispatches to handleCaptureNote for name="capture_note"', async () => {
       await dispatch('tools/call', { name: 'capture_note', arguments: { raw_input: 'hello' } });
       expect(vi.mocked(handleCaptureNote)).toHaveBeenCalledOnce();
-    });
-
-    it('dispatches to handleListUnmatchedTags for name="list_unmatched_tags"', async () => {
-      await dispatch('tools/call', { name: 'list_unmatched_tags', arguments: {} });
-      expect(vi.mocked(handleListUnmatchedTags)).toHaveBeenCalledOnce();
-    });
-
-    it('dispatches to handlePromoteConcept for name="promote_concept"', async () => {
-      await dispatch('tools/call', { name: 'promote_concept', arguments: { pref_label: 'test', scheme: 'domains' } });
-      expect(vi.mocked(handlePromoteConcept)).toHaveBeenCalledOnce();
-    });
-
-    it('dispatches to handleSearchChunks for name="search_chunks"', async () => {
-      await dispatch('tools/call', { name: 'search_chunks', arguments: { query: 'test' } });
-      expect(vi.mocked(handleSearchChunks)).toHaveBeenCalledOnce();
     });
 
     it('returns -32601 for an unknown tool name', async () => {

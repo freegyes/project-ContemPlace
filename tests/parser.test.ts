@@ -43,23 +43,34 @@ describe('parseCaptureResponse', () => {
   it('filters links with invalid link_type', () => {
     const result = parseCaptureResponse(make({
       links: [
-        { to_id: '123', link_type: 'extends' },
+        { to_id: '123', link_type: 'contradicts' },
         { to_id: '456', link_type: 'is-similar-to' },
       ],
     }));
     expect(result.links).toHaveLength(1);
-    expect(result.links[0]!.link_type).toBe('extends');
+    expect(result.links[0]!.link_type).toBe('contradicts');
   });
 
-  it('accepts duplicate-of link type', () => {
+  it('accepts related link type', () => {
     const result = parseCaptureResponse(make({
       links: [
-        { to_id: '123', link_type: 'duplicate-of' },
-        { to_id: '456', link_type: 'extends' },
+        { to_id: '123', link_type: 'related' },
+        { to_id: '456', link_type: 'contradicts' },
       ],
     }));
     expect(result.links).toHaveLength(2);
-    expect(result.links[0]!.link_type).toBe('duplicate-of');
+    expect(result.links[0]!.link_type).toBe('related');
+  });
+
+  it('rejects old link types', () => {
+    const result = parseCaptureResponse(make({
+      links: [
+        { to_id: '123', link_type: 'extends' },
+        { to_id: '456', link_type: 'supports' },
+        { to_id: '789', link_type: 'duplicate-of' },
+      ],
+    }));
+    expect(result.links).toHaveLength(0);
   });
 
   it('throws on non-JSON string', () => {
