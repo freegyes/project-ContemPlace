@@ -35,15 +35,7 @@ supabase link --project-ref YOUR_PROJECT_REF -p YOUR_DB_PASSWORD
 supabase db push --linked --yes
 ```
 
-The migration creates 8 tables, RLS policies, RPC functions (`match_notes`, `batch_update_refined_tags`, `find_similar_pairs`), HNSW vector indexes, and seeds the default capture voice profile.
-
-### Seed SKOS vocabulary (optional)
-
-Run the starter concepts in the Supabase SQL editor if you want initial concept vocabulary for tag normalization:
-
-```bash
-# paste contents of supabase/seed/seed_concepts.sql into Supabase SQL editor
-```
+The migrations create 5 tables, RLS policies, RPC functions (`match_notes`, `find_similar_pairs`), HNSW vector indexes, and seed the default capture voice profile.
 
 ## 3. Deploy the Telegram capture Worker
 
@@ -170,7 +162,6 @@ curl -X POST "https://contemplace-gardener.YOUR_SUBDOMAIN.workers.dev/trigger" \
 | Variable | Default | Description |
 |---|---|---|
 | `GARDENER_SIMILARITY_THRESHOLD` | `0.70` | Cosine similarity floor for `is-similar-to` links (augmented-vs-augmented) |
-| `GARDENER_TAG_MATCH_THRESHOLD` | `0.55` | Cosine similarity floor for tag → concept matching |
 
 Defaults live in `gardener/src/config.ts`. Override via `gardener/wrangler.toml` `[vars]`.
 

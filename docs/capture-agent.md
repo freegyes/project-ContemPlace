@@ -61,24 +61,16 @@ The agent receives the top 5 semantically related notes (with their titles and b
 
 | Type | Meaning |
 |---|---|
-| `extends` | Builds on, deepens, or continues a prior note |
-| `contradicts` | Challenges or stands in tension with a prior note |
-| `supports` | Reinforces, provides evidence for, or runs parallel toward the same goal |
-| `is-example-of` | A concrete instance of a more abstract prior note |
-| `duplicate-of` | Covers substantially the same content as an existing note — same topic, detail, angle. Heuristic: if the new note would get the same or nearly identical title as the related note, it's a duplicate. Use `duplicate-of`, not `supports`. The note is still created; deduplication is a gardening concern. |
+| `contradicts` | Challenges or stands in tension with a prior note. The only capture-time type that surfaces information vector similarity alone cannot detect — similar embeddings mean similar topic, not opposing positions. |
+| `related` | Any other meaningful connection: builds on, reinforces, exemplifies, parallels. The generic default when notes are connected but not in tension. |
 
-`supports` was broadened after real usage showed that sibling projects (e.g., two kitchen improvement ideas) weren't being linked because none of the original four types fit cleanly. Now `supports` covers both "provides evidence for" and "is a parallel effort toward the same goal."
+> **History (v4 simplification, 2026-03-14):** Originally 5 capture-time types (`extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`). Empirical analysis of 224 links showed `supports` accounted for 82.5% — a catch-all default, not a real classification. Only `contradicts` (6 links, all correct) added information beyond proximity. The rest were collapsed to `related`. See ADR "Simplify link types" in `decisions.md`.
 
 ### Link types (gardening-time)
-
-Four additional types are assigned by the gardener Worker, not the capture agent:
 
 | Type | Source | Status |
 |---|---|---|
 | `is-similar-to` | Auto-generated from vector similarity above threshold (0.70) | ✅ Live |
-| `is-part-of` | Hierarchical grouping — planned for brain dump splitting (sibling notes from same input) | Planned |
-| `follows` | Temporal sequence | Planned |
-| `is-derived-from` | One note produced from another | Planned |
 
 `is-similar-to` links include auto-generated context from shared tags, and `confidence` = cosine similarity score. Created by the gardener's similarity linker phase (clean-slate delete + reinsert each run).
 

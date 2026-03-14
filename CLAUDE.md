@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-ContemPlace is a cloud-hosted personal memory system. Telegram → Cloudflare Worker → structured note in Postgres (pgvector) → confirmation back to Telegram. An MCP server (Phase 2a, complete) exposes the note graph to AI agents via semantic search. Phase 2b (next) adds a gardening pipeline for nightly enrichment.
+ContemPlace is a cloud-hosted personal memory system. Telegram → Cloudflare Worker → structured note in Postgres (pgvector) → confirmation back to Telegram. An MCP server (Phase 2a, complete) exposes the note graph to AI agents via semantic search. A gardening pipeline (Phase 2b) runs nightly similarity linking.
 
 It is not a notes app. Notes are written by the capture agent, not the user. Users send raw input and receive confirmations. The raw input is always preserved alongside the structured note.
 
@@ -59,7 +59,7 @@ mcp/
     index.ts         # OAuthProvider setup, CaptureService entrypoint (WorkerEntrypoint), McpApiHandler, resolveExternalToken bypass
     pipeline.ts      # Single source of truth for capture logic — called by Service Binding RPC + capture_note tool
     oauth.ts         # Consent page HTML renderer + AuthHandler (GET/POST /authorize)
-    tools.ts         # Tool definitions + handlers (search_notes, search_chunks, get, list, capture, list_unmatched_tags, promote_concept)
+    tools.ts         # Tool definitions + handlers (search_notes, get_note, list_recent, get_related, capture_note)
     auth.ts          # Bearer token auth (validateAuth, isStaticTokenRequest, timingSafeEqual — constant-time comparison)
     config.ts        # Config loading with secret validation
     db.ts            # DB read/write functions (fetchNote, listRecentNotes, searchNotes, insertNote, …)
@@ -70,45 +70,37 @@ gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
   src/
-    index.ts         # scheduled() + fetch() exports — orchestrates tag normalization + similarity linking + chunk generation
-    config.ts        # Config loading (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, thresholds, optional OPENROUTER_API_KEY)
-    db.ts            # Similarity DB ops + tag normalization DB ops + chunk generation DB ops
-    embed.ts         # embedText, batchEmbedTexts — OpenRouter via openai SDK (copy of src/embed.ts pattern)
-    normalize.ts     # Tag matching logic: lexicalMatch, semanticMatch, cosineSimilarity, resolveNoteTags
+    index.ts         # scheduled() + fetch() exports — orchestrates similarity linking
+    config.ts        # Config loading (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, thresholds)
+    db.ts            # Similarity DB ops
     similarity.ts    # buildContext() — auto-generates link context from shared tags
-    chunk.ts         # splitIntoChunks, buildChunkEmbeddingInput — paragraph-boundary splitting for long notes
     alert.ts         # sendAlert() — best-effort Telegram failure notification
     auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
-    types.ts         # Gardener-specific TypeScript interfaces (Concept, NoteForTagNorm, NoteForChunking, etc.)
+    types.ts         # Gardener-specific TypeScript interfaces
 scripts/
   deploy.sh          # Automated 7-step deploy pipeline (schema → typecheck → unit tests → MCP Worker → Telegram Worker → Gardener Worker → smoke tests)
 supabase/
   config.toml
   migrations/
-    20260314000000_v3_schema.sql   # Current schema (v3 — clean-slate, no type/intent/modality)
-  seed/
-    seed_concepts.sql              # SKOS starter vocabulary (~30 concepts, 4 schemes — run manually in SQL Editor)
+    20260314000000_v3_schema.sql   # Base schema (v3 — clean-slate, no type/intent/modality)
+    20260315000000_v4_simplification.sql  # Schema simplification (drop SKOS, chunking, simplify links)
 tests/
-  parser.test.ts              # Unit tests for mcp/src/capture.ts parseCaptureResponse (12 tests, no network)
+  parser.test.ts              # Unit tests for mcp/src/capture.ts parseCaptureResponse (no network)
   smoke.test.ts               # Smoke tests against the live Telegram Worker
   mcp-auth.test.ts            # Unit tests for mcp/src/auth.ts
   mcp-config.test.ts          # Unit tests for mcp/src/config.ts
-  mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts (5 tests)
-  mcp-tools.test.ts           # Unit tests for all 8 MCP tool handlers (mocked deps, no network)
-  mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (27 tests, no network)
-  mcp-index.test.ts           # Unit tests for OAuthProvider config + resolveExternalToken (15 tests)
-  mcp-oauth.test.ts           # Unit tests for consent page rendering, AuthHandler, CONSENT_SECRET validation (27 tests)
+  mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts
+  mcp-tools.test.ts           # Unit tests for all 5 MCP tool handlers (mocked deps, no network)
+  mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (no network)
+  mcp-index.test.ts           # Unit tests for OAuthProvider config + resolveExternalToken
+  mcp-oauth.test.ts           # Unit tests for consent page rendering, AuthHandler, CONSENT_SECRET validation
   mcp-smoke.test.ts           # Smoke tests against the live MCP Worker
-  semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (52 tests, hits live stack)
-  gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication (13 tests)
-  gardener-normalize.test.ts  # Unit tests for tag matching: lexicalMatch, semanticMatch, resolveNoteTags (23 tests)
-  gardener-embed.test.ts      # Parity tests for gardener/src/embed.ts vs mcp/src/embed.ts (2 tests)
-  gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig (12 tests)
-  gardener-alert.test.ts      # Unit tests for sendAlert() — Telegram alerting (10 tests)
-  gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing (13 tests)
-  gardener-chunk.test.ts      # Unit tests for splitIntoChunks and buildChunkEmbeddingInput (16 tests)
+  semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (hits live stack)
+  gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication
+  gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig
+  gardener-alert.test.ts      # Unit tests for sendAlert() — Telegram alerting
+  gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing
   gardener-integration.test.ts # Integration test: capture → gardener /trigger → get_related (live stack)
-  gardener-tag-norm.test.ts    # Integration test: capture → gardener → tag normalization verification (live stack)
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap)
 wrangler.toml        # Telegram Worker Cloudflare config
 package.json
@@ -148,8 +140,6 @@ GARDENER_API_KEY              # optional — enables POST /trigger endpoint (gen
 GARDENER_SIMILARITY_THRESHOLD  # default: 0.70 — augmented-vs-augmented cosine similarity.
                                 # Distinct from MATCH_THRESHOLD (0.60, raw query vs. augmented store)
                                 # and MCP_SEARCH_THRESHOLD (0.35, bare NL query vs. augmented store).
-GARDENER_TAG_MATCH_THRESHOLD   # default: 0.55 — bare tag string vs. concept definition embedding.
-                                # Fourth independent threshold. Tune via unmatched_tag log feedback.
 
 # Test-only
 WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
@@ -214,7 +204,7 @@ wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml          # option
 npx tsc --noEmit -p gardener/tsconfig.json
 
 # Run Gardener unit tests (local, no network)
-npx vitest run tests/gardener-similarity.test.ts tests/gardener-normalize.test.ts tests/gardener-embed.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts tests/gardener-chunk.test.ts
+npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
 
 # Run Gardener integration test (live stack — captures notes, triggers gardener, checks get_related)
 # Requires MCP_WORKER_URL, MCP_API_KEY, GARDENER_WORKER_URL, GARDENER_API_KEY in .dev.vars
@@ -253,12 +243,12 @@ When rebuilding the corpus from `raw_input` (e.g., after schema changes that aff
 5. **Apply schema** → deploy Workers in order (MCP → Telegram → Gardener)
 6. **Re-register webhook**
 7. **Re-capture** in chronological order (oldest first) so `match_notes` builds the link graph progressively
-8. **Trigger gardener** for similarity links and tag normalization
+8. **Trigger gardener** for similarity links
 9. **Run all test suites** — smoke, integration, semantic
 
 Script note: Python's default `urllib` user-agent gets blocked by Cloudflare bot protection (error 1010). Always set a custom `User-Agent` header when hitting CF Workers from scripts.
 
-## Capture Logic (v3)
+## Capture Logic (v4)
 
 1. Worker receives Telegram webhook POST
 2. Verify `x-telegram-bot-api-secret-token` header — return 403 if missing/wrong
@@ -288,26 +278,23 @@ The LLM returns this JSON and nothing else:
   "source_ref": null,
   "corrections": ["garbled → corrected"] | null,
   "links": [
-    { "to_id": "<uuid>", "link_type": "extends|contradicts|supports|is-example-of|duplicate-of" }
+    { "to_id": "<uuid>", "link_type": "contradicts|related" }
   ]
 }
 ```
 
-**Link types:** `extends` = builds on/deepens; `contradicts` = challenges; `supports` = reinforces or parallel/sibling idea toward same goal; `is-example-of` = concrete instance; `duplicate-of` = covers substantially the same content as an existing note (note is still created; deduplication is a gardening concern).
+**Link types:** `contradicts` = challenges or stands in tension with a prior note; `related` = any other meaningful connection (builds on, reinforces, exemplifies, etc.).
 
-## Schema (v3)
+## Schema (v4)
 
-8 tables total:
-- `notes` — core notes with entities, corrections, summary, refined_tags, categories, metadata, importance_score, maturity, archived_at, embedding, embedded_at, content_tsv (no type/intent/modality — dropped in v3)
-- `links` — 9 link types (5 capture-time + 4 gardening-time); includes context, confidence, created_by
-- `concepts` — SKOS controlled vocabulary (scheme, pref_label, alt_labels, definition, embedding)
-- `note_concepts` — junction: notes ↔ concepts
-- `note_chunks` — RAG chunks for long notes (deferred to gardening pipeline)
+5 tables total:
+- `notes` — core notes with entities, corrections, summary, categories, metadata, archived_at, embedding, embedded_at, content_tsv
+- `links` — 3 link types: `contradicts`, `related` (capture-time), `is-similar-to` (gardening-time); includes context, confidence, created_by
 - `enrichment_log` — audit trail per note per enrichment type
 - `capture_profiles` — user-editable stylistic prompt rules; seeded with 'default' profile
 - `processed_updates` — Telegram dedup
 
-RPC functions in `public` schema: `match_notes` (hybrid vector + full-text, 6 params), `match_chunks` (chunk-level vector search, returns note metadata), `batch_update_refined_tags` (JSONB batch update), `find_similar_pairs` (self-join cosine similarity).
+RPC functions in `public` schema: `match_notes` (hybrid vector + full-text, 6 params), `find_similar_pairs` (self-join cosine similarity).
 
 ## Registering the Telegram Webhook
 
@@ -326,10 +313,11 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 
 - **Phase 1 (complete):** Schema (notes, links, processed_updates), Telegram bot, Cloudflare Worker with async capture, chat ID whitelist, single capture mode, confirmation replies.
 - **Phase 1.5 (complete):** Schema v2 (8 tables), metadata-augmented embeddings, `intent`/`modality`/`entities` extraction, capture voice in DB, enrichment log, expanded link types, parser unit tests. Deployed and verified via smoke tests.
-- **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing 8 tools (`search_notes`, `search_chunks`, `get_note`, `list_recent`, `get_related`, `capture_note`, `list_unmatched_tags`, `promote_concept`) over JSON-RPC 2.0. Also hosts `CaptureService` entrypoint for Service Binding RPC (PR #90, issue #46) — single capture pipeline for all gateways. Tagged `v2.0.0`.
-- **Phase 2b (complete):** Gardening pipeline — nightly similarity linker, SKOS tag normalization, chunk generation. Maturity scoring deferred. Tagged `v2.5.0`.
+- **Phase 2a (complete):** MCP server — separate Cloudflare Worker exposing tools over JSON-RPC 2.0. Also hosts `CaptureService` entrypoint for Service Binding RPC (PR #90, issue #46) — single capture pipeline for all gateways. Tagged `v2.0.0`.
+- **Phase 2b (complete):** Gardening pipeline — nightly similarity linker. Originally included SKOS tag normalization and chunk generation, both removed in v4.0.0 (#128). Tagged `v2.5.0`.
 - **Phase 2c (complete):** OAuth 2.1 for MCP server. Authorization Code + PKCE via `@cloudflare/workers-oauth-provider`, DCR enabled, `resolveExternalToken` for static token bypass, consent page protected by `CONSENT_SECRET`. Verified with Claude.ai web connector. Cursor/ChatGPT verification deferred (#102). Tagged `v3.0.0`.
 - **v3.1.0 (complete):** Drop type/intent/modality from capture pipeline (#110). Clean-slate v3 schema. 10-field → 7-field → 6-field LLM contract (entities removed from capture in #113). Embedding format simplified to `[Tags: ...] text`. Corpus re-captured from raw_input.
+- **v4.0.0 (complete):** Schema simplification bundle (#128, PR #131). Dropped 3 tables (concepts, note_concepts, note_chunks), 3 columns (refined_tags, maturity, importance_score), 2 RPC functions (match_chunks, batch_update_refined_tags). Link types simplified from 9 → 3 (contradicts, related, is-similar-to). MCP tools reduced from 8 → 5. Gardener simplified to similarity linking only.
 - **Phase 3 (deferred):** Associative trails, location extraction.
 
 ## Deploy
@@ -368,8 +356,8 @@ The irreducible core is the **database + MCP surface**. That is the product. Eve
 Three layers, each with a clear job:
 
 1. **Input** — get stuff into the database. The Telegram bot for quick on-the-go capture. Any MCP-capable agent (Claude.ai via OAuth, Claude Code via static token, custom scripts) for agent-mediated capture. The `capture_note` MCP tool is the universal input gate — the Telegram bot is one client of it.
-2. **Enrichment** — the gardening pipeline. This is the quality guarantee. No matter how raw or messy the input, gardening produces: similarity links, tag normalization, chunks for retrieval. It's what makes the database *useful* rather than just full.
-3. **Retrieval** — agents query the enriched graph via MCP. Vector search, chunk search, semantic tools. This is where the value compounds. The primary access pattern is agent-driven, not human-driven.
+2. **Enrichment** — the gardening pipeline. This is the quality guarantee. No matter how raw or messy the input, gardening produces similarity links. It's what makes the database *useful* rather than just full.
+3. **Retrieval** — agents query the enriched graph via MCP. Vector search, semantic tools. This is where the value compounds. The primary access pattern is agent-driven, not human-driven.
 
 ### Input quality: capture_note is a smart gate
 

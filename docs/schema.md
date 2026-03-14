@@ -1,6 +1,6 @@
 # Schema
 
-The v3 schema has 8 tables, 4 RPC functions, and indexes optimized for both vector similarity search and traditional filtering. All tables have RLS enabled with `deny all` policies — access is exclusively via the service role key.
+The v4 schema has 5 tables, 2 RPC functions, and indexes optimized for both vector similarity search and traditional filtering. All tables have RLS enabled with `deny all` policies — access is exclusively via the service role key.
 
 ## Tables
 
@@ -20,13 +20,10 @@ The core table. Each row is a captured note with both the user's raw input and t
 | `source_ref` | text | LLM | URL if present |
 | `source` | text | system | Always set. Currently `telegram`, `mcp`, or `semantic-test`. |
 | `corrections` | text[] | LLM | Voice dictation fixes |
-| `entities` | jsonb | LLM | `[{name, type}]` — proper nouns. New notes have empty arrays (`[]`); entity extraction moved out of capture pipeline (#113). Existing notes retain their entities. Column retained for future gardener-maintained entity extraction. |
+| `entities` | jsonb | LLM | `[{name, type}]` — proper nouns. New notes have empty arrays (`[]`); entity extraction moved out of capture pipeline (#113). Column retained for future gardener-maintained entity extraction. |
 | `summary` | text | gardener | Auto-generated summary (unpopulated) |
-| `refined_tags` | text[] | gardener | Normalized via SKOS — pref_labels only |
 | `categories` | text[] | gardener | Broad categories (unpopulated) |
 | `metadata` | jsonb | gardener | Extensible metadata |
-| `importance_score` | float | gardener | Unpopulated — may be dropped or repurposed (#116) |
-| `maturity` | text | gardener | Unpopulated — per-note labels rejected in favor of computed cluster-level analysis (#116) |
 | `archived_at` | timestamptz | user | Soft delete |
 | `embedding` | vector(1536) | system | Metadata-augmented embedding |
 | `embedded_at` | timestamptz | system | When embedding was computed |
@@ -53,75 +50,27 @@ Typed edges between notes. Capture-time links are created by the LLM; gardening-
 | `id` | uuid (PK) | |
 | `from_id` | uuid (FK → notes) | The newer note |
 | `to_id` | uuid (FK → notes) | The related note |
-| `link_type` | text | 9 allowed values (see below) |
+| `link_type` | text | 3 allowed values (see below) |
 | `context` | text | Why the link exists |
 | `confidence` | float | 1.0 for LLM/human links, <1.0 for auto-similarity |
 | `created_by` | text | `capture`, `gardener`, or `user` |
 | `created_at` | timestamptz | |
 
 **Link types:**
-- Capture-time: `extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`
-- Gardening-time: `is-similar-to` (live), `is-part-of`, `follows`, `is-derived-from`
+- Capture-time: `contradicts`, `related`
+- Gardening-time: `is-similar-to`
 
 **Unique constraint:** `(from_id, to_id, link_type)` — prevents duplicate links of the same type between the same pair.
 
-### concepts
-
-SKOS-inspired controlled vocabulary. Solves tag drift — "bike", "bicycle", and "cycling" all map to the same concept.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid (PK) | |
-| `scheme` | text | Namespace: `domains`, `tools`, `people`, `places` |
-| `pref_label` | text | Canonical name |
-| `alt_labels` | text[] | Synonyms |
-| `broader_id` | uuid (FK → concepts) | Hierarchical parent (unused, start flat) |
-| `definition` | text | Human-readable definition |
-| `embedding` | vector(1536) | For semantic matching in tag normalization |
-
-**Unique constraint:** `(scheme, pref_label)`
-
-Seeded with ~32 concepts across 4 schemes via `supabase/seed/seed_concepts.sql`. The v2 migration seeds 10 broad domain concepts; the seed file adds the full starter vocabulary with definitions.
-
-### note_concepts
-
-Junction table linking notes to concepts. Populated by the gardener's tag normalization phase.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid (PK) | |
-| `note_id` | uuid (FK → notes) | |
-| `concept_id` | uuid (FK → concepts) | |
-| `created_by` | text | `gardener` or `user` — prevents clean-slate deletes from destroying user-created rows |
-| `created_at` | timestamptz | |
-
-### note_chunks — being removed (#127)
-
-> **Decision (2026-03-14):** Chunking infrastructure is being removed. Fragments are the natural retrieval units — no note has ever exceeded the 1500-char threshold. See ADR in `decisions.md`. Removal is bundled with the schema simplification pass (#117 + #122 + #124 + #127).
-
-RAG chunks for long notes. The gardener's chunk generation phase splits notes with body > 1500 chars into ~500–800 char chunks at paragraph boundaries, embeds each chunk, and inserts here.
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid (PK) | |
-| `note_id` | uuid (FK → notes) | Parent note (ON DELETE CASCADE) |
-| `chunk_index` | integer | Order within the note |
-| `content` | text | Chunk text |
-| `embedding` | vector(1536) | Chunk-level embedding (title + tags prefix) |
-
-**Unique constraint:** `(note_id, chunk_index)`
-
-Has its own HNSW index for chunk-level similarity search via `match_chunks()`.
-
 ### enrichment_log
 
-Audit trail tracking what processing has been applied to each note. Records entries for capture, embedding, tag normalization, and unmatched tags.
+Audit trail tracking what processing has been applied to each note. Records entries for capture, embedding, and similarity linking.
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | uuid (PK) | |
 | `note_id` | uuid (FK → notes) | |
-| `enrichment_type` | text | `capture`, `embedding`, `augmented_embed_fallback`, `refined_tags`, `chunking`, `unmatched_tag`, etc. |
+| `enrichment_type` | text | `capture`, `embedding`, `augmented_embed_fallback`, etc. |
 | `model_used` | text | Model string used |
 | `metadata` | jsonb | Extensible — e.g., `{ body_hash: "sha256..." }` for chunk idempotency |
 | `completed_at` | timestamptz | |
@@ -176,36 +125,6 @@ Filters are composable — any combination of source, tags, and full-text search
 
 Excludes archived notes and notes without embeddings.
 
-### match_chunks — being removed (#127)
-
-> Being removed along with `note_chunks` table. See `note_chunks` note above.
-
-Chunk-level vector search for RAG retrieval. Used by the `search_chunks` MCP tool.
-
-```sql
-match_chunks(
-  query_embedding  vector(1536),
-  match_threshold  float    DEFAULT 0.5,
-  match_count      int      DEFAULT 20
-)
-```
-
-Returns: `chunk_id`, `note_id`, `chunk_index`, `content`, `note_title`, `note_tags`, `similarity`.
-
-Joins `note_chunks` with `notes` to include note metadata alongside chunk content. Excludes archived notes and chunks without embeddings. Uses `OPERATOR(extensions.<=>)` for pgvector cosine distance.
-
-### batch_update_refined_tags
-
-Batch update of `notes.refined_tags` from a JSONB payload. Replaces N individual UPDATE calls with a single RPC call to stay within CF Workers' subrequest budget.
-
-```sql
-batch_update_refined_tags(
-  updates  jsonb  -- array of { id: uuid, refined_tags: text[] }
-)
-```
-
-Returns: count of updated rows.
-
 ### find_similar_pairs
 
 Self-join cosine similarity search across all notes. Replaces N individual `match_notes` calls for the similarity linker.
@@ -221,7 +140,7 @@ Returns: `note_a`, `note_b`, `similarity`. Orders pairs with `note_a < note_b` t
 
 ## Row Level Security
 
-All 8 tables have RLS enabled with a single `deny all` policy. This means:
+All 5 tables have RLS enabled with a single `deny all` policy. This means:
 
 - The **anon key** has zero access to any table
 - The **service role key** bypasses RLS entirely (by design)

@@ -91,7 +91,7 @@ If the input is short, the body is short. If it contains questions, they stay as
 
 Some structure helps. Too much is rigid and forces the system into a shape it may not be supposed to take. Anything that encourages the emergent nature of a living system is preferred — but not at the cost of being an entropic, unusable mess.
 
-Good balance is the key. The system adds structure through capture (title, tags, links) and gardening (similarity links, tag normalization, synthesis) without requiring the user to impose it. Structure earns its keep through retrieval value, not through taxonomic completeness.
+Good balance is the key. The system adds structure through capture (title, tags, links) and gardening (similarity links, and eventually synthesis) without requiring the user to impose it. Structure earns its keep through retrieval value, not through taxonomic completeness.
 
 *Source: #116 (2026-03-14). Literature basis: Shipman & Marshall, "Formality Considered Harmful" (1999).*
 

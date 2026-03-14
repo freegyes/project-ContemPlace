@@ -14,19 +14,15 @@ npx vitest run tests/parser.test.ts \
   tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts \
   tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts \
   tests/mcp-index.test.ts tests/mcp-oauth.test.ts \
-  tests/gardener-similarity.test.ts tests/gardener-normalize.test.ts \
-  tests/gardener-embed.test.ts tests/gardener-config.test.ts \
-  tests/gardener-alert.test.ts tests/gardener-trigger.test.ts \
-  tests/gardener-chunk.test.ts
+  tests/gardener-similarity.test.ts tests/gardener-config.test.ts \
+  tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
 
 # Or individually:
-npx vitest run tests/parser.test.ts              # Capture response parsing (18 tests)
-npx vitest run tests/mcp-tools.test.ts           # All 8 MCP tool handlers (93 tests)
-npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch (27 tests)
-npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler (19 tests)
-npx vitest run tests/mcp-index.test.ts           # OAuthProvider + resolveExternalToken (15 tests)
-npx vitest run tests/gardener-normalize.test.ts  # Tag matching logic (23 tests)
-npx vitest run tests/gardener-chunk.test.ts      # Note chunking — being removed (#127)
+npx vitest run tests/parser.test.ts              # Capture response parsing
+npx vitest run tests/mcp-tools.test.ts           # All 5 MCP tool handlers
+npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch
+npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler
+npx vitest run tests/mcp-index.test.ts           # OAuthProvider + resolveExternalToken
 ```
 
 ### Smoke tests (live workers, requires `.dev.vars`)
@@ -102,7 +98,7 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
     index.ts      OAuthProvider setup, CaptureService entrypoint, McpApiHandler, resolveExternalToken bypass
     pipeline.ts   Single source of truth for capture logic (called by Service Binding RPC + capture_note tool)
     oauth.ts      Consent page HTML + AuthHandler (GET/POST /authorize)
-    tools.ts      All 8 tool handlers with input validation
+    tools.ts      All 5 tool handlers with input validation
     auth.ts       Bearer token auth + constant-time comparison
     config.ts     Config loading with validation
     db.ts         DB read/write functions
@@ -110,14 +106,11 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
     capture.ts    System frame, LLM call, response parser (parseCaptureResponse)
     types.ts      MCP-specific TypeScript interfaces + ServiceCaptureResult
   wrangler.toml
-gardener/         Gardener Worker (nightly enrichment pipeline)
+gardener/         Gardener Worker (nightly similarity linking)
   src/
-    index.ts      Cron-triggered entry point — orchestrates gardener phases
-    chunk.ts      Note chunking logic — being removed (#127)
-    normalize.ts  Tag matching: lexicalMatch, semanticMatch, resolveNoteTags
+    index.ts      Cron-triggered entry point — orchestrates similarity linking
     similarity.ts Link context builder (shared tags)
-    db.ts         Supabase operations (tag norm, similarity)
-    embed.ts      Embedding helpers (batchEmbedTexts)
+    db.ts         Supabase operations (similarity linking)
     alert.ts      Best-effort Telegram failure notification
     auth.ts       Bearer token auth for /trigger endpoint
     config.ts     Config loading with threshold validation
@@ -126,28 +119,24 @@ gardener/         Gardener Worker (nightly enrichment pipeline)
 scripts/
   deploy.sh       Automated 7-step deploy pipeline
 supabase/
-  migrations/     Schema migrations (v3 is current)
-  seed/           Concept vocabulary seeds
+  migrations/     Schema migrations (v4 is current)
 tests/
-  parser.test.ts          Capture response parsing (18)
+  parser.test.ts          Capture response parsing
   smoke.test.ts           Live Telegram Worker
-  mcp-auth.test.ts        MCP auth (8)
-  mcp-config.test.ts      MCP config loading (14)
-  mcp-embed.test.ts       Embedding helpers (7)
-  mcp-tools.test.ts       All 8 tool handlers (93)
-  mcp-index.test.ts       OAuthProvider + resolveExternalToken (15)
-  mcp-oauth.test.ts       Consent page + AuthHandler (19)
-  mcp-dispatch.test.ts    JSON-RPC dispatch (27)
-  mcp-smoke.test.ts       Live MCP Worker + OAuth discovery (27)
-  gardener-similarity.test.ts  buildContext + UUID dedup (13)
-  gardener-normalize.test.ts   Tag matching logic (23)
-  gardener-embed.test.ts       Embedding parity with mcp/src/embed.ts (2)
-  gardener-config.test.ts      Gardener config loading (12)
-  gardener-alert.test.ts       Telegram failure alerting (10)
-  gardener-trigger.test.ts     /trigger endpoint auth + routing (13)
-  gardener-chunk.test.ts       Note chunking — being removed (#127)
-  gardener-integration.test.ts capture → gardener → get_related (6)
-  semantic.test.ts             Tagging, linking, search quality (78)
+  mcp-auth.test.ts        MCP auth
+  mcp-config.test.ts      MCP config loading
+  mcp-embed.test.ts       Embedding helpers
+  mcp-tools.test.ts       All 5 tool handlers
+  mcp-index.test.ts       OAuthProvider + resolveExternalToken
+  mcp-oauth.test.ts       Consent page + AuthHandler
+  mcp-dispatch.test.ts    JSON-RPC dispatch
+  mcp-smoke.test.ts       Live MCP Worker + OAuth discovery
+  gardener-similarity.test.ts  buildContext + UUID dedup
+  gardener-config.test.ts      Gardener config loading
+  gardener-alert.test.ts       Telegram failure alerting
+  gardener-trigger.test.ts     /trigger endpoint auth + routing
+  gardener-integration.test.ts capture → gardener → get_related
+  semantic.test.ts             Tagging, linking, search quality
 docs/             Architecture, schema, decisions, roadmap
 ```
 
@@ -157,7 +146,6 @@ docs/             Architecture, schema, decisions, roadmap
 - **Smoke tests** (`smoke.test.ts`, `mcp-smoke.test.ts`) — hit live Workers, require `.dev.vars`. Test notes are prefixed `[SMOKE-TEST]` and cleaned up in `afterAll`
 - **Integration tests** (`gardener-integration.test.ts`) — exercise the full cycle against deployed Workers. Require `MCP_WORKER_URL`, `MCP_API_KEY`, `GARDENER_WORKER_URL`, `GARDENER_API_KEY` in `.dev.vars`
 - **Semantic tests** (`semantic.test.ts`) — quality assertions against real LLM output. Self-cleaning via `source='semantic-test'`. ~70s runtime
-- **Parity tests** (`gardener-embed.test.ts`) — enforces that gardener's embedding helpers stay in sync with `mcp/src/embed.ts`
 
 ## `.dev.vars` loading
 
@@ -174,8 +162,8 @@ to load specific vars for subcommands.
 | Document | Contents |
 |---|---|
 | [Architecture](architecture.md) | Async capture flow, two-pass embedding, prompt structure, error handling |
-| [Capture agent](capture-agent.md) | Classification taxonomy, entity extraction, linking logic, voice correction |
-| [Schema](schema.md) | All tables, RPC functions, indexes, RLS, concepts |
+| [Capture agent](capture-agent.md) | Linking logic, voice correction, fragment capture behavior |
+| [Schema](schema.md) | All tables, RPC functions, indexes, RLS |
 | [Design decisions](decisions.md) | Why this stack, key tradeoffs, lessons from real usage |
 | [Roadmap](roadmap.md) | Phase history and what's next |
 | [Setup](setup.md) | Full deploy guide — prerequisites, secrets, Worker deployment, config |

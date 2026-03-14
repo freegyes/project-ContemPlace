@@ -28,11 +28,12 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 | Component | State |
 |---|---|
 | Telegram capture bot | ✅ Live |
-| MCP server | ✅ Live — 8 tools |
-| Gardening pipeline | ✅ Complete — similarity linker, tag normalization · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
+| MCP server | ✅ Live — 5 tools |
+| Gardening pipeline | ✅ Complete — similarity linker · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
 | OAuth 2.1 (Claude.ai web) | ✅ Live — Auth Code + PKCE, DCR, static key fallback · [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
 | Dashboard | 💡 Planned — [#101](https://github.com/freegyes/project-ContemPlace/issues/101) |
 | Leaner capture (drop type/intent/modality) | ✅ Complete — [#110](https://github.com/freegyes/project-ContemPlace/issues/110) |
+| Schema simplification (v4) | ✅ Complete — drop SKOS, chunking, simplify links · [#128](https://github.com/freegyes/project-ContemPlace/issues/128) |
 | URL handling + input awareness | 💡 Design phase — [#27](https://github.com/freegyes/project-ContemPlace/issues/27) |
 | Import tools | 💡 Planned — [#13](https://github.com/freegyes/project-ContemPlace/issues/13), [#14](https://github.com/freegyes/project-ContemPlace/issues/14) |
 
@@ -43,7 +44,7 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 1. You send a thought — raw text, voice transcription, a link, whatever
 2. The capture agent gives it a title, corrects voice errors, tags it, and links it to related notes — your exact words are always preserved
 3. Enrichment is non-destructive: future agents can reinterpret the same raw input with better models
-4. A nightly gardener refines connections: similarity links, tag normalization
+4. A nightly gardener refines connections via similarity linking
 
 <div align="center">
 <img src="docs/assets/telegram-capture-demo.png" alt="Telegram bot capturing a note about withdiode.com — showing raw input, structured note with metadata, and link preview" width="320" />
@@ -53,7 +54,7 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 
 ## MCP tools
 
-The MCP server is the primary interface. Eight tools, usable by any MCP-capable agent:
+The MCP server is the primary interface. Five tools, usable by any MCP-capable agent:
 
 | Tool | What it does |
 |---|---|
@@ -62,9 +63,6 @@ The MCP server is the primary interface. Eight tools, usable by any MCP-capable 
 | `list_recent` | Most recent notes, newest first. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
 | `capture_note` | Pass raw words — the server runs the full capture pipeline. Do not pre-structure. |
-| `list_unmatched_tags` | Tags without concept matches, with frequency. Curation workflow. |
-| `promote_concept` | Add a concept to the controlled vocabulary for synonym normalization. |
-| `search_chunks` | Search within paragraphs of long notes. Being removed — see #127. |
 
 **Auth:** OAuth 2.1 (Authorization Code + PKCE) for browser clients like Claude.ai, or a static Bearer token for API/SDK callers like Claude Code CLI. Both paths are permanent.
 
@@ -76,7 +74,7 @@ The database + MCP server is the only required piece. Everything else is optiona
 |---|---|---|
 | **MCP server** | Exposes the note graph to any MCP-capable agent. The core interface. | ✅ Live |
 | **Telegram capture bot** | Zero-friction note capture from your phone. Message the bot, get a structured note back. | ✅ Live |
-| **Gardening pipeline** | Nightly enrichment: similarity links, tag normalization. | ✅ Complete |
+| **Gardening pipeline** | Nightly enrichment: similarity linking. | ✅ Complete |
 | **Dashboard** | Browser-based view — search, browse, follow links, see the graph. | 💡 Planned |
 | **Obsidian import** | Pull an existing vault into the database. | 💡 Planned |
 | **ChatGPT memory import** | Rescue accumulated context from a proprietary format. | 💡 Planned |
@@ -88,11 +86,11 @@ The database + MCP server is the only required piece. Everything else is optiona
 
 **Capture fragments, not finished thoughts.** Send whatever is on your mind — a reflection, a quote, an observation, a question, a workflow idea. No pressure to make it perfect or atomic. The system structures each fragment (title, tags, links) and preserves your exact words. Focused fragments produce the best immediate results, but everything is valuable raw material for the synthesis layer.
 
-**You get the results without the process.** Most people organize notes because they want the results — findability, connections, patterns — not because they enjoy organizing. ContemPlace automates the gardening: similarity links, tag normalization, and (planned) cluster synthesis. You capture fragments; the system does the curation.
+**You get the results without the process.** Most people organize notes because they want the results — findability, connections, patterns — not because they enjoy organizing. ContemPlace automates the gardening: similarity links and (planned) cluster synthesis. You capture fragments; the system does the curation.
 
 **Value compounds the more you use it.** Fragment 1 is just a fragment. Fragment 50 starts forming clusters. Fragment 200 has a graph where ideas reinforce, contradict, and extend each other — and you didn't build that graph manually. The gardening pipeline tightens the mesh in the background. The more you capture, the richer the context any agent has when it reads your memory.
 
-**The primary consumer is your agents, not you.** You rarely browse notes directly. You ask an AI something and it pulls from your memory via MCP — semantic search, related notes, entity lookups. The database is designed for machine retrieval first, which means any MCP-capable tool gets full access to your accumulated thinking.
+**The primary consumer is your agents, not you.** You rarely browse notes directly. You ask an AI something and it pulls from your memory via MCP — semantic search, related notes, link traversal. The database is designed for machine retrieval first, which means any MCP-capable tool gets full access to your accumulated thinking.
 
 **Your ideas become a graph you can explore.** Fragments cluster around themes over time. Some nodes gain gravitational weight. Structure isn't imposed; it emerges from the accumulation of linked, gardened fragments. The system never reaches a final state — it's a living organism that changes with every fragment you capture, reflecting back what you've been thinking about days or years ago.
 
@@ -122,7 +120,7 @@ What do you want? Pick your path:
 |---|---|---|
 | **MCP access only** — search and capture via any agent | MCP Worker + Supabase | [Setup: MCP Worker](docs/setup.md#4-deploy-the-mcp-worker) |
 | **+ Telegram capture** — low-friction mobile input | Add the Telegram Worker | [Setup: Telegram Worker](docs/setup.md#3-deploy-the-telegram-capture-worker) |
-| **+ Background enrichment** — similarity links, tag normalization | Add the Gardener Worker | [Setup: Gardener Worker](docs/setup.md#5-deploy-the-gardener-worker) |
+| **+ Background enrichment** — similarity linking | Add the Gardener Worker | [Setup: Gardener Worker](docs/setup.md#5-deploy-the-gardener-worker) |
 
 All three require a Supabase database and Cloudflare account. Full prerequisites and step-by-step instructions in the **[Setup guide](docs/setup.md)**.
 
@@ -147,7 +145,7 @@ Every note stores two things: the structured note (title, body, tags, links) and
 
 ### Does value really scale with more notes?
 
-Yes, and nonlinearly. A single note is just text with metadata. But the capture agent links each new note to existing ones, so every note you add creates new edges in the graph. The nightly gardener finds similarity links you didn't ask for and normalizes tags so different phrasings converge. After a few hundred notes, ask any MCP agent "what are my recurring themes?" or "what relates to this idea?" and the graph does the work. You never organized anything manually. The structure emerged from accumulation.
+Yes, and nonlinearly. A single note is just text with metadata. But the capture agent links each new note to existing ones, so every note you add creates new edges in the graph. The nightly gardener finds similarity links you didn't ask for. After a few hundred notes, ask any MCP agent "what are my recurring themes?" or "what relates to this idea?" and the graph does the work. You never organized anything manually. The structure emerged from accumulation.
 
 ### How does structure emerge?
 
@@ -155,7 +153,6 @@ No folders, no hierarchy, no manual organization. Structure comes from three mec
 
 1. **Capture-time linking** — the LLM compares your note against existing notes and creates edges to related notes
 2. **Similarity linking** — the gardening pipeline finds notes with high cosine similarity and connects them
-3. **Tag normalization** — free-form tags are matched against a vocabulary of concepts, so "laser cutting" and "laser cutter" resolve to the same concept
 
 Over time, clusters form naturally. Any MCP-capable agent can surface them — ask "what are my instrument-building ideas?" and the graph does the work.
 

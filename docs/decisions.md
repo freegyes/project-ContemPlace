@@ -859,3 +859,18 @@ Lowering the threshold doesn't help — even at 800 chars, only 1 note qualifies
 **Re-adding is low cost.** The code is self-contained and can be copied from git history if a future input path (imports, synthesis) produces content that needs chunk-level retrieval.
 
 **Source:** Issue #112. Decision chain: #93 → #112, informed by #120 (synthesis layer design).
+
+## v4 schema simplification bundle (2026-03-14)
+
+**Decision:** Bundle four schema simplifications into a single migration and release: drop SKOS vocabulary (#122), simplify link types (#124), remove chunking infrastructure (#127), and drop maturity/importance_score columns (#117). Implemented in PR #131, tagged as `v4.0.0`.
+
+**Why bundle:** All four changes were independently decided (see ADRs above) and had no cross-dependencies, but each required a migration and a code deployment. Bundling into one migration avoids intermediate schema states, reduces deploy cycles, and lets the test suite validate the combined result. The risk of a combined change is low because all four are subtractive — removing unused infrastructure, not adding new behavior.
+
+**What changed:**
+- **Schema:** Dropped 3 tables (`concepts`, `note_concepts`, `note_chunks`), 3 columns on `notes` (`refined_tags`, `maturity`, `importance_score`), 2 RPC functions (`match_chunks`, `batch_update_refined_tags`). Link types CHECK constraint changed from 9 types to 3 (`contradicts`, `related`, `is-similar-to`). Existing `extends`/`supports`/`is-example-of`/`duplicate-of` links reclassified to `related` via migration UPDATE.
+- **MCP Worker:** 8 → 5 tools. Removed `search_chunks`, `list_unmatched_tags`, `promote_concept` tool definitions and handlers. SYSTEM_FRAME updated for 2 capture link types (`contradicts`, `related`).
+- **Gardener Worker:** Removed tag normalization phase, chunk generation phase, `embed.ts`, `normalize.ts`, `chunk.ts`. Removed `OPENROUTER_API_KEY`, `EMBED_MODEL`, `GARDENER_TAG_MATCH_THRESHOLD` config dependencies. The gardener now runs similarity linking only.
+- **Tests:** Deleted 4 test files (`gardener-chunk.test.ts`, `gardener-normalize.test.ts`, `gardener-embed.test.ts`, `gardener-tag-norm.test.ts`). Updated 7 test files. 210 tests pass across 12 files.
+- **Net:** +110 / -2,759 lines.
+
+**Source:** Issue #128, PR #131. Decision chain: #93 → #105/#106/#112/#117 → #122/#124/#127 → #128.

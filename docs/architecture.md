@@ -1,6 +1,6 @@
 # Architecture
 
-ContemPlace's irreducible core is the **database + MCP surface**. The database (Supabase with pgvector) stores notes, embeddings, links, and the controlled vocabulary. The MCP server exposes this to any agent — input via `capture_note`, retrieval via `search_notes`/`get_related`, curation via `list_unmatched_tags`/`promote_concept`. Everything else is a module.
+ContemPlace's irreducible core is the **database + MCP surface**. The database (Supabase with pgvector) stores notes, embeddings, and links. The MCP server exposes this to any agent — input via `capture_note`, retrieval via `search_notes`/`get_related`/`get_note`/`list_recent`. Everything else is a module.
 
 The current implementation runs as three Cloudflare Workers: a **Telegram capture Worker** (a convenient input channel), an **MCP Worker** (the core interface), and a **Gardener Worker** (the enrichment layer). Supabase provides the database — Postgres with pgvector for semantic search. There are no Edge Functions, no queues, no background job runners.
 
@@ -19,12 +19,12 @@ OpenRouter sits between the Workers and all AI models. This adds a hop but means
 | Worker | Name | Purpose | Trigger |
 |---|---|---|---|
 | **Telegram capture** | `contemplace` | Receives Telegram webhooks, delegates capture to MCP Worker via Service Binding, formats HTML reply | Telegram webhook POST |
-| **MCP server** | `mcp-contemplace` | Exposes 8 tools to AI agents via JSON-RPC 2.0 over HTTP. Hosts the `CaptureService` entrypoint for Service Binding RPC. | HTTP POST /mcp, Service Binding RPC |
-| **Gardener** | `contemplace-gardener` | Nightly enrichment: tag normalization, similarity linking | Cron (02:00 UTC) or POST /trigger |
+| **MCP server** | `mcp-contemplace` | Exposes 5 tools to AI agents via JSON-RPC 2.0 over HTTP. Hosts the `CaptureService` entrypoint for Service Binding RPC. | HTTP POST /mcp, Service Binding RPC |
+| **Gardener** | `contemplace-gardener` | Nightly enrichment: similarity linking | Cron (02:00 UTC) or POST /trigger |
 
 Each Worker is independently deployed with its own `wrangler.toml` and secrets. They share the same Supabase database and use the same `openai` SDK pattern for OpenRouter calls.
 
-The capture pipeline lives in one place (`mcp/src/pipeline.ts`). The Telegram Worker calls it via a Cloudflare Service Binding — zero-overhead in-process RPC, no HTTP hop, no auth overhead. The Gardener Worker still has its own copy of embedding helpers because its batch-oriented pattern differs from capture-time embedding.
+The capture pipeline lives in one place (`mcp/src/pipeline.ts`). The Telegram Worker calls it via a Cloudflare Service Binding — zero-overhead in-process RPC, no HTTP hop, no auth overhead.
 
 ## The async capture flow
 
@@ -97,7 +97,7 @@ The same `runCapturePipeline()` function is called by both the Service Binding R
 
 ## MCP server
 
-The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth 2.1 (Authorization Code + PKCE) for browser-based clients and static Bearer token for API/SDK callers. It exposes 8 tools:
+The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth 2.1 (Authorization Code + PKCE) for browser-based clients and static Bearer token for API/SDK callers. It exposes 5 tools:
 
 | Tool | Operation |
 |---|---|
@@ -106,9 +106,6 @@ The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth
 | `list_recent` | Recent notes, newest first |
 | `get_related` | All linked notes in both directions |
 | `capture_note` | Full capture pipeline (same logic as Telegram, synchronous) |
-| `list_unmatched_tags` | Tags without concept matches, for vocabulary curation |
-| `promote_concept` | Insert new concept interactively |
-| `search_chunks` | Chunk-level search — being removed (#127, ADR in `decisions.md`) |
 
 Tool descriptions in `TOOL_DEFINITIONS` (mcp/src/tools.ts) include behavioral guidance for connecting agents — what kind of input to pass, how to interpret results, when to use each tool. The `capture_note` description explicitly instructs agents to pass user's raw words without cleaning up or pre-structuring. These descriptions are the only guidance a connecting agent receives about how to use ContemPlace.
 
@@ -116,23 +113,14 @@ The search threshold (`MCP_SEARCH_THRESHOLD`, default 0.35) is lower than the ca
 
 ## Gardener pipeline
 
-The Gardener Worker runs its phases sequentially, each error-isolated (a failure in one phase doesn't block the others):
+The Gardener Worker runs similarity linking, with error isolation and best-effort alerting:
 
 ```
  Cron trigger (02:00 UTC) or POST /trigger
        │
        ▼
  ┌─────────────────────────────────┐
- │  Phase 1: Tag normalization     │
- │  • Fetch notes + concepts       │
- │  • Lexical match (pref_label    │
- │    + alt_labels) first          │
- │  • Semantic match fallback      │
- │  • batch_update_refined_tags()  │
- │  • Populate note_concepts       │
- │  • Log unmatched tags           │
- ├─────────────────────────────────┤
- │  Phase 2: Similarity linking    │
+ │  Similarity linking             │
  │  • find_similar_pairs() RPC     │
  │  • Clean-slate delete + reinsert│
  │  • Auto-context from shared     │
@@ -146,9 +134,7 @@ The Gardener Worker runs its phases sequentially, each error-isolated (a failure
  └─────────────────────────────────┘
 ```
 
-> **Note (2026-03-14):** Chunk generation (Phase 3) is being removed — #127, ADR in `decisions.md`. Fragments are the natural retrieval units; no note has ever exceeded the 1500-char threshold. The code is still deployed but scheduled for removal in the schema simplification bundle.
-
-Subrequest budget is ~16 fixed (within CF Workers' 50 free-tier limit), regardless of note count, thanks to batch RPC functions (`batch_update_refined_tags`, `find_similar_pairs`).
+Subrequest budget is minimal and well within CF Workers' 50 free-tier limit, thanks to the `find_similar_pairs` batch RPC function.
 
 ## Two-pass embedding
 

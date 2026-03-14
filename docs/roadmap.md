@@ -10,7 +10,7 @@ Delivered:
 - Deduplication via `processed_updates` table
 - LLM-generated structured notes (title, body, tags, source_ref)
 - Semantic search via `match_notes()` RPC with cosine similarity
-- Typed links between notes (`extends`, `contradicts`, `supports`, `is-example-of`)
+- Typed links between notes
 - HTML-formatted Telegram confirmation replies
 - Smoke tests against the live Worker
 
@@ -19,13 +19,13 @@ Delivered:
 Expanded the data model and capture logic. The schema was rebuilt from scratch (v2) with all Phase 2 infrastructure pre-created.
 
 Delivered:
-- **Schema v2:** 8 tables (notes, links, concepts, note_concepts, note_chunks, enrichment_log, capture_profiles, processed_updates) with RLS, HNSW indexes, and seeded data
-- **Entity extraction:** proper nouns with typed categories (person, place, tool, project, concept)
+- **Schema v2:** 8 tables with RLS, HNSW indexes, and seeded data (later simplified to 5 tables in v4)
+- **Entity extraction:** proper nouns with typed categories (later removed from capture in v3.1.0)
 - **Two-pass embedding:** Raw text for lookup, metadata-augmented for storage, with fallback
 - **System prompt split:** Structural contract in code (`SYSTEM_FRAME`), stylistic rules in database (`capture_profiles`)
 - **Enrichment log:** Audit trail per note per enrichment type, batched inserts
 - **Hybrid search:** `match_notes()` with vector + full-text search
-- **SKOS concepts:** 10 seeded domain concepts for future tag normalization
+- **SKOS concepts:** 10 seeded domain concepts (later removed in v4)
 - **Parser hardening:** unit tests covering all fallback paths
 - **Automated deploy:** `scripts/deploy.sh` runs schema → typecheck → unit tests → Worker deploy → smoke tests
 - **Voice correction:** LLM detects and silently fixes transcription errors, reports in Telegram reply
@@ -34,19 +34,16 @@ Delivered:
 
 Exposes the note database to AI agents via the Model Context Protocol. The primary client is Claude Code (CLI). Deployed as a separate Cloudflare Worker at `mcp-contemplace.adamfreisinger.workers.dev`.
 
-Eight tools:
+Originally 8 tools, simplified to 5 in v4.0.0 (removed `search_chunks`, `list_unmatched_tags`, `promote_concept`):
 - **`search_notes`** — semantic search via `match_notes()` with optional tag filters
-- **`search_chunks`** — chunk-level search (being removed — #127)
-- **`get_note`** — full note retrieval with linked notes and entity data
+- **`get_note`** — full note retrieval with linked notes
 - **`list_recent`** — recent notes, newest first
 - **`get_related`** — notes connected to a given note via the `links` table
 - **`capture_note`** — full capture pipeline (embed → related lookup → LLM → store), same logic as Telegram but synchronous and source-tagged
-- **`list_unmatched_tags`** — tags that haven't matched any SKOS concept, with frequency; for vocabulary curation
-- **`promote_concept`** — insert a new concept into the SKOS vocabulary interactively
 
 Auth: single API key (Bearer token). `MCP_SEARCH_THRESHOLD` (default 0.35) is separate from `MATCH_THRESHOLD` (0.60) — bare query vectors score lower against metadata-augmented stored embeddings.
 
-**Tool description enrichment (PR #49)** — All 8 tool descriptions now include behavioral guidance for connecting agents. `capture_note` tells agents to pass raw user words without summarizing or pre-structuring. Filter enums include glosses explaining each value's meaning. `get_note` explains the raw_input vs body distinction. `get_related` includes a link type glossary. This enables agent-driven interaction (e.g., Claude Code CLI) without agents having to guess how the system works.
+**Tool description enrichment (PR #49)** — All tool descriptions include behavioral guidance for connecting agents. `capture_note` tells agents to pass raw user words without summarizing or pre-structuring. Filter enums include glosses explaining each value's meaning. `get_note` explains the raw_input vs body distinction. `get_related` includes a link type glossary. This enables agent-driven interaction (e.g., Claude Code CLI) without agents having to guess how the system works.
 
 **Single capture path (PR #90, 2026-03-12):** The Telegram Worker now delegates capture to the MCP Worker via a Cloudflare Service Binding. `mcp/src/pipeline.ts` is the single source of truth for capture logic. ~650 lines of duplicated code removed (`src/capture.ts`, `src/embed.ts`, shared DB functions, parity tests). See `docs/decisions.md` for the full ADR.
 
@@ -65,44 +62,25 @@ Fix: add `MCP_SEARCH_THRESHOLD` (default 0.35) as a separate config value used o
 
 A separate Cloudflare Worker (`contemplace-gardener`) that enriches the note graph in the background. Runs nightly at 02:00 UTC via cron trigger, also triggerable via `POST /trigger` with Bearer auth. Sends failure alerts to Telegram.
 
-Three phases run sequentially, each error-isolated:
-
 ### Similarity linker — delivered (PR #30, v2.1.0)
 
-Pairwise cosine similarity across all notes via `find_similar_pairs` RPC (self-join). Inserts `is-similar-to` links above `GARDENER_SIMILARITY_THRESHOLD` (0.70) with `created_by = 'gardener'` and `confidence` = similarity score. Auto-generated context from shared tags and entities via `buildContext()`. Clean-slate delete + reinsert for idempotency.
+Pairwise cosine similarity across all notes via `find_similar_pairs` RPC (self-join). Inserts `is-similar-to` links above `GARDENER_SIMILARITY_THRESHOLD` (0.70) with `created_by = 'gardener'` and `confidence` = similarity score. Auto-generated context from shared tags via `buildContext()`. Clean-slate delete + reinsert for idempotency.
 
-### SKOS tag normalization — delivered (PR #41)
+### SKOS tag normalization — delivered (PR #41), removed in v4.0.0
 
-Maps free-form note tags to the SKOS controlled vocabulary (`concepts` table). Hybrid matching: lexical match against `pref_label` + `alt_labels` first, embedding similarity fallback at `GARDENER_TAG_MATCH_THRESHOLD` (0.55). Populates `notes.refined_tags` (pref_labels only) and `note_concepts` junction. Unmatched tags logged to `enrichment_log` as `type = 'unmatched_tag'` for curation via MCP tools. Uses `batch_update_refined_tags` RPC to stay within CF Workers subrequest budget. 32 seed concepts across 4 schemes (domains, tools, people, places).
+Tag normalization via SKOS controlled vocabulary was delivered but later removed in the v4 schema simplification (#128). Embedding search already handled synonym collapse. The curation burden conflicted with the user's preference. See ADR "Drop SKOS tag normalization" in `decisions.md`.
 
-### Chunk generation — delivered (PR #44), being removed (#127)
+### Chunk generation — delivered (PR #44), removed in v4.0.0
 
-> **Decision (2026-03-14):** Chunking infrastructure scheduled for removal. No note has ever exceeded the 1500-char threshold. Fragment-first philosophy makes long notes unlikely. Even in the synthesis layer future, fragments are the natural retrieval units. See ADR in `decisions.md`. Removal bundled with schema simplification (#117 + #122 + #124 + #127).
-
-Splits long notes (body > 1500 chars) into ~500–800 char chunks at paragraph boundaries, with sentence and newline fallbacks. Embeds each chunk with title + tag prefix (`{title} [{tags}]: {chunk_text}`). Body hash idempotency via SHA-256 in `enrichment_log.metadata` — only re-chunks when body content changes. Embed-first-insert-second to avoid orphan chunks. Enables `search_chunks` MCP tool for fine-grained RAG retrieval.
+Chunk generation for long notes was delivered but later removed. No note ever exceeded the 1500-char threshold. Fragment-first philosophy makes long notes unlikely. See ADR "Drop chunking infrastructure" in `decisions.md`.
 
 ### Subrequest budget optimization — delivered (PR #42)
 
-Reduced gardener subrequests from ~12 + 2N to ~16 fixed via two new RPC functions: `batch_update_refined_tags` (JSONB batch UPDATE) and `find_similar_pairs` (self-join replaces N individual `match_notes` calls). At 300 notes: 16 subrequests instead of 612.
-
-### Maturity/importance scoring — deferred, approach revised
-
-Per-note maturity labels (seedling/budding/evergreen) and importance scores are rejected as a design direction (ADR 2026-03-14, #116). Maturity is a computed analytical proxy inferred from density, clustering, and link patterns — not a label assigned to individual notes. The `maturity` and `importance_score` columns exist in the schema but are unpopulated and may be dropped or repurposed. See #116 for the broader fragment-first philosophy that drives this change.
+Reduced gardener subrequests via batch RPC functions. `find_similar_pairs` (self-join) is the remaining batch function after v4 simplification.
 
 ### Alerting and manual trigger — delivered (PRs #36, #37)
 
 Best-effort Telegram failure alerts (`sendAlert()`). Optional `POST /trigger` endpoint with Bearer auth (`GARDENER_API_KEY`). Integration test exercises the full cycle: capture → trigger → assert DB state.
-
-### Schema infrastructure already in place
-
-The v2 schema was designed with Phase 2 in mind. These columns and tables are now partially populated by the gardener:
-
-- `notes.refined_tags` — populated by tag normalization
-- `note_concepts` junction table — populated by tag normalization
-- `concepts` table — 32 seeded concepts with embeddings
-- `enrichment_log` — records all gardener activity with metadata
-
-Still unpopulated: `notes.summary`, `notes.categories`, `notes.importance_score` (defaults to NULL), `notes.maturity` (defaults to `seedling`).
 
 ## Phase 2c — OAuth 2.1 (complete) — issue #5 — `v3.0.0`
 
@@ -163,6 +141,18 @@ Delivered:
 - **Capture voice v2** — no compression, no length heuristic, "transcription not synthesis" explicit
 - **Corpus re-captured** — 81 notes re-captured from `raw_input` in the new vector space with updated voice
 - Net -839 lines across 31 files
+
+## v4.0.0 — Schema simplification bundle (complete) — issue #128, PR #131
+
+Bundled removal of SKOS vocabulary (#122), link type simplification (#124), chunking removal (#127), and maturity/importance_score column drops (#117) into a single schema migration.
+
+Delivered:
+- **Schema v4:** Dropped 3 tables (`concepts`, `note_concepts`, `note_chunks`), 3 columns (`refined_tags`, `maturity`, `importance_score`), 2 RPC functions (`match_chunks`, `batch_update_refined_tags`). 8 tables → 5.
+- **Link type simplification:** 9 types → 3. Capture-time: `contradicts` + `related` (replaces `extends`/`supports`/`is-example-of`/`duplicate-of`). Gardening-time: `is-similar-to`. Existing links reclassified via migration.
+- **MCP Worker:** 8 → 5 tools. Removed `search_chunks`, `list_unmatched_tags`, `promote_concept`.
+- **Gardener Worker:** Similarity linking only. Removed tag normalization, chunk generation, `embed.ts`, `normalize.ts`, `chunk.ts`. Removed `OPENROUTER_API_KEY`, `EMBED_MODEL`, `GARDENER_TAG_MATCH_THRESHOLD` config.
+- **Tests:** Deleted 4 test files. 210 tests pass across 12 files.
+- **Net:** +110 / -2,759 lines
 
 ## Phase 3 — Associative trails and beyond (deferred)
 
