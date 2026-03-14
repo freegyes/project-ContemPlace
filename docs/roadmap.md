@@ -8,7 +8,7 @@ Delivered:
 - Telegram webhook handler with async background processing
 - Chat ID whitelist and webhook secret verification
 - Deduplication via `processed_updates` table
-- LLM-generated structured notes (title, body, type, tags, source_ref)
+- LLM-generated structured notes (title, body, tags, source_ref)
 - Semantic search via `match_notes()` RPC with cosine similarity
 - Typed links between notes (`extends`, `contradicts`, `supports`, `is-example-of`)
 - HTML-formatted Telegram confirmation replies
@@ -20,13 +20,13 @@ Expanded the data model and capture logic. The schema was rebuilt from scratch (
 
 Delivered:
 - **Schema v2:** 8 tables (notes, links, concepts, note_concepts, note_chunks, enrichment_log, capture_profiles, processed_updates) with RLS, HNSW indexes, and seeded data
-- **Classification taxonomy:** `intent` (6 values), `modality` (4 values), `entities` (proper nouns with typed categories) — *type/intent/modality deprecated in #110*
+- **Entity extraction:** proper nouns with typed categories (person, place, tool, project, concept)
 - **Two-pass embedding:** Raw text for lookup, metadata-augmented for storage, with fallback
 - **System prompt split:** Structural contract in code (`SYSTEM_FRAME`), stylistic rules in database (`capture_profiles`)
 - **Enrichment log:** Audit trail per note per enrichment type, batched inserts
-- **Hybrid search:** `match_notes()` with 8 parameters including intent filter and full-text search
+- **Hybrid search:** `match_notes()` with vector + full-text search
 - **SKOS concepts:** 10 seeded domain concepts for future tag normalization
-- **Parser hardening:** 17 unit tests covering all fallback paths
+- **Parser hardening:** unit tests covering all fallback paths
 - **Automated deploy:** `scripts/deploy.sh` runs schema → typecheck → unit tests → Worker deploy → smoke tests
 - **Voice correction:** LLM detects and silently fixes transcription errors, reports in Telegram reply
 
@@ -35,10 +35,10 @@ Delivered:
 Exposes the note database to AI agents via the Model Context Protocol. The primary client is Claude Code (CLI). Deployed as a separate Cloudflare Worker at `mcp-contemplace.adamfreisinger.workers.dev`.
 
 Eight tools:
-- **`search_notes`** — semantic search via `match_notes()` with optional tag filters (type/intent filters deprecated in #110)
+- **`search_notes`** — semantic search via `match_notes()` with optional tag filters
 - **`search_chunks`** — chunk-level semantic search via `match_chunks()` for fine-grained RAG retrieval
 - **`get_note`** — full note retrieval with linked notes and entity data
-- **`list_recent`** — recent notes, newest first (type/intent filters deprecated in #110)
+- **`list_recent`** — recent notes, newest first
 - **`get_related`** — notes connected to a given note via the `links` table
 - **`capture_note`** — full capture pipeline (embed → related lookup → LLM → store), same logic as Telegram but synchronous and source-tagged
 - **`list_unmatched_tags`** — tags that haven't matched any SKOS concept, with frequency; for vocabulary curation
@@ -56,9 +56,8 @@ In scope after the MCP server is live: import scripts for **ChatGPT memory expor
 
 First live test against 6 notes via Claude Code confirmed all five tools work correctly. One configuration issue found:
 
-**Threshold mismatch** — `search_notes` returned 0 results at the default threshold (0.60). Dropping to 0.30 surfaced relevant results (scores 0.41–0.49). The root cause is that stored embeddings are metadata-augmented (`[Tags: …] text`) while search queries are bare natural language. The single `MATCH_THRESHOLD` env var was calibrated for capture-time related-note lookup (higher precision needed), not for agent search (broader exploration). (Note: augmentation previously also included `[Type: X] [Intent: Y]` prefixes, removed in #110.)
-
-Fix: add `MCP_SEARCH_THRESHOLD` (default 0.35) as a separate config value used only by `handleSearchNotes`. `MATCH_THRESHOLD` (0.60) stays for `findRelatedNotes` inside `capture_note`. See `docs/decisions.md` for full analysis.
+**Threshold mismatch** — `search_notes` returned 0 results at the default threshold (0.60). Dropping to 0.30 surfaced relevant results (scores 0.41–0.49). The root cause is that stored embeddings are metadata-augmented (`[Tags: …] text`) while search queries are bare natural language. The single `MATCH_THRESHOLD` env var was calibrated for capture-time related-note lookup (higher precision needed), not for agent search (broader exploration).
+Fix: add `MCP_SEARCH_THRESHOLD` (default 0.35) as a separate config value used only by `handleSearchNotes`. `MATCH_THRESHOLD` (0.60) stays for `findRelatedNotes` inside `capture_note`. See `docs/decisions.md` for full analysis. (Note: augmentation simplified from `[Type: X] [Intent: Y] [Tags: ...] text` to `[Tags: ...] text` in v3.1.0.)
 
 **`get_related` UX note** — the tool requires a note `id`. A text-based "find notes related to this topic" lookup is a natural UX expectation. Tracked as a candidate tool (`search_related`?) for a later phase.
 
@@ -151,11 +150,22 @@ What moved to user-side:
 
 **Status:** Narrowed scope. URL handling is the main remaining system-side feature. Brain dump decomposition is a workflow, not a system component.
 
+## v3.1.0 — Leaner capture pipeline (complete) — issue #110
+
+Removed `type`, `intent`, and `modality` from the entire capture pipeline. Clean-slate v3 schema consolidating 10 migrations into one. Capture voice updated with #108 body rules.
+
+Delivered:
+- **7-field LLM contract** — removed type (4-way), intent (6-way), modality (4-way) from SYSTEM_FRAME and parser
+- **Simplified embeddings** — format changed from `[Type: X] [Intent: Y] [Tags: ...] text` to `[Tags: ...] text`
+- **Leaner MCP tools** — `filter_type`/`filter_intent` removed from `search_notes` and `list_recent`
+- **Cleaner Telegram replies** — metadata line shows tags only
+- **Capture voice v2** — no compression, no length heuristic, "transcription not synthesis" explicit
+- **Corpus re-captured** — 81 notes re-captured from `raw_input` in the new vector space with updated voice
+- Net -839 lines across 31 files
+
 ## Phase 3 — Associative trails and beyond (deferred)
 
 **Associative trails** — Curated or auto-generated sequences of notes that tell a story or trace a line of thinking. The `trails` and `trail_steps` tables were designed but not created in v2.
-
-**Type inheritance** — Originally planned as a `note_types` table for custom types with inheritance. Moot after #110 removed type classification from the capture pipeline.
 
 **Location extraction** — For input channels that support geotags (future mobile app), extract and store location data.
 
