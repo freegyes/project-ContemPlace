@@ -35,7 +35,7 @@ supabase link --project-ref YOUR_PROJECT_REF -p YOUR_DB_PASSWORD
 supabase db push --linked --yes
 ```
 
-The migration creates 8 tables, RLS policies, RPC functions (`match_notes`, `match_chunks`, `batch_update_refined_tags`, `find_similar_pairs`), HNSW vector indexes, and seeds the default capture voice profile.
+The migration creates 8 tables, RLS policies, RPC functions (`match_notes`, `batch_update_refined_tags`, `find_similar_pairs`), HNSW vector indexes, and seeds the default capture voice profile.
 
 ### Seed SKOS vocabulary (optional)
 

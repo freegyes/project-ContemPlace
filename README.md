@@ -19,7 +19,7 @@
 
 Every AI agent you use builds memory about you — but in its own proprietary garden. You can't move it, combine it, or extract it without non-trivial effort. Every time you try a new tool, you start from zero.
 
-ContemPlace is the fix. An MCP-connected database that *you* own. Send raw input from any interface — a Telegram bot, Claude CLI, a custom script, anything that speaks MCP. The system structures it, embeds it, links it to your prior thinking, and makes it semantically searchable. A gardening pipeline runs in the background to normalize, connect, and chunk your notes so retrieval keeps getting better. Your accumulated context travels with you.
+ContemPlace is the fix. An MCP-connected database that *you* own. Send raw input from any interface — a Telegram bot, Claude CLI, a custom script, anything that speaks MCP. The system structures it, embeds it, links it to your prior thinking, and makes it semantically searchable. A gardening pipeline runs in the background to normalize and connect your notes so retrieval keeps getting better. Your accumulated context travels with you.
 
 No proprietary format. No vendor lock-in. Postgres you can always query and export. The stack runs on free tiers — average use costs $2–3/month in LLM calls.
 
@@ -29,7 +29,7 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 |---|---|
 | Telegram capture bot | ✅ Live |
 | MCP server | ✅ Live — 8 tools |
-| Gardening pipeline | ✅ Complete — similarity linker, tag normalization, chunk generation · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
+| Gardening pipeline | ✅ Complete — similarity linker, tag normalization · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
 | OAuth 2.1 (Claude.ai web) | ✅ Live — Auth Code + PKCE, DCR, static key fallback · [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
 | Dashboard | 💡 Planned — [#101](https://github.com/freegyes/project-ContemPlace/issues/101) |
 | Leaner capture (drop type/intent/modality) | ✅ Complete — [#110](https://github.com/freegyes/project-ContemPlace/issues/110) |
@@ -43,7 +43,7 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 1. You send a thought — raw text, voice transcription, a link, whatever
 2. The capture agent gives it a title, corrects voice errors, tags it, and links it to related notes — your exact words are always preserved
 3. Enrichment is non-destructive: future agents can reinterpret the same raw input with better models
-4. A nightly gardener refines connections: similarity links, tag normalization, chunking for retrieval
+4. A nightly gardener refines connections: similarity links, tag normalization
 
 <div align="center">
 <img src="docs/assets/telegram-capture-demo.png" alt="Telegram bot capturing a note about withdiode.com — showing raw input, structured note with metadata, and link preview" width="320" />
@@ -58,13 +58,13 @@ The MCP server is the primary interface. Eight tools, usable by any MCP-capable 
 | Tool | What it does |
 |---|---|
 | `search_notes` | Search notes by meaning. Ranked results with body text. Optional tag filter. |
-| `search_chunks` | Search within paragraphs of long notes (body > 1500 chars). |
 | `get_note` | Fetch a single note — body, raw_input (source of truth), links, corrections. |
 | `list_recent` | Most recent notes, newest first. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
 | `capture_note` | Pass raw words — the server runs the full capture pipeline. Do not pre-structure. |
-| `list_unmatched_tags` | Tags without SKOS concept matches, with frequency. Curation workflow. |
-| `promote_concept` | Add a concept to the SKOS vocabulary for synonym normalization. |
+| `list_unmatched_tags` | Tags without concept matches, with frequency. Curation workflow. |
+| `promote_concept` | Add a concept to the controlled vocabulary for synonym normalization. |
+| `search_chunks` | Search within paragraphs of long notes. Being removed — see #127. |
 
 **Auth:** OAuth 2.1 (Authorization Code + PKCE) for browser clients like Claude.ai, or a static Bearer token for API/SDK callers like Claude Code CLI. Both paths are permanent.
 
@@ -76,7 +76,7 @@ The database + MCP server is the only required piece. Everything else is optiona
 |---|---|---|
 | **MCP server** | Exposes the note graph to any MCP-capable agent. The core interface. | ✅ Live |
 | **Telegram capture bot** | Zero-friction note capture from your phone. Message the bot, get a structured note back. | ✅ Live |
-| **Gardening pipeline** | Nightly enrichment: similarity links, SKOS tag normalization, chunk generation. | ✅ Complete |
+| **Gardening pipeline** | Nightly enrichment: similarity links, tag normalization. | ✅ Complete |
 | **Dashboard** | Browser-based view — search, browse, follow links, see the graph. | 💡 Planned |
 | **Obsidian import** | Pull an existing vault into the database. | 💡 Planned |
 | **ChatGPT memory import** | Rescue accumulated context from a proprietary format. | 💡 Planned |
@@ -88,7 +88,7 @@ The database + MCP server is the only required piece. Everything else is optiona
 
 **Capture fragments, not finished thoughts.** Send whatever is on your mind — a reflection, a quote, an observation, a question, a workflow idea. No pressure to make it perfect or atomic. The system structures each fragment (title, tags, links) and preserves your exact words. Focused fragments produce the best immediate results, but everything is valuable raw material for the synthesis layer.
 
-**You get the results without the process.** Most people organize notes because they want the results — findability, connections, patterns — not because they enjoy organizing. ContemPlace automates the gardening: similarity links, tag normalization, chunking, and (planned) cluster synthesis. You capture fragments; the system does the curation.
+**You get the results without the process.** Most people organize notes because they want the results — findability, connections, patterns — not because they enjoy organizing. ContemPlace automates the gardening: similarity links, tag normalization, and (planned) cluster synthesis. You capture fragments; the system does the curation.
 
 **Value compounds the more you use it.** Fragment 1 is just a fragment. Fragment 50 starts forming clusters. Fragment 200 has a graph where ideas reinforce, contradict, and extend each other — and you didn't build that graph manually. The gardening pipeline tightens the mesh in the background. The more you capture, the richer the context any agent has when it reads your memory.
 
@@ -122,7 +122,7 @@ What do you want? Pick your path:
 |---|---|---|
 | **MCP access only** — search and capture via any agent | MCP Worker + Supabase | [Setup: MCP Worker](docs/setup.md#4-deploy-the-mcp-worker) |
 | **+ Telegram capture** — low-friction mobile input | Add the Telegram Worker | [Setup: Telegram Worker](docs/setup.md#3-deploy-the-telegram-capture-worker) |
-| **+ Background enrichment** — similarity links, tag normalization, chunking | Add the Gardener Worker | [Setup: Gardener Worker](docs/setup.md#5-deploy-the-gardener-worker) |
+| **+ Background enrichment** — similarity links, tag normalization | Add the Gardener Worker | [Setup: Gardener Worker](docs/setup.md#5-deploy-the-gardener-worker) |
 
 All three require a Supabase database and Cloudflare account. Full prerequisites and step-by-step instructions in the **[Setup guide](docs/setup.md)**.
 
@@ -155,7 +155,7 @@ No folders, no hierarchy, no manual organization. Structure comes from three mec
 
 1. **Capture-time linking** — the LLM compares your note against existing notes and creates edges to related notes
 2. **Similarity linking** — the gardening pipeline finds notes with high cosine similarity and connects them
-3. **Tag normalization** — free-form tags are matched against a controlled vocabulary, so "laser cutting" and "laser cutter" resolve to the same concept
+3. **Tag normalization** — free-form tags are matched against a vocabulary of concepts, so "laser cutting" and "laser cutter" resolve to the same concept
 
 Over time, clusters form naturally. Any MCP-capable agent can surface them — ask "what are my instrument-building ideas?" and the graph does the work.
 

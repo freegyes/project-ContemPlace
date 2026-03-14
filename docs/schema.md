@@ -95,7 +95,9 @@ Junction table linking notes to concepts. Populated by the gardener's tag normal
 | `created_by` | text | `gardener` or `user` — prevents clean-slate deletes from destroying user-created rows |
 | `created_at` | timestamptz | |
 
-### note_chunks
+### note_chunks — being removed (#127)
+
+> **Decision (2026-03-14):** Chunking infrastructure is being removed. Fragments are the natural retrieval units — no note has ever exceeded the 1500-char threshold. See ADR in `decisions.md`. Removal is bundled with the schema simplification pass (#117 + #122 + #124 + #127).
 
 RAG chunks for long notes. The gardener's chunk generation phase splits notes with body > 1500 chars into ~500–800 char chunks at paragraph boundaries, embeds each chunk, and inserts here.
 
@@ -113,7 +115,7 @@ Has its own HNSW index for chunk-level similarity search via `match_chunks()`.
 
 ### enrichment_log
 
-Audit trail tracking what processing has been applied to each note. Records entries for capture, embedding, tag normalization, chunking, and unmatched tags.
+Audit trail tracking what processing has been applied to each note. Records entries for capture, embedding, tag normalization, and unmatched tags.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -174,7 +176,9 @@ Filters are composable — any combination of source, tags, and full-text search
 
 Excludes archived notes and notes without embeddings.
 
-### match_chunks
+### match_chunks — being removed (#127)
+
+> Being removed along with `note_chunks` table. See `note_chunks` note above.
 
 Chunk-level vector search for RAG retrieval. Used by the `search_chunks` MCP tool.
 

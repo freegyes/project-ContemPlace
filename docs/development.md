@@ -26,7 +26,7 @@ npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch (27 tests)
 npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler (19 tests)
 npx vitest run tests/mcp-index.test.ts           # OAuthProvider + resolveExternalToken (15 tests)
 npx vitest run tests/gardener-normalize.test.ts  # Tag matching logic (23 tests)
-npx vitest run tests/gardener-chunk.test.ts      # Note chunking (16 tests)
+npx vitest run tests/gardener-chunk.test.ts      # Note chunking — being removed (#127)
 ```
 
 ### Smoke tests (live workers, requires `.dev.vars`)
@@ -112,11 +112,11 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
   wrangler.toml
 gardener/         Gardener Worker (nightly enrichment pipeline)
   src/
-    index.ts      Cron-triggered entry point — orchestrates 3 phases
-    chunk.ts      Note chunking logic (splitIntoChunks, buildChunkEmbeddingInput)
+    index.ts      Cron-triggered entry point — orchestrates gardener phases
+    chunk.ts      Note chunking logic — being removed (#127)
     normalize.ts  Tag matching: lexicalMatch, semanticMatch, resolveNoteTags
-    similarity.ts Link context builder (shared tags, entities)
-    db.ts         Supabase operations (tag norm, similarity, chunking)
+    similarity.ts Link context builder (shared tags)
+    db.ts         Supabase operations (tag norm, similarity)
     embed.ts      Embedding helpers (batchEmbedTexts)
     alert.ts      Best-effort Telegram failure notification
     auth.ts       Bearer token auth for /trigger endpoint
@@ -126,8 +126,8 @@ gardener/         Gardener Worker (nightly enrichment pipeline)
 scripts/
   deploy.sh       Automated 7-step deploy pipeline
 supabase/
-  migrations/     Schema migrations (v2 is current — 8 tables)
-  seed/           SKOS domain concept seeds
+  migrations/     Schema migrations (v3 is current)
+  seed/           Concept vocabulary seeds
 tests/
   parser.test.ts          Capture response parsing (18)
   smoke.test.ts           Live Telegram Worker
@@ -145,7 +145,7 @@ tests/
   gardener-config.test.ts      Gardener config loading (12)
   gardener-alert.test.ts       Telegram failure alerting (10)
   gardener-trigger.test.ts     /trigger endpoint auth + routing (13)
-  gardener-chunk.test.ts       Note chunking logic (16)
+  gardener-chunk.test.ts       Note chunking — being removed (#127)
   gardener-integration.test.ts capture → gardener → get_related (6)
   semantic.test.ts             Tagging, linking, search quality (78)
 docs/             Architecture, schema, decisions, roadmap
@@ -175,7 +175,7 @@ to load specific vars for subcommands.
 |---|---|
 | [Architecture](architecture.md) | Async capture flow, two-pass embedding, prompt structure, error handling |
 | [Capture agent](capture-agent.md) | Classification taxonomy, entity extraction, linking logic, voice correction |
-| [Schema](schema.md) | All 8 tables, RPC functions, indexes, RLS, SKOS concepts |
+| [Schema](schema.md) | All tables, RPC functions, indexes, RLS, concepts |
 | [Design decisions](decisions.md) | Why this stack, key tradeoffs, lessons from real usage |
 | [Roadmap](roadmap.md) | Phase history and what's next |
 | [Setup](setup.md) | Full deploy guide — prerequisites, secrets, Worker deployment, config |

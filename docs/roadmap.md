@@ -36,7 +36,7 @@ Exposes the note database to AI agents via the Model Context Protocol. The prima
 
 Eight tools:
 - **`search_notes`** — semantic search via `match_notes()` with optional tag filters
-- **`search_chunks`** — chunk-level semantic search via `match_chunks()` for fine-grained RAG retrieval
+- **`search_chunks`** — chunk-level search (being removed — #127)
 - **`get_note`** — full note retrieval with linked notes and entity data
 - **`list_recent`** — recent notes, newest first
 - **`get_related`** — notes connected to a given note via the `links` table
@@ -75,7 +75,9 @@ Pairwise cosine similarity across all notes via `find_similar_pairs` RPC (self-j
 
 Maps free-form note tags to the SKOS controlled vocabulary (`concepts` table). Hybrid matching: lexical match against `pref_label` + `alt_labels` first, embedding similarity fallback at `GARDENER_TAG_MATCH_THRESHOLD` (0.55). Populates `notes.refined_tags` (pref_labels only) and `note_concepts` junction. Unmatched tags logged to `enrichment_log` as `type = 'unmatched_tag'` for curation via MCP tools. Uses `batch_update_refined_tags` RPC to stay within CF Workers subrequest budget. 32 seed concepts across 4 schemes (domains, tools, people, places).
 
-### Chunk generation — delivered (PR #44)
+### Chunk generation — delivered (PR #44), being removed (#127)
+
+> **Decision (2026-03-14):** Chunking infrastructure scheduled for removal. No note has ever exceeded the 1500-char threshold. Fragment-first philosophy makes long notes unlikely. Even in the synthesis layer future, fragments are the natural retrieval units. See ADR in `decisions.md`. Removal bundled with schema simplification (#117 + #122 + #124 + #127).
 
 Splits long notes (body > 1500 chars) into ~500–800 char chunks at paragraph boundaries, with sentence and newline fallbacks. Embeds each chunk with title + tag prefix (`{title} [{tags}]: {chunk_text}`). Body hash idempotency via SHA-256 in `enrichment_log.metadata` — only re-chunks when body content changes. Embed-first-insert-second to avoid orphan chunks. Enables `search_chunks` MCP tool for fine-grained RAG retrieval.
 
@@ -96,7 +98,6 @@ Best-effort Telegram failure alerts (`sendAlert()`). Optional `POST /trigger` en
 The v2 schema was designed with Phase 2 in mind. These columns and tables are now partially populated by the gardener:
 
 - `notes.refined_tags` — populated by tag normalization
-- `note_chunks` table — populated by chunk generation
 - `note_concepts` junction table — populated by tag normalization
 - `concepts` table — 32 seeded concepts with embeddings
 - `enrichment_log` — records all gardener activity with metadata
