@@ -788,3 +788,35 @@ The curation burden (monitoring unmatched tags, promoting concepts, maintaining 
 **What this supersedes:** The SKOS vocabulary normalizer decision (2026-03-10) and its three sub-decisions (vocabulary scope, matching strategy, refined_tags semantics). Those were sound engineering given the premise that controlled vocabulary adds retrieval value. The premise turned out to be wrong — embeddings already solve the problem SKOS was meant to address.
 
 **Source:** Issue #105. Implementation in #122 (bundled with #117). Decision chain: #93 → #105 → #122.
+
+## Simplify link types: keep only `contradicts`, genericize the rest (2026-03-14)
+
+**Decision:** Reduce capture-time link types from 5 (`extends`, `contradicts`, `supports`, `is-example-of`, `duplicate-of`) to 2: `contradicts` (intellectual tension) and `related` (everything else). Gardener's `is-similar-to` stays as-is.
+
+**Why:** Empirical analysis of the live corpus (224 links across 81 notes) showed that `supports` accounts for 82.5% of all capture-time links. The LLM defaults to the loosest bucket rather than making fine-grained distinctions. Meanwhile, no retrieval code path filters by link type — the types are decorative metadata.
+
+The exception is `contradicts` (6 links, 2.8%). All 6 were reviewed and found genuinely high-quality: "Sometimes the weeding is the garden" contradicts "I want the garden, not the gardening." These surface intellectual tension that vector similarity alone cannot detect — similar embeddings mean similar topic, not opposing positions. This is the only link type that adds information beyond proximity.
+
+**Evidence by type:**
+| Type | Count | % | Quality assessment |
+|---|---|---|---|
+| `supports` | 174 | 82.5% | Catch-all default. Indistinguishable from "related" |
+| `extends` | 22 | 10.4% | Mostly reasonable but blurs with `supports` |
+| `is-example-of` | 9 | 4.3% | Mixed quality — some miscategorized |
+| `contradicts` | 6 | 2.8% | All correct. Uniquely valuable |
+| `duplicate-of` | 0 | 0% | Never used. Gardener `is-similar-to` with scores is more reliable for dedup |
+
+**What stays:**
+- Capture-time linking (the LLM still identifies which related notes to link)
+- `contradicts` type (surfaces tension that embeddings can't)
+- `related` type (new generic, replaces `extends`/`supports`/`is-example-of`/`duplicate-of`)
+- Gardener's `is-similar-to` (unchanged — auto-detected, score-based)
+
+**What simplifies:**
+- SYSTEM_FRAME: 5 type definitions → 1 meaningful distinction ("if in tension, `contradicts`; otherwise `related`")
+- Parser validation: 5 valid types → 3 (`contradicts`, `related`, `is-similar-to`)
+- Schema CHECK constraint: 9 types → fewer
+- Telegram reply emoji: 5 type-specific icons → 1 for contradiction, default for rest
+- Migration reclassifies existing `extends`/`supports`/`is-example-of`/`duplicate-of` → `related`
+
+**Source:** Issue #106. Implementation bundled with #117 and #122 in a single schema simplification pass. Decision chain: #93 → #106.
