@@ -4,6 +4,53 @@ The capture agent is an LLM that turns raw user input into a structured note. It
 
 > **Note (2026-03-13):** `type`, `intent`, and `modality` were removed from the capture pipeline (#110, decision in #104). The classification complexity didn't justify the marginal retrieval value. The fields below — title, body, tags, entities, links, corrections, source_ref — are the capture output. Existing notes may still have type/intent/modality values from before the change.
 
+## What is an atomic note?
+
+An atomic note captures one idea in the user's own voice — something that earns a single claim as its title without needing "and" to connect two separate points.
+
+**Properties:**
+- **One central claim or question.** If the note needs two titles to be honest, it's two notes.
+- **Self-contained.** A reader gets the point without chasing dependencies.
+- **Voice-preserving.** Reads like the user talking — their words, their phrasing. Mid-thought starts are fine. Throat-clearing is not.
+- **Complete but not padded.** Enough to land the idea, no more. A 20-word note that makes its point beats a 100-word note that circles it.
+
+**What atomic doesn't mean:** Not "short" (a complex idea with examples might be 200 words). Not "simple" (nuanced positions are fine). Not "permanent" (notes may grow through accretion — atomicity governs the capture event, not the note's final form).
+
+### Title model
+
+The title states the note's claim or poses its question. It never merely labels a topic.
+
+- **Claim title** (default): "Espresso workflow needs a dedicated grinder"
+- **Question title** (for exploratory input): "Is SKOS overkill for a personal tag vocabulary?"
+- **Never a label**: "Coffee thoughts", "PKM ideas"
+
+The claim must be the user's claim, derivable from their words — never editorialized. If the user's input is exploratory and doesn't arrive at a position, use a question title rather than manufacturing a conclusion.
+
+### Descriptive range (not prescriptive)
+
+- Sweet spot: 20–150 words in the body, 1–4 sentences
+- Below 20 words: fragment — captured but thin
+- Above 300 words: likely multi-idea — captured with soft warning
+
+These are descriptions of where good atomic notes tend to land, not targets. Word count is a weak proxy for idea count. The real test is the title: if a single claim title covers the note honestly, it's atomic regardless of length.
+
+### Non-atomic input
+
+The system captures everything faithfully — it never rejects input. Non-atomic input (brain dumps, multi-topic streams, long lists) produces degraded structured outputs: the title can only name one idea, tags blur across topics, links become ambiguous. The user is warned softly but the note is always stored with `raw_input` preserved.
+
+Detection heuristics (2+ signals trigger a soft nudge):
+
+| Signal | Threshold |
+|---|---|
+| Word count < 10 | Fragment flag |
+| Word count > 300 | Multi-idea flag |
+| Enumerated list | 3+ items |
+| Multiple paragraphs | 3+ |
+| Tag spread across 3+ domains | Scatter signal |
+| Title requires "and" between unrelated clauses | Multi-idea signal |
+
+For full research basis, see [#108](https://github.com/freegyes/project-ContemPlace/issues/108).
+
 ## Entity extraction
 
 The agent extracts proper nouns from the input with five type categories: `person`, `place`, `tool`, `project`, `concept`.
@@ -66,7 +113,7 @@ The agent may clean up grammar, remove filler, and lightly restructure — but i
 
 **Question preservation** (added PR #76): If the input contains questions, they must be preserved as questions in the body. The agent must not answer them, synthesize related notes into an answer, or reframe them as statements. Related notes are for linking context only — never fold their content into the body. This rule lives in SYSTEM_FRAME (structural correctness), not the capture voice (stylistic).
 
-**Body length scaling** (added PR #76): The capture voice no longer enforces a fixed "1-5 sentences." Short inputs get 1-3 sentences. Longer inputs can use up to 8 sentences to preserve all actionable content. Shorter is still better than padded.
+**Body length** (updated #108): No fixed sentence count. The body is as long as it needs to be to land the idea faithfully — typically 1–4 sentences. Shorter is better than padded, but completeness beats brevity when the idea requires it. The previous "up to 8 sentences" ceiling was removed; the principle replaces the heuristic.
 
 This rule exists because the capture LLM (Haiku) tends to add a summarizing conclusion that restates what the user's words already showed. The traceability rule explicitly prohibits this. The user's raw input is the source of truth; the structured note is a cleaned-up presentation of it, not an interpretation.
 

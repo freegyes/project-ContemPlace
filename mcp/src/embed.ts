@@ -35,10 +35,8 @@ export async function embedText(
  * The capture param is required — use embedText directly for raw (pre-LLM) embeddings.
  */
 export function buildEmbeddingInput(text: string, capture: CaptureResult): string {
-  const parts: string[] = [];
-  parts.push(`[Type: ${capture.type}]`);
-  if (capture.intent) parts.push(`[Intent: ${capture.intent}]`);
-  if (capture.tags.length > 0) parts.push(`[Tags: ${capture.tags.join(', ')}]`);
-  parts.push(text);
-  return parts.join(' ');
+  if (capture.tags.length > 0) {
+    return `[Tags: ${capture.tags.join(', ')}] ${text}`;
+  }
+  return text;
 }

@@ -144,7 +144,7 @@ Two paths, both permanent:
 
 Defaults live in `mcp/src/config.ts`. Override via `mcp/wrangler.toml` `[vars]`.
 
-**Threshold note:** The default search threshold is 0.35. Stored embeddings are metadata-augmented (`[Type: idea] [Intent: plan] [Tags: ...] text`), while search queries are bare natural language. A lower threshold compensates for this vector space gap. You can override per call. See [decisions.md](decisions.md) for the full analysis.
+**Threshold note:** The default search threshold is 0.35. Stored embeddings are metadata-augmented (`[Tags: ...] text`), while search queries are bare natural language. A lower threshold compensates for this vector space gap. You can override per call. See [decisions.md](decisions.md) for the full analysis.
 
 ## 5. Deploy the Gardener Worker
 

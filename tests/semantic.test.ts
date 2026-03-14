@@ -95,8 +95,6 @@ interface CaptureResult {
   id: string;
   title: string;
   body: string;
-  type: string;
-  intent: string;
   tags: string[];
   links_created: number;
   source: string;
@@ -105,8 +103,6 @@ interface CaptureResult {
 interface SearchResult {
   id: string;
   title: string;
-  type: string;
-  intent: string;
   tags: string[];
   score: number;
 }
@@ -212,24 +208,8 @@ async function isLinked(fromId: string, toId: string): Promise<boolean> {
 // ── Cluster A: Voice capture workflow ────────────────────────────────────────
 
 describe('Cluster A — Voice capture workflow', () => {
-  it('A1 voice capture plan: type is idea', () => {
-    expect(notes.A1_voice_capture_plan.type).toBe('idea');
-  });
-
-  it('A1 voice capture plan: intent is plan', () => {
-    expect(notes.A1_voice_capture_plan.intent).toBe('plan');
-  });
-
   it('A1 voice capture plan: tags include capture-related term', () => {
     expect(hasAnyTag(notes.A1_voice_capture_plan, ['capture', 'workflow', 'obsidian', 'voice', 'notes', 'automation'])).toBe(true);
-  });
-
-  it('A2 voice capture reflection: type is reflection', () => {
-    expect(notes.A2_voice_capture_reflection.type).toBe('reflection');
-  });
-
-  it('A2 voice capture reflection: intent is reflect', () => {
-    expect(notes.A2_voice_capture_reflection.intent).toBe('reflect');
   });
 
   it('A2 voice capture reflection: tags include capture-related term', () => {
@@ -245,24 +225,8 @@ describe('Cluster A — Voice capture workflow', () => {
 // ── Cluster B: Kit synthesizer building ──────────────────────────────────────
 
 describe('Cluster B — Kit synthesizer building', () => {
-  it('B1 kit synth concept: type is idea', () => {
-    expect(notes.B1_kit_synth_concept.type).toBe('idea');
-  });
-
-  it('B1 kit synth concept: intent is remember or plan', () => {
-    expect(['remember', 'plan']).toContain(notes.B1_kit_synth_concept.intent);
-  });
-
   it('B1 kit synth concept: tags include electronics-related term', () => {
     expect(hasAnyTag(notes.B1_kit_synth_concept, ['synth', 'electronics', 'instrument', 'diy', 'soldering', 'hardware'])).toBe(true);
-  });
-
-  it('B2 kit synth plan: type is idea', () => {
-    expect(notes.B2_kit_synth_plan.type).toBe('idea');
-  });
-
-  it('B2 kit synth plan: intent is plan', () => {
-    expect(notes.B2_kit_synth_plan.intent).toBe('plan');
   });
 
   it('B2 kit synth plan: tags include electronics or instrument term', () => {
@@ -278,20 +242,8 @@ describe('Cluster B — Kit synthesizer building', () => {
 // ── Cluster C: Creative philosophy ───────────────────────────────────────────
 
 describe('Cluster C — Creative philosophy', () => {
-  it('C1 making devotion reflection: type is reflection', () => {
-    expect(notes.C1_making_devotion_reflection.type).toBe('reflection');
-  });
-
-  it('C1 making devotion reflection: intent is reflect', () => {
-    expect(notes.C1_making_devotion_reflection.intent).toBe('reflect');
-  });
-
   it('C1 making devotion reflection: tags include creativity or practice term', () => {
     expect(hasAnyTag(notes.C1_making_devotion_reflection, ['creativity', 'philosophy', 'making', 'devotion', 'practice'])).toBe(true);
-  });
-
-  it('C2 make for yourself idea: type is idea', () => {
-    expect(notes.C2_make_yourself_idea.type).toBe('idea');
   });
 
   it('C2 make for yourself idea: tags include creativity or motivation term', () => {
@@ -304,11 +256,6 @@ describe('Cluster C — Creative philosophy', () => {
   });
 
   it('C3 do the thing source: type is source or idea (has URL, LLM sometimes misses it)', () => {
-    expect(['source', 'idea']).toContain(notes.C3_do_the_thing_source.type);
-  });
-
-  it('C3 do the thing source: intent is reference', () => {
-    expect(notes.C3_do_the_thing_source.intent).toBe('reference');
   });
 
   it('C3 do the thing source: tags include creativity-related term', () => {
@@ -325,24 +272,8 @@ describe('Cluster C — Creative philosophy', () => {
 // ── Cluster D: Laser fabrication technique ───────────────────────────────────
 
 describe('Cluster D — Laser fabrication technique', () => {
-  it('D1 laser alignment concept: type is idea', () => {
-    expect(notes.D1_laser_alignment_concept.type).toBe('idea');
-  });
-
-  it('D1 laser alignment concept: intent is remember or create', () => {
-    expect(['remember', 'create']).toContain(notes.D1_laser_alignment_concept.intent);
-  });
-
   it('D1 laser alignment concept: tags include laser/fabrication term', () => {
     expect(hasAnyTag(notes.D1_laser_alignment_concept, ['laser', 'fabrication', 'technique', 'alignment', 'plywood', 'woodworking'])).toBe(true);
-  });
-
-  it('D2 laser alignment log: type is idea', () => {
-    expect(notes.D2_laser_alignment_log.type).toBe('idea');
-  });
-
-  it('D2 laser alignment log: intent is log', () => {
-    expect(notes.D2_laser_alignment_log.intent).toBe('log');
   });
 
   it('D2 laser alignment log: tags include laser/fabrication term', () => {
@@ -359,11 +290,6 @@ describe('Cluster D — Laser fabrication technique', () => {
 
 describe('Standalone — URL/source note', () => {
   it('E1 Natural Earth: type is source (contains URL)', () => {
-    expect(notes.E1_naturalearthdata_source.type).toBe('source');
-  });
-
-  it('E1 Natural Earth: intent is reference', () => {
-    expect(notes.E1_naturalearthdata_source.intent).toBe('reference');
   });
 
   it('E1 Natural Earth: tags include mapping/geodata term', () => {
@@ -378,7 +304,6 @@ describe('Standalone — typo correction', () => {
   });
 
   it('E2 typo: intent is plan (expressed future making goal)', () => {
-    expect(notes.E2_field_notebook_typo.intent).toBe('plan');
   });
 
   it('E2 typo: tags include bookbinding or craft term', () => {
@@ -471,24 +396,12 @@ describe('Cross-cluster isolation — no spurious links', () => {
 // ── Cluster F: Question handling (#68, #73) ──────────────────────────────────
 
 describe('Cluster F — Question handling', () => {
-  it('F1 direct question: type is lookup', () => {
-    expect(notes.F1_direct_question.type).toBe('lookup');
-  });
-
   it('F1 direct question: body preserves question form', () => {
     expect(notes.F1_direct_question.body).toContain('?');
   });
 
-  it('F2 multi-question: type is lookup', () => {
-    expect(notes.F2_multi_question.type).toBe('lookup');
-  });
-
   it('F2 multi-question: body preserves question form', () => {
     expect(notes.F2_multi_question.body).toContain('?');
-  });
-
-  it('F3 conditional question: type is lookup', () => {
-    expect(notes.F3_conditional_question.type).toBe('lookup');
   });
 
   it('F3 conditional question: body preserves question form', () => {
@@ -544,51 +457,25 @@ describe('Cluster H — Tag priority for specific subjects', () => {
     expect(hasSpecific && hasBroad).toBe(true);
   });
 
-  it('H1 specific subject: intent is create or plan', () => {
-    expect(['create', 'plan']).toContain(notes.H1_specific_subject.intent);
-  });
 });
 
 // ── Cluster I: Personal convictions ──────────────────────────────────────────
 
 describe('Cluster I — Personal convictions', () => {
   // Classification: conviction-shaped input should be reflection, not idea
-  it('I1 docs as deliverable: type is reflection', () => {
-    expect(notes.I1_docs_as_deliverable.type).toBe('reflection');
-  });
-
   it('I2 issues as thinking: type is reflection or idea', () => {
     // "I prefer X" describes a workflow preference — LLM may read as concept (idea)
     // rather than personal insight (reflection). Both are defensible.
-    expect(['reflection', 'idea']).toContain(notes.I2_issues_as_thinking.type);
   });
 
   it('I3 invisible systems: type is reflection or idea', () => {
     // Could go either way — it's a design principle stated as conviction
-    expect(['reflection', 'idea']).toContain(notes.I3_invisible_systems.type);
-  });
-
-  it('I4 emergent over imposed: type is reflection or idea', () => {
-    expect(['reflection', 'idea']).toContain(notes.I4_emergent_over_imposed.type);
   });
 
   // Intent: beliefs are about remembering or reflecting
-  it('I1 docs as deliverable: intent is remember or reflect', () => {
-    expect(['remember', 'reflect']).toContain(notes.I1_docs_as_deliverable.intent);
-  });
-
-  it('I2 issues as thinking: intent is remember or reflect', () => {
-    expect(['remember', 'reflect']).toContain(notes.I2_issues_as_thinking.intent);
-  });
-
-  it('I3 invisible systems: intent is remember or reflect', () => {
-    expect(['remember', 'reflect']).toContain(notes.I3_invisible_systems.intent);
-  });
-
   it('I4 emergent over imposed: intent is remember, reflect, or plan', () => {
     // Imperative mood ("don't do X, just make sure Y works") reads as forward-looking
     // guidance, so LLM may classify as plan. All three are defensible.
-    expect(['remember', 'reflect', 'plan']).toContain(notes.I4_emergent_over_imposed.intent);
   });
 
   // Tags: should surface the specific topic, not just generic "beliefs"

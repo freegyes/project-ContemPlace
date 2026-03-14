@@ -713,3 +713,35 @@ A dedicated `belief` tag was considered and rejected. It would only add value fo
 **Embedding impact:** Stored embeddings are augmented with `[Type: X] [Intent: Y] [Tags: ...] text`. After removal, augmentation becomes `[Tags: ...] text`. This creates a vector space mismatch between old and new notes. Options: accept the drift (type/intent prefixes are a small fraction of total text), re-embed all existing notes, or fresh start. Decision on migration path deferred to implementation (#110).
 
 **What stays:** title, body, tags, entities, links, corrections, source_ref — all serve retrieval or user feedback with clear value.
+
+## Atomic note definition (2026-03-14)
+
+**Decision:** Define "atomic note" as a three-layer specification, based on PKM literature research (Luhmann, Matuschak, Ahrens, Tietze, Forte, Milo) and corpus analysis of 20 existing ContemPlace notes.
+
+**The definition (Layer 2 — working definition):** An atomic note captures one idea in the user's own voice — something that earns a single claim as its title without needing "and" to connect two separate points. Properties: one central claim or question, self-contained, voice-preserving, complete but not padded.
+
+**Title model:** Claim titles are the primary model (title states the note's position). Question titles are secondary (for exploratory input). Topic labels are explicitly discouraged — they signal multi-idea notes and are retrieval-hostile.
+
+**Operational atomicity test:** If the note needs two claim titles to be honest, it's two notes. This "and" test gives the LLM and detection heuristics something concrete to evaluate.
+
+**No hard size limits.** Word count is a weak proxy for idea count (Tietze: "atomicity ≠ granularity"). A long note can be atomic; a short note can contain two ideas. Sweet spot from corpus analysis: 20–150 words, 1–4 sentences. Presented as descriptive, not prescriptive.
+
+**Atomicity governs capture events, not note lifecycle.** Each `capture_note` call should contain one idea. The stored note may grow through accretion (#103) as new captures refine it — that's a gardening concern.
+
+**Non-atomic input is captured, never rejected.** Soft warnings when detection heuristics fire (2+ signals required to reduce voice-input false positives). The "low friction, aware curator" principle: warn, don't gate.
+
+**Three layers for different consumers:** Layer 1 (one sentence, for tool descriptions): "One idea, stated clearly, in the user's own voice." Layer 2 (working definition, for agent training and capture voice). Layer 3 (full specification with detection heuristics, for SYSTEM_FRAME and `docs/capture-agent.md`).
+
+**Body length rule replaced.** The previous "1-3 short, up to 8 long" heuristic replaced with a principle: "enough to land the idea, no more." Shorter is better than padded, but completeness beats brevity when the idea requires it.
+
+**Source:** Issue #108. Literature basis: Matuschak's "titles are like APIs" (strongest framework), Tietze's atomicity-as-direction (not rigid law), Ahrens's self-containment, Luhmann's A6-constrained practice (~150-250 words). Corpus analysis: excellent notes cluster at 120-330 chars with claim titles; the one too-broad note had 4+ ideas and a compound label title.
+
+## Drop type/intent/modality from capture pipeline (2026-03-14)
+
+**Decision:** Remove `type`, `intent`, and `modality` fields from the entire capture pipeline — LLM contract, schema, code, and tests.
+
+**Why:** These classification facets added cognitive overhead to the LLM prompt without delivering proportional retrieval or organizational value. Type was a 4-way enum that didn't influence any downstream behavior. Intent was a 6-way enum that overlapped with tags. Modality was never used. All three occupied prompt space and test surface without improving search results or user experience. The decision was validated through storage philosophy analysis (#93) and confirmed in #104.
+
+**Implementation:** Clean-slate v3 schema — consolidated 10 migration files into one that never had these columns. SYSTEM_FRAME reduced from 10-field to 7-field JSON contract. Embedding format simplified from `[Type: X] [Intent: Y] [Tags: ...] text` to `[Tags: ...] text`. All 81 curated notes re-captured from `raw_input` to rebuild the corpus in the new vector space. All tests updated and passing.
+
+**Source:** Issue #110, PR #114. Decision chain: #93 → #104 → #110.

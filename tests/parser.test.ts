@@ -4,12 +4,9 @@ import { parseCaptureResponse } from '../mcp/src/capture';
 const VALID_BASE = {
   title: 'Test title',
   body: 'Test body.',
-  type: 'idea',
   tags: ['test'],
   source_ref: null,
   corrections: null,
-  intent: 'remember',
-  modality: 'text',
   entities: [],
   links: [],
 };
@@ -22,44 +19,12 @@ describe('parseCaptureResponse', () => {
   it('parses valid complete JSON', () => {
     const result = parseCaptureResponse(make());
     expect(result.title).toBe('Test title');
-    expect(result.type).toBe('idea');
-    expect(result.intent).toBe('remember');
-    expect(result.modality).toBe('text');
     expect(result.entities).toEqual([]);
   });
 
   it('strips markdown code fences', () => {
     const result = parseCaptureResponse('```json\n' + make() + '\n```');
     expect(result.title).toBe('Test title');
-  });
-
-  it('defaults invalid type to idea', () => {
-    const result = parseCaptureResponse(make({ type: 'bogus' }));
-    expect(result.type).toBe('idea');
-  });
-
-  it('defaults missing intent to remember', () => {
-    const json = { ...VALID_BASE };
-    delete (json as Record<string, unknown>)['intent'];
-    const result = parseCaptureResponse(JSON.stringify(json));
-    expect(result.intent).toBe('remember');
-  });
-
-  it('defaults invalid intent to remember', () => {
-    const result = parseCaptureResponse(make({ intent: 'wish' }));
-    expect(result.intent).toBe('remember');
-  });
-
-  it('defaults missing modality to text', () => {
-    const json = { ...VALID_BASE };
-    delete (json as Record<string, unknown>)['modality'];
-    const result = parseCaptureResponse(JSON.stringify(json));
-    expect(result.modality).toBe('text');
-  });
-
-  it('defaults invalid modality to text', () => {
-    const result = parseCaptureResponse(make({ modality: 'video' }));
-    expect(result.modality).toBe('text');
   });
 
   it('filters entities with invalid types', () => {

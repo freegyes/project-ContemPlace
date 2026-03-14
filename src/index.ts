@@ -115,12 +115,6 @@ async function processCapture(
 // Emojis give each classification a consistent visual anchor so the user can
 // spot behavioral patterns at a glance without reading every label.
 
-const TYPE_EMOJI: Record<string, string> = {
-  idea: '💡', reflection: '🪞', source: '📎', lookup: '🔍',
-};
-const INTENT_EMOJI: Record<string, string> = {
-  reflect: '🧘', plan: '🗺️', create: '🛠️', remember: '📌', reference: '📖', log: '📝',
-};
 const LINK_EMOJI: Record<string, string> = {
   extends: '🔗', contradicts: '⚡', supports: '🤝', 'is-example-of': '📐', 'duplicate-of': '♊',
 };
@@ -132,9 +126,6 @@ function formatTelegramReply(result: ServiceCaptureResult): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const sep = '──────────────────────';
 
-  const typeIcon = TYPE_EMOJI[result.type] ?? '❓';
-  const intentIcon = INTENT_EMOJI[result.intent] ?? '❓';
-
   // Title and body are prominent — everything else is italic metadata
   const lines: string[] = [
     `<b>${esc(result.title)}</b>`,
@@ -142,7 +133,6 @@ function formatTelegramReply(result: ServiceCaptureResult): string {
     esc(result.body),
     '',
     sep,
-    `<i>${typeIcon} ${result.type} · ${intentIcon} ${result.intent} · ${result.modality}</i>`,
     `<i>🏷️ ${result.tags.map(esc).join(', ')}</i>`,
   ];
 

@@ -13,8 +13,6 @@ const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET ?? '';
 const CHAT_ID = Number(process.env.TELEGRAM_CHAT_ID ?? '0');
 const UPDATE_ID_BASE = Date.now(); // unique per run to avoid dedup collisions
 
-const VALID_INTENTS = ['reflect', 'plan', 'create', 'remember', 'reference', 'log'];
-const VALID_MODALITIES = ['text', 'link', 'list', 'mixed'];
 
 const TEST_RAW_INPUTS = [
   '[SMOKE-TEST] Constraints make creative work stronger.',
@@ -99,7 +97,7 @@ describe('Worker happy path', () => {
     const db = supabase();
     const { data, error } = await db
       .from('notes')
-      .select('id, title, embedding, intent, modality, entities, embedded_at')
+      .select('id, title, embedding, entities, embedded_at')
       .eq('raw_input', '[SMOKE-TEST] Constraints make creative work stronger.')
       .order('created_at', { ascending: false })
       .limit(1);
@@ -111,9 +109,6 @@ describe('Worker happy path', () => {
     const note = data![0]!;
     expect(note.embedding).not.toBeNull();
     expect(note.embedded_at).not.toBeNull();
-    // Validate against allowed sets, not just non-null [Review fix 12-§1a]
-    expect(VALID_INTENTS).toContain(note.intent);
-    expect(VALID_MODALITIES).toContain(note.modality);
     expect(note.entities).not.toBeNull();
 
     // Verify enrichment log entries [Review fix 12-§1b]

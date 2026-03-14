@@ -24,9 +24,6 @@ export interface ServiceCaptureResult {
   id: string;
   title: string;
   body: string;
-  type: string;
-  intent: string;
-  modality: string;
   tags: string[];
   source_ref: string | null;
   corrections: string[] | null;

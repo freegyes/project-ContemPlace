@@ -49,10 +49,8 @@ export async function findRelatedNotes(
     query_embedding: embedding,
     match_threshold: threshold,
     match_count: 5,
-    filter_type: null,
     filter_source: null,
     filter_tags: null,
-    filter_intent: null,
     search_text: null,
   });
 
@@ -80,13 +78,10 @@ export async function insertNote(
       title: capture.title,
       body: capture.body,
       raw_input: rawInput,
-      type: capture.type,
       tags: capture.tags,
       source_ref: capture.source_ref,
       source,
       corrections: capture.corrections,
-      intent: capture.intent,
-      modality: capture.modality,
       entities: capture.entities,
       embedding,
       embedded_at: new Date().toISOString(),
@@ -264,7 +259,7 @@ export async function fetchNote(
 ): Promise<NoteRow | null> {
   const { data, error } = await db
     .from('notes')
-    .select('id, title, body, raw_input, type, intent, modality, tags, entities, corrections, source, source_ref, created_at')
+    .select('id, title, body, raw_input, tags, entities, corrections, source, source_ref, created_at')
     .eq('id', id)
     .single();
 
@@ -323,23 +318,16 @@ export async function fetchNoteLinks(
   });
 }
 
-// List recent notes, newest first, with optional type/intent filters.
+// List recent notes, newest first.
 export async function listRecentNotes(
   db: SupabaseClient,
   limit: number,
-  filterType?: string,
-  filterIntent?: string,
 ): Promise<NoteRow[]> {
-  let query = db
+  const { data, error } = await db
     .from('notes')
-    .select('id, title, body, type, intent, modality, tags, source, source_ref, created_at')
+    .select('id, title, body, tags, source, source_ref, created_at')
     .order('created_at', { ascending: false })
     .limit(limit);
-
-  if (filterType) query = query.eq('type', filterType);
-  if (filterIntent) query = query.eq('intent', filterIntent);
-
-  const { data, error } = await query;
 
   if (error) {
     console.error(JSON.stringify({ event: 'list_recent_error', error: error.message }));
@@ -355,18 +343,14 @@ export async function searchNotes(
   embedding: number[],
   threshold: number,
   limit: number,
-  filterType?: string,
-  filterIntent?: string,
   filterTags?: string[],
 ): Promise<MatchedNote[]> {
   const { data, error } = await db.rpc('match_notes', {
     query_embedding: embedding,
     match_threshold: threshold,
     match_count: limit,
-    filter_type: filterType ?? null,
     filter_source: null,
     filter_tags: filterTags ?? null,
-    filter_intent: filterIntent ?? null,
     search_text: null,
   });
 
@@ -386,8 +370,6 @@ export interface ChunkResult {
   chunk_index: number;
   content: string;
   note_title: string;
-  note_type: string;
-  note_intent: string | null;
   note_tags: string[];
   similarity: number;
 }

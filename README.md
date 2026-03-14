@@ -32,7 +32,7 @@ No proprietary format. No vendor lock-in. Postgres you can always query and expo
 | Gardening pipeline | ✅ Complete — similarity linker, tag normalization, chunk generation · [Phase 2b](https://github.com/freegyes/project-ContemPlace/milestone/1) |
 | OAuth 2.1 (Claude.ai web) | ✅ Live — Auth Code + PKCE, DCR, static key fallback · [Phase 2c](https://github.com/freegyes/project-ContemPlace/milestone/2) |
 | Dashboard | 💡 Planned — [#101](https://github.com/freegyes/project-ContemPlace/issues/101) |
-| Leaner capture (drop type/intent/modality) | 🔜 Implementation — [#110](https://github.com/freegyes/project-ContemPlace/issues/110) |
+| Leaner capture (drop type/intent/modality) | ✅ Complete — [#110](https://github.com/freegyes/project-ContemPlace/issues/110) |
 | URL handling + input awareness | 💡 Design phase — [#27](https://github.com/freegyes/project-ContemPlace/issues/27) |
 | Import tools | 💡 Planned — [#13](https://github.com/freegyes/project-ContemPlace/issues/13), [#14](https://github.com/freegyes/project-ContemPlace/issues/14) |
 
@@ -128,7 +128,7 @@ All three require a Supabase database and Cloudflare account. Full prerequisites
 
 ### What kind of notes does this store?
 
-Anything you'd want to find again. The system is optimized for atomic notes — one idea per note, in your own voice. In practice, a typical database ends up with:
+Anything you'd want to find again. The system is optimized for atomic notes — one idea per note, in your own voice. An atomic note earns a single claim as its title without needing "and" to connect two separate points. It's self-contained, voice-preserving, and complete without being padded. In practice, a typical database ends up with:
 
 - **Project ideas** — things to build, one concept per note
 - **Technical references** — things you looked up and want to find again
@@ -163,8 +163,8 @@ The capture agent structures each note in a single LLM pass:
 
 | Field | Purpose |
 |---|---|
-| **title** | A claim or insight — not a topic label |
-| **body** | Faithful to your words, as long as needed — no compression |
+| **title** | A claim or question — never a topic label. States the note's point so you can scan a list without opening each one. |
+| **body** | Faithful to your words, as long as needed — no compression. Typically 1–4 sentences. |
 | **tags** | Free-form, from the input |
 | **entities** | Proper nouns with types (person, place, tool, project, concept) |
 | **links** | Edges to related notes |
