@@ -838,3 +838,24 @@ Removing entity extraction from capture simplifies the LLM contract from 7 field
 **What stays:** The `notes.entities` column remains in the schema. Existing notes retain their entities. New notes get `[]`. The `notes_entities_idx` GIN index stays. A future gardener phase can populate entities with full corpus context — tracked in a new issue.
 
 **Source:** Issue #113. Decision chain: #93 → #113.
+
+## Drop chunking infrastructure — fragments are the natural retrieval units (2026-03-14)
+
+**Decision:** Remove the chunking infrastructure entirely: `note_chunks` table, `match_chunks` RPC, `search_chunks` MCP tool, gardener chunk generation phase, and all associated code and tests. Implementation bundled with the schema simplification pass (#117 + #122 + #124).
+
+**Why:** Chunking was built for long notes that don't exist and won't exist under the fragment-first philosophy. The 1500-char threshold has never been triggered. The corpus (99 notes) has a median body length of 158 chars; the longest is 1333 chars. No note has ever been chunked.
+
+Lowering the threshold doesn't help — even at 800 chars, only 1 note qualifies. Fragment-first capture actively pushes against long notes. The system doesn't accrete notes into longer ones (#103 was superseded by fragment-first). Import paths (#13, #14) are deferred and speculative.
+
+**Even in the synthesis future, chunking doesn't earn its keep.** The synthesis layer (#120) will produce MOC-like cluster summaries — longer notes that reference source fragments. But chunking those MOCs wouldn't improve retrieval: the source fragments are already individually searchable via `search_notes` at the right granularity. A chunk of a MOC is partial synthesis — less useful than either the full MOC (for cluster overview) or the original fragment (for specific detail). The fragment layer IS the chunk layer.
+
+**What gets removed:**
+- `note_chunks` table + `match_chunks` RPC function (schema migration)
+- `search_chunks` MCP tool definition + handler (`mcp/src/tools.ts`)
+- `searchChunks` DB function (`mcp/src/db.ts`)
+- Chunk generation phase in gardener (`gardener/src/chunk.ts`, chunk DB ops in `gardener/src/db.ts`, orchestration in `gardener/src/index.ts`)
+- Unit tests (`tests/gardener-chunk.test.ts`, chunk-related cases in `tests/mcp-dispatch.test.ts`, `tests/mcp-tools.test.ts`)
+
+**Re-adding is low cost.** The code is self-contained and can be copied from git history if a future input path (imports, synthesis) produces content that needs chunk-level retrieval.
+
+**Source:** Issue #112. Decision chain: #93 → #112, informed by #120 (synthesis layer design).
