@@ -594,7 +594,7 @@ A dedicated `belief` tag was considered and rejected. It would only add value fo
 
 **Implementation:** The MCP Worker exports a `CaptureService` class extending `WorkerEntrypoint` with a `capture(rawInput, source)` method. The Telegram Worker declares a Service Binding in `wrangler.toml` and calls `env.CAPTURE_SERVICE.capture(text, 'telegram')` — direct RPC, no HTTP, no auth overhead. Both the MCP `capture_note` tool handler and the Telegram adapter call the same internal function.
 
-**CaptureResult contract:** One rich result designed for all gateways — includes id, title, body, type, intent, tags, corrections, entities, source_ref, and links with resolved titles. Telegram formats it as HTML. MCP returns it as JSON. Future gateways use the same result.
+**CaptureResult contract:** One rich result designed for all gateways — includes id, title, body, tags, corrections, source_ref, and links with resolved titles. (Originally included type/intent/entities — removed in #110 and #113.) Telegram formats it as HTML. MCP returns it as JSON. Future gateways use the same result.
 
 **Coupling assessment:** For a single-user system on CF Workers, the operational coupling risk is negligible. Workers don't have traditional downtime — deploys are atomic (~1-2s), and CF routes to the previous version during deployment. Service Bindings are in-process, platform-managed. The logical coupling is desirable: capture behavior changes everywhere at once.
 
@@ -760,7 +760,7 @@ A dedicated `belief` tag was considered and rejected. It would only add value fo
 **The trust contract:** The system earns trust by guaranteeing: (1) no contamination — synthesis never contains inferred statements in the user's voice, (2) no garbage — everything traces to real fragments, (3) full traceability — every synthesized statement cites source fragments, (4) analytical not creative — the system organizes and connects, it doesn't generate new ideas or add meaning the fragments don't contain. The system is a faithful mirror, not a co-author.
 
 **What changes in practice:**
-- The capture pipeline stays the same — the LLM still produces title/body/tags/entities/links. What changes is the framing: the pipeline structures fragments, it doesn't enforce atomicity.
+- The capture pipeline stays the same — the LLM still produces title/body/tags/links. What changes is the framing: the pipeline structures fragments, it doesn't enforce atomicity.
 - Non-atomic detection heuristics reframe as multi-fragment indicators — useful quality signals for the capture LLM, not input quality warnings to the user.
 - The gardener gains a future synthesis phase: cluster detection → MOC generation → incremental re-evaluation. Tracked in #116.
 - Maturity labels (seedling/budding/evergreen) are rejected. Maturity is a computed analytical proxy from density, clustering, and link patterns — not a per-note label.

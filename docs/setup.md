@@ -178,7 +178,7 @@ Defaults live in `gardener/src/config.ts`. Override via `gardener/wrangler.toml`
 
 The LLM's title and body style rules live in the `capture_profiles` database table, not in code. Edit the `default` row to change how notes are written — no redeployment needed.
 
-The structural contract (JSON schema, field enums, entity/link rules) lives in `SYSTEM_FRAME` in `src/capture.ts` and `mcp/src/capture.ts`. Changes there require a deploy.
+The structural contract (JSON schema, field enums, link rules) lives in `SYSTEM_FRAME` in `mcp/src/capture.ts`. Changes there require a deploy.
 
 ## Environment variables reference
 

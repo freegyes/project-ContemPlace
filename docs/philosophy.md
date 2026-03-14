@@ -24,7 +24,7 @@ The product's promise: the results without the process.
 
 The system captures idea fragments — whatever the user sends. A fragment can be a focused thought, a rough observation, a question, a quote, a reflection on life, a workflow suggestion. No pressure to be atomic or complete.
 
-The capture pipeline structures each fragment (title, body, tags, entities, links) and preserves the user's exact words. Focused fragments produce the best immediate structuring, but all fragments are valuable raw material. Atomic-like structures — focused claims, well-linked themes — are what emerges from fragments through accumulation, clustering, and synthesis. They are an output of the system, not an input requirement.
+The capture pipeline structures each fragment (title, body, tags, links) and preserves the user's exact words. Focused fragments produce the best immediate structuring, but all fragments are valuable raw material. Atomic-like structures — focused claims, well-linked themes — are what emerges from fragments through accumulation, clustering, and synthesis. They are an output of the system, not an input requirement.
 
 *Source: #116 (2026-03-14). Reverses the 2026-03-13 decision "atomic notes are the optimized input type." Literature basis: Sosa's accretion theory (ideas form from fragmentary "ideasimals"), Ahrens' clustering (the cluster itself becomes the developed idea), Milo's MOCs (synthesis layer above atoms).*
 
