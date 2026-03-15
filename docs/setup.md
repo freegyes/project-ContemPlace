@@ -295,6 +295,15 @@ The structural contract (JSON schema, field enums, link rules) lives in `SYSTEM_
 
 ## Troubleshooting
 
+### Viewing Worker logs
+
+All Workers emit structured JSON logs. Two ways to see them:
+
+- **Real-time streaming** — `wrangler tail` for the Telegram Worker, `wrangler tail -c mcp/wrangler.toml` for the MCP Worker, `wrangler tail -c gardener/wrangler.toml` for the Gardener. Shows logs as requests come in. Useful for debugging a specific request.
+- **Persistent logs** — in the Cloudflare dashboard, go to Workers & Pages → select the Worker → Logs. Enable "Workers Logs" to store logs for later inspection. Useful when you're not watching in real time.
+
+Start here when something isn't working — the logs usually tell you exactly what failed.
+
 ### "Unauthorized" or "invalid or missing token" when hitting the MCP Worker URL
 
 The MCP Worker requires authentication on every request. You cannot test it by opening the URL in a browser — that will always fail. Use the curl command from step 5 with your `MCP_API_KEY`, or connect via Claude.ai (OAuth) or Claude Code CLI (static token).
