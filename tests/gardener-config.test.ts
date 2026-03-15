@@ -68,4 +68,20 @@ describe('loadConfig', () => {
   it('throws mentioning GARDENER_SIMILARITY_THRESHOLD when above 1', () => {
     expect(() => loadConfig(env({ GARDENER_SIMILARITY_THRESHOLD: '1.1' }))).toThrow('GARDENER_SIMILARITY_THRESHOLD');
   });
+
+  it('throws when SUPABASE_SERVICE_ROLE_KEY is an anon key JWT', () => {
+    const anonJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIn0.fakesig';
+    expect(() => loadConfig(env({ SUPABASE_SERVICE_ROLE_KEY: anonJwt }))).toThrow('expected "service_role"');
+  });
+
+  it('accepts a service_role JWT for SUPABASE_SERVICE_ROLE_KEY', () => {
+    const serviceJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UifQ.fakesig';
+    const config = loadConfig(env({ SUPABASE_SERVICE_ROLE_KEY: serviceJwt }));
+    expect(config.supabaseServiceRoleKey).toBe(serviceJwt);
+  });
+
+  it('accepts a non-JWT string for SUPABASE_SERVICE_ROLE_KEY', () => {
+    const config = loadConfig(env({ SUPABASE_SERVICE_ROLE_KEY: 'plain-key' }));
+    expect(config.supabaseServiceRoleKey).toBe('plain-key');
+  });
 });

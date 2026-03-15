@@ -222,6 +222,12 @@ CREATE TABLE processed_updates (
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
+-- Server-only architecture: all DB access goes through Cloudflare Workers
+-- using SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS entirely.
+-- The deny-all policies below are defense-in-depth: if someone accidentally
+-- uses the anon key (or it leaks), they get zero access instead of full access.
+-- Do NOT add SECURITY DEFINER to RPC functions — that would let the anon key
+-- read data through them, defeating the deny-all policies.
 ALTER TABLE notes             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE links             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE concepts          ENABLE ROW LEVEL SECURITY;

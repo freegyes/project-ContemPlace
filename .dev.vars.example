@@ -7,7 +7,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 TELEGRAM_WEBHOOK_SECRET=your_webhook_secret_here
 OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key_here
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here   # Must be the service_role key, NOT the anon key. Find under Project Settings → API → service_role (click Reveal).
 SUPABASE_DB_PASSWORD=your_database_password_here   # Only needed for `supabase link`; deploy script uses --linked mode
 
 # Whitelist — comma-separated Telegram chat IDs allowed to use the bot.

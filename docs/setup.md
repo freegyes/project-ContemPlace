@@ -313,6 +313,20 @@ Check in order:
 
 The KV namespace ID in `mcp/wrangler.toml` is account-specific. If you cloned the repo, you need to create your own namespace — see step 5 "Create the KV namespace."
 
+### Writes fail or search always returns empty results
+
+Most likely you're using the **anon key** instead of the **service role key** for `SUPABASE_SERVICE_ROLE_KEY`. The anon key looks similar (both start with `eyJ...`) but has no write access due to RLS.
+
+Verify which key you have:
+
+```bash
+echo "$SUPABASE_SERVICE_ROLE_KEY" | cut -d. -f2 | base64 -d 2>/dev/null
+```
+
+You should see `"role":"service_role"`. If you see `"role":"anon"`, go to the Supabase dashboard → Project Settings → API → scroll to `service_role` → click **Reveal** → copy that key instead.
+
+The Workers also validate this at startup — if you deploy with the wrong key, the Worker logs will show: `SUPABASE_SERVICE_ROLE_KEY has role "anon" — expected "service_role"`.
+
 ### `wrangler secret put` or `wrangler deploy` fails with auth error
 
 Run `wrangler login` to re-authenticate with Cloudflare.
