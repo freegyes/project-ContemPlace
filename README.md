@@ -96,6 +96,12 @@ Each new fragment creates edges in the graph. The nightly gardener finds similar
 
 Your data stays in Postgres. Export it, query it, migrate it. Every fragment's raw input is preserved, so you can re-process everything with different tools or models. There's no proprietary format to decode.
 
+### Should I import my existing notes first?
+
+You can start capturing fresh and let value build from zero — the system is designed for that. But if you have material worth bringing in, there's no automated import script. Every fragment runs through the full capture pipeline (LLM structuring, embedding, linking), so bulk import isn't a button you press.
+
+What works is assisted re-capture: you sit with an agent, describe a topic from your existing notes, and work through the fragments together — re-voicing them in your natural capture style, reviewing each one before it enters the system. The repo includes [an example of this workflow](docs/usage.md#bringing-in-existing-notes) built for Obsidian vaults with semantic search. It's a recipe that requires your editorial judgment at every step, not a migration tool.
+
 ### What does it cost?
 
 All infrastructure runs on free tiers (Cloudflare Workers, Supabase). The only cost is LLM calls through OpenRouter — typically $2–3/month for active daily use.
