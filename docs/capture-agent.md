@@ -4,6 +4,21 @@ The capture agent is an LLM that turns raw user input into a structured fragment
 
 > **Note (2026-03-13):** `type`, `intent`, and `modality` were removed from the capture pipeline (#110, decision in #104). The classification complexity didn't justify the marginal retrieval value. The fields below — title, body, tags, links, corrections, source_ref — are the capture output. Existing notes may still have type/intent/modality values from before the change.
 
+## Output at a glance
+
+| Field | Purpose |
+|---|---|
+| **title** | A claim or question — never a topic label. States the fragment's point so you can scan a list without opening each one. |
+| **body** | Faithful to your words, as long as needed — no compression. Typically 1–4 sentences. |
+| **tags** | Free-form, derived from the input |
+| **links** | Edges to related notes (`contradicts` or `related`) |
+| **corrections** | Voice dictation fixes, applied silently and reported |
+| **source_ref** | URL if one was included |
+
+The body follows a strict traceability rule: every sentence must trace back to something you actually said. The agent transcribes, not interprets. Voice dictation input is fully supported — the agent detects and silently corrects transcription errors, cross-referencing proper nouns against existing notes.
+
+Each field is detailed in the sections below.
+
 ## What goes in?
 
 The system captures idea fragments — whatever the user sends, in their own voice. A fragment can be a focused single thought, a rough observation, a question, a quote, a reflection. No pressure to be atomic or complete. The capture pipeline structures each fragment (title, body, tags, links) and preserves the user's exact words in `raw_input`.
