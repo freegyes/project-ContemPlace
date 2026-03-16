@@ -79,7 +79,7 @@ gardener/
     auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
     types.ts         # Gardener-specific TypeScript interfaces
 scripts/
-  deploy.sh          # Automated 8-step deploy pipeline (schema → typecheck → unit tests → MCP Worker → Telegram Worker → bot commands → Gardener Worker → smoke tests)
+  deploy.sh          # Automated deploy pipeline (schema → typecheck → unit tests → MCP Worker → Telegram Worker → bot commands → Gardener Worker → smoke tests)
 supabase/
   config.toml
   migrations/
@@ -92,7 +92,7 @@ tests/
   mcp-auth.test.ts            # Unit tests for mcp/src/auth.ts
   mcp-config.test.ts          # Unit tests for mcp/src/config.ts
   mcp-embed.test.ts           # Unit tests for mcp/src/embed.ts
-  mcp-tools.test.ts           # Unit tests for all 6 MCP tool handlers (mocked deps, no network)
+  mcp-tools.test.ts           # Unit tests for all MCP tool handlers (mocked deps, no network)
   mcp-dispatch.test.ts        # Unit tests for handleMcpRequest JSON-RPC dispatch (no network)
   mcp-index.test.ts           # Unit tests for OAuthProvider config + resolveExternalToken
   mcp-oauth.test.ts           # Unit tests for consent page rendering, AuthHandler, CONSENT_SECRET validation
@@ -324,7 +324,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **Phase 2c (complete):** OAuth 2.1 for MCP server. Authorization Code + PKCE via `@cloudflare/workers-oauth-provider`, DCR enabled, `resolveExternalToken` for static token bypass, consent page protected by `CONSENT_SECRET`. Verified with Claude.ai web connector. Cursor/ChatGPT verification deferred (#102). Tagged `v3.0.0`.
 - **v3.1.0 (complete):** Drop type/intent/modality from capture pipeline (#110). Clean-slate v3 schema. 10-field → 7-field → 6-field LLM contract (entities removed from capture in #113). Embedding format simplified to `[Tags: ...] text`. Corpus re-captured from raw_input.
 - **v4.0.0 (complete):** Schema simplification bundle (#128, PR #131). Dropped 3 tables (concepts, note_concepts, note_chunks), 3 columns (refined_tags, maturity, importance_score), 2 RPC functions (match_chunks, batch_update_refined_tags). Link types simplified from 9 → 3 (contradicts, related, is-similar-to). MCP tools reduced from 8 → 5. Gardener simplified to similarity linking only.
-- **remove_note (complete):** MCP tool for note removal with time-dependent behavior (#87, PR #140). Notes < 11 min: permanently deleted. Older: soft archive. All existing tools now filter `archived_at IS NULL`. MCP tools 5 → 6. Renamed from `archive_note` — the old name promised archival but could permanently delete.
+- **remove_note (complete):** MCP tool for note removal with time-dependent behavior (#87, PR #140). Notes < 11 min: permanently deleted. Older: soft archive. All existing tools now filter `archived_at IS NULL`. Renamed from `archive_note` — the old name promised archival but could permanently delete.
 - **Telegram /undo (complete):** `/undo` command hard-deletes most recent Telegram capture within grace window (#142, PR #143). Source-scoped (Telegram only), grace-window-only (refuses after 11 min). Bot commands registered automatically by `deploy.sh`.
 - **Phase 3 (deferred):** Associative trails, location extraction.
 

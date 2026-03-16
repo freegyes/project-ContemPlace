@@ -99,7 +99,7 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
     index.ts      OAuthProvider setup, CaptureService entrypoint (capture + undoLatest), McpApiHandler, resolveExternalToken bypass
     pipeline.ts   Single source of truth for capture logic (called by Service Binding RPC + capture_note tool)
     oauth.ts      Consent page HTML + AuthHandler (GET/POST /authorize)
-    tools.ts      All 6 tool handlers with input validation
+    tools.ts      MCP tool handlers with input validation
     auth.ts       Bearer token auth + constant-time comparison
     config.ts     Config loading with validation
     db.ts         DB read/write functions
@@ -118,7 +118,7 @@ gardener/         Gardener Worker (nightly similarity linking)
     types.ts      TypeScript interfaces
   wrangler.toml
 scripts/
-  deploy.sh       Automated 8-step deploy pipeline
+  deploy.sh       Automated deploy pipeline
 supabase/
   migrations/     Schema migrations (v4 is current)
 tests/
@@ -128,7 +128,7 @@ tests/
   mcp-auth.test.ts        MCP auth
   mcp-config.test.ts      MCP config loading
   mcp-embed.test.ts       Embedding helpers
-  mcp-tools.test.ts       All 6 tool handlers
+  mcp-tools.test.ts       All MCP tool handlers
   mcp-index.test.ts       OAuthProvider + resolveExternalToken
   mcp-oauth.test.ts       Consent page + AuthHandler
   mcp-dispatch.test.ts    JSON-RPC dispatch

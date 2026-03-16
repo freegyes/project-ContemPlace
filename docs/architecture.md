@@ -21,7 +21,7 @@ OpenRouter sits between the Workers and all AI models. This adds a hop but means
 | Worker | Name | Purpose | Trigger |
 |---|---|---|---|
 | **Telegram capture** | `contemplace` | Receives Telegram webhooks, delegates capture to MCP Worker via Service Binding, formats HTML reply | Telegram webhook POST |
-| **MCP server** | `mcp-contemplace` | Exposes 6 tools to AI agents via JSON-RPC 2.0 over HTTP. Hosts `CaptureService` entrypoint for Service Binding RPC (`capture()` + `undoLatest()`). | HTTP POST /mcp, Service Binding RPC |
+| **MCP server** | `mcp-contemplace` | MCP tools via JSON-RPC 2.0 over HTTP. Hosts `CaptureService` entrypoint for Service Binding RPC (`capture()` + `undoLatest()`). | HTTP POST /mcp, Service Binding RPC |
 | **Gardener** | `contemplace-gardener` | Nightly enrichment: similarity linking | Cron (02:00 UTC) or POST /trigger |
 
 Each Worker is independently deployed with its own `wrangler.toml` and secrets. They share the same Supabase database and use the same `openai` SDK pattern for OpenRouter calls.
@@ -101,7 +101,7 @@ The same `runCapturePipeline()` function is called by both the Service Binding R
 
 ## MCP server
 
-The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth 2.1 (Authorization Code + PKCE) for browser-based clients and static Bearer token for API/SDK callers. It exposes 6 tools:
+The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth 2.1 (Authorization Code + PKCE) for browser-based clients and static Bearer token for API/SDK callers. It exposes these tools:
 
 | Tool | Operation |
 |---|---|

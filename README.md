@@ -35,7 +35,7 @@ Postgres you can always query and export. The whole stack runs on free tiers. LL
 
 ## MCP tools
 
-The MCP server is the primary interface — six tools, usable by any MCP-capable agent:
+The MCP server is the primary interface, usable by any MCP-capable agent:
 
 | Tool | What it does |
 |---|---|
@@ -70,7 +70,7 @@ Every model is an environment variable. All AI calls route through OpenRouter �
 
 **No lock-in.** Postgres you can query and export any time. MCP means any compatible agent works — Claude, ChatGPT, Cursor, custom scripts. Switch tools whenever you want. The database doesn't care who's reading it. [Data ownership →](docs/philosophy.md#12-your-data-any-agent)
 
-The [full design philosophy](docs/philosophy.md) has twelve principles with the reasoning behind each — not marketing copy, but the actual design constraints the system is built against.
+The [full design philosophy](docs/philosophy.md) lays out the design principles with the reasoning behind each — not marketing copy, but the actual constraints the system is built against.
 
 ## Get started
 
