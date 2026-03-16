@@ -89,10 +89,10 @@ Present this to the user. Wait for confirmation or adjustments before proceeding
 ### Phase 8: Documentation sweep (automatic, do not ask)
 
 After merging, do the full housekeeping sweep:
-1. Update `docs/` files that describe anything touched
-2. Update `README.md` if status table, tool list, test count, project layout affected
-3. Update `CLAUDE.md` if architecture, constraints, file layout, commands, or conventions changed
-4. Record new decisions in `docs/decisions.md`
+1. **Start with decisions.** Ask: "What did we decide during this work?" Specialist reviews, implementation trade-offs, and user feedback all produce decisions. The design ADR does not cover implementation decisions — those are separate entries in `docs/decisions.md`.
+2. Update `docs/` files that describe anything touched
+3. Update `README.md` if status table, tool list, test count, project layout affected
+4. Update `CLAUDE.md` if architecture, constraints, file layout, commands, or conventions changed
 5. Comment on relevant GitHub issues with outcomes
 6. Close resolved issues with a resolution comment
 7. Clean up stale branches

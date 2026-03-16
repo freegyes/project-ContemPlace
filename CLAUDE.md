@@ -468,10 +468,10 @@ Each layer owns a specific type of information. **Never duplicate across layers*
 4. **When something comes up during a session** — bug, question, idea, concern — open an issue immediately, then keep going. Never defer to "I'll note that later."
 5. **Documentation is part of the deliverable, not a follow-up task.** A feature is not done until the docs reflect it. Code changes without corresponding doc updates are incomplete work — the same as shipping without tests. This applies to every PR, not just phase closings.
 6. **Proactive housekeeping at every organic breakpoint.** After completing a PR, merging, closing an issue, or finishing a logical chunk of work — automatically do the documentation sweep before moving on. Do not ask whether to do this. It is always expected:
+   - **Start with decisions.** Ask: "What did we decide during this work?" Specialist reviews, implementation trade-offs, and user feedback all produce decisions. An ADR for the original design does not cover decisions made during implementation — those are separate entries. `docs/decisions.md` is append-only; new entries are expected and normal.
    - Update `docs/` files that describe anything touched by the change (`architecture.md`, `schema.md`, `capture-agent.md`, `roadmap.md`)
    - Update `README.md` if the status table, tool list, test count, project layout, or quick start is affected
    - Update `CLAUDE.md` if architecture, constraints, file layout, commands, or conventions changed
-   - Record any new architectural decisions in `docs/decisions.md`
    - Comment on relevant GitHub issues with outcomes or status updates
    - Close resolved issues with a resolution comment
    - Clean up stale branches
