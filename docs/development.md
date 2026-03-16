@@ -10,7 +10,7 @@ Unit, integration, smoke, and semantic test suites.
 
 ```bash
 # All unit tests at once
-npx vitest run tests/parser.test.ts \
+npx vitest run tests/parser.test.ts tests/undo.test.ts \
   tests/mcp-auth.test.ts tests/mcp-config.test.ts tests/mcp-embed.test.ts \
   tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts \
   tests/mcp-index.test.ts tests/mcp-oauth.test.ts \
@@ -19,7 +19,8 @@ npx vitest run tests/parser.test.ts \
 
 # Or individually:
 npx vitest run tests/parser.test.ts              # Capture response parsing
-npx vitest run tests/mcp-tools.test.ts           # All 5 MCP tool handlers
+npx vitest run tests/undo.test.ts                # /undo command (grace window, source filter)
+npx vitest run tests/mcp-tools.test.ts           # All 6 MCP tool handlers
 npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch
 npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler
 npx vitest run tests/mcp-index.test.ts           # OAuthProvider + resolveExternalToken
@@ -88,14 +89,14 @@ npx wrangler dev -c gardener/wrangler.toml --test-scheduled
 
 ```
 src/              Telegram capture Worker (thin webhook adapter)
-  index.ts        Entry point — webhook handler, Service Binding call, HTML reply formatting
+  index.ts        Entry point — webhook handler, /undo command, Service Binding calls, HTML reply formatting
   db.ts           Supabase client + dedup (tryClaimUpdate)
   telegram.ts     Telegram API helpers
   config.ts       Environment variable parsing (Telegram + Supabase only)
   types.ts        Telegram types + CaptureServiceStub + ServiceCaptureResult
 mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
   src/
-    index.ts      OAuthProvider setup, CaptureService entrypoint, McpApiHandler, resolveExternalToken bypass
+    index.ts      OAuthProvider setup, CaptureService entrypoint (capture + undoLatest), McpApiHandler, resolveExternalToken bypass
     pipeline.ts   Single source of truth for capture logic (called by Service Binding RPC + capture_note tool)
     oauth.ts      Consent page HTML + AuthHandler (GET/POST /authorize)
     tools.ts      All 5 tool handlers with input validation
@@ -122,6 +123,7 @@ supabase/
   migrations/     Schema migrations (v4 is current)
 tests/
   parser.test.ts          Capture response parsing
+  undo.test.ts            /undo command (grace window, source filter)
   smoke.test.ts           Live Telegram Worker
   mcp-auth.test.ts        MCP auth
   mcp-config.test.ts      MCP config loading

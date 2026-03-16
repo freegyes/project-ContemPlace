@@ -21,7 +21,7 @@ OpenRouter sits between the Workers and all AI models. This adds a hop but means
 | Worker | Name | Purpose | Trigger |
 |---|---|---|---|
 | **Telegram capture** | `contemplace` | Receives Telegram webhooks, delegates capture to MCP Worker via Service Binding, formats HTML reply | Telegram webhook POST |
-| **MCP server** | `mcp-contemplace` | Exposes 6 tools to AI agents via JSON-RPC 2.0 over HTTP. Hosts the `CaptureService` entrypoint for Service Binding RPC. | HTTP POST /mcp, Service Binding RPC |
+| **MCP server** | `mcp-contemplace` | Exposes 6 tools to AI agents via JSON-RPC 2.0 over HTTP. Hosts `CaptureService` entrypoint for Service Binding RPC (`capture()` + `undoLatest()`). | HTTP POST /mcp, Service Binding RPC |
 | **Gardener** | `contemplace-gardener` | Nightly enrichment: similarity linking | Cron (02:00 UTC) or POST /trigger |
 
 Each Worker is independently deployed with its own `wrangler.toml` and secrets. They share the same Supabase database and use the same `openai` SDK pattern for OpenRouter calls.
@@ -41,8 +41,10 @@ Telegram sends a webhook POST for every message. The Worker must respond quickly
  │  1. Verify webhook secret       │ ← 403 if wrong
  │  2. Parse body                  │ ← 200 if non-text message
  │  3. Check chat ID whitelist     │ ← 200 silently if not allowed
- │  4. Dedup (insert update_id)    │ ← 200 if already processed
- │  5. Return 200                  │
+ │  4. /start → welcome message    │
+ │  5. /undo → Service Binding RPC │ ← hard-delete most recent Telegram capture
+ │  6. Dedup (insert update_id)    │ ← 200 if already processed
+ │  7. Return 200                  │
  └─────────────────────────────────┘
        │
        ▼  ctx.waitUntil()

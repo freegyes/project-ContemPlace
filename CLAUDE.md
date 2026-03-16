@@ -32,8 +32,9 @@ The capture flow is **async**: the Worker returns 200 to Telegram immediately, t
 - **Capture voice** (stored in `capture_profiles` DB table, fetched at runtime) — title style, body rules, traceability, tone, examples. User-editable without code deployment. Any capture interface (Telegram, MCP, CLI) fetches the same profile.
 
 ```
-Telegram → Telegram Worker → verify signature → check chat ID whitelist → dedup check → return 200
-                              └→ ctx.waitUntil():
+Telegram → Telegram Worker → verify signature → check chat ID whitelist → /start → /undo → dedup check → return 200
+                              └→ /undo: env.CAPTURE_SERVICE.undoLatest() → hard-delete most recent Telegram capture in grace window
+                              └→ capture: ctx.waitUntil():
                                    typing indicator
                                    → Service Binding RPC to MCP Worker (env.CAPTURE_SERVICE.capture)
                                    → MCP Worker runs pipeline.ts:
@@ -47,7 +48,7 @@ Telegram → Telegram Worker → verify signature → check chat ID whitelist �
 
 ```
 src/
-  index.ts           # Worker entry point (webhook handler, Service Binding call to MCP Worker, HTML reply formatting)
+  index.ts           # Worker entry point (webhook handler, /undo command, Service Binding calls to MCP Worker, HTML reply formatting)
   config.ts          # Env var reading (Telegram + Supabase only — model/threshold config lives in MCP Worker)
   telegram.ts        # Telegram API helpers (sendMessage, sendChatAction)
   db.ts              # Supabase client + dedup only (createSupabaseClient, tryClaimUpdate)
@@ -56,7 +57,7 @@ mcp/
   wrangler.toml      # MCP Worker config (name: mcp-contemplace)
   tsconfig.json
   src/
-    index.ts         # OAuthProvider setup, CaptureService entrypoint (WorkerEntrypoint), McpApiHandler, resolveExternalToken bypass
+    index.ts         # OAuthProvider setup, CaptureService entrypoint (capture + undoLatest), McpApiHandler, resolveExternalToken bypass
     pipeline.ts      # Single source of truth for capture logic — called by Service Binding RPC + capture_note tool
     oauth.ts         # Consent page HTML renderer + AuthHandler (GET/POST /authorize)
     tools.ts         # Tool definitions + handlers (search_notes, get_note, list_recent, get_related, capture_note, archive_note)
@@ -86,6 +87,7 @@ supabase/
     20260315000000_v4_simplification.sql  # Schema simplification (drop SKOS, chunking, simplify links)
 tests/
   parser.test.ts              # Unit tests for mcp/src/capture.ts parseCaptureResponse (no network)
+  undo.test.ts                # Unit tests for /undo command (grace window, source filter, errors)
   smoke.test.ts               # Smoke tests against the live Telegram Worker
   mcp-auth.test.ts            # Unit tests for mcp/src/auth.ts
   mcp-config.test.ts          # Unit tests for mcp/src/config.ts
@@ -129,8 +131,9 @@ CONSENT_SECRET              # protects OAuth consent page; generate with: openss
 MCP_SEARCH_THRESHOLD        # default: 0.35 — used only by search_notes. Lower than MATCH_THRESHOLD
                              # because stored embeddings are metadata-augmented; bare query vectors
                              # score 0.41–0.49 against them, well below the 0.60 capture threshold.
-HARD_DELETE_WINDOW_MINUTES  # default: 11 — grace window for archive_note. Notes younger than this
-                             # are hard-deleted; older notes are soft-archived (archived_at = now()).
+HARD_DELETE_WINDOW_MINUTES  # default: 11 — grace window for archive_note and /undo. Notes younger
+                             # than this are hard-deleted; older notes are soft-archived (archive_note)
+                             # or refused (/undo).
 
 # Gardener Worker secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml)
 # SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are shared with the Telegram Worker above.
@@ -256,17 +259,18 @@ Script note: Python's default `urllib` user-agent gets blocked by Cloudflare bot
 2. Verify `x-telegram-bot-api-secret-token` header — return 403 if missing/wrong
 3. Parse body, guard non-text messages (sticker, photo, voice, etc.) — return 200
 4. Check `message.chat.id` against `ALLOWED_CHAT_IDS` whitelist — return 200 silently if not allowed
-5. Dedup check: insert `update_id` into `processed_updates` — if `23505` unique violation, return 200
-6. **Return 200 to Telegram** (everything below runs in `ctx.waitUntil()`)
-7. In parallel: embed raw message text, fetch capture voice from `capture_profiles`, send `typing` action
-8. Call `match_notes(embedding, threshold, count=5)` for related notes
-9. Call capture LLM with (system frame + capture voice) + raw message + related notes + today's date
-10. Parse JSON response, validate all 6 fields with logged fallback defaults
-11. Re-embed with metadata augmentation (`buildEmbeddingInput`). On failure, fall back to raw embedding and log `augmented_embed_fallback`
-12. Insert note into `notes` with augmented embedding, `raw_input`, `corrections`, `embedded_at`; insert links into `links`
-13. In parallel: insert two `enrichment_log` rows (capture + embedding); send HTML-formatted confirmation to Telegram
-14. Telegram reply format: bold title, separator line, body, italic `tags` line, optional Linked/Corrections/Source lines. Message capped at 4096 chars.
-15. On any error in steps 7–13: send generic error to Telegram, log full details to console
+5. `/undo` check: if exact match, call `env.CAPTURE_SERVICE.undoLatest()` via Service Binding — hard-delete most recent Telegram capture in grace window, refuse otherwise. Return 200. No dedup needed (no note created).
+6. Dedup check: insert `update_id` into `processed_updates` — if `23505` unique violation, return 200
+7. **Return 200 to Telegram** (everything below runs in `ctx.waitUntil()`)
+8. In parallel: embed raw message text, fetch capture voice from `capture_profiles`, send `typing` action
+9. Call `match_notes(embedding, threshold, count=5)` for related notes
+10. Call capture LLM with (system frame + capture voice) + raw message + related notes + today's date
+11. Parse JSON response, validate all 6 fields with logged fallback defaults
+12. Re-embed with metadata augmentation (`buildEmbeddingInput`). On failure, fall back to raw embedding and log `augmented_embed_fallback`
+13. Insert note into `notes` with augmented embedding, `raw_input`, `corrections`, `embedded_at`; insert links into `links`
+14. In parallel: insert two `enrichment_log` rows (capture + embedding); send HTML-formatted confirmation to Telegram
+15. Telegram reply format: bold title, separator line, body, italic `tags` line, optional Linked/Corrections/Source lines. Message capped at 4096 chars.
+16. On any error in steps 8–14: send generic error to Telegram, log full details to console
 
 ## Capture Agent Output Format
 
@@ -311,6 +315,16 @@ curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
 
 Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"`
 
+## Registering Bot Commands
+
+One-time setup — registers `/start` and `/undo` in the Telegram "/" autocomplete menu:
+
+```bash
+curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{"commands": [{"command": "start", "description": "Start the bot"}, {"command": "undo", "description": "Undo the most recent capture"}]}'
+```
+
 ## Phase Scope
 
 - **Phase 1 (complete):** Schema (notes, links, processed_updates), Telegram bot, Cloudflare Worker with async capture, chat ID whitelist, single capture mode, confirmation replies.
@@ -321,6 +335,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **v3.1.0 (complete):** Drop type/intent/modality from capture pipeline (#110). Clean-slate v3 schema. 10-field → 7-field → 6-field LLM contract (entities removed from capture in #113). Embedding format simplified to `[Tags: ...] text`. Corpus re-captured from raw_input.
 - **v4.0.0 (complete):** Schema simplification bundle (#128, PR #131). Dropped 3 tables (concepts, note_concepts, note_chunks), 3 columns (refined_tags, maturity, importance_score), 2 RPC functions (match_chunks, batch_update_refined_tags). Link types simplified from 9 → 3 (contradicts, related, is-similar-to). MCP tools reduced from 8 → 5. Gardener simplified to similarity linking only.
 - **archive_note (complete):** MCP tool for note removal with grace-window hard delete (#87, PR #140). Notes < 11 min: hard delete. Older: soft archive. All existing tools now filter `archived_at IS NULL`. MCP tools 5 → 6.
+- **Telegram /undo (complete):** `/undo` command hard-deletes most recent Telegram capture within grace window (#142, PR #143). Source-scoped (Telegram only), grace-window-only (refuses after 11 min). Bot commands registered via `setMyCommands`.
 - **Phase 3 (deferred):** Associative trails, location extraction.
 
 ## Deploy

@@ -240,6 +240,18 @@ curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 
 The `url` field in the response should match your Worker URL.
 
+### Register bot commands
+
+Register `/start` and `/undo` so they show up in Telegram's "/" autocomplete menu:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{"commands": [{"command": "start", "description": "Start the bot"}, {"command": "undo", "description": "Undo the most recent capture"}]}'
+```
+
+This is a one-time setup — only needs to be re-run if you change the command set.
+
 ### Verify
 
 Send a text message to your bot. You should get a structured confirmation back within ~5 seconds — a bold title, body text, tags, and optional linked/corrections lines.

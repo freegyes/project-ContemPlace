@@ -964,3 +964,25 @@ For hard-deleted notes, idempotency is impossible (the row is gone), so "not fou
 **Why:** For hard delete, an `enrichment_log` entry would be CASCADE-deleted along with the note — useless. For soft delete, the `archived_at` timestamp on the note itself is sufficient forensic evidence in a single-user system. Console logs survive regardless of database state and follow the existing structured logging pattern throughout the codebase.
 
 **Source:** Specialist review during #87 implementation, 2026-03-16.
+
+## Telegram /undo — source-scoped, grace-window-only hard delete (2026-03-16)
+
+**Decision:** The `/undo` Telegram command only hard-deletes the most recent Telegram capture within the grace window. It refuses if the grace period has passed or if no Telegram captures exist. No soft-archive path.
+
+**Three design constraints narrowed this to a single behavior:**
+
+1. **Source-scoped.** `/undo` only targets notes with `source = 'telegram'`. A note captured via MCP or another agent is invisible to `/undo`. The user shouldn't be surprised by undoing something they did in a different context.
+
+2. **Grace-window-only.** If the most recent Telegram note is beyond the grace window (default 11 min), `/undo` refuses: "The grace period has passed. To archive a note, use an MCP session." No soft archive — the name is "undo," not "archive." If the user has left the capture session, context has shifted, and the safety of a full MCP session (where the agent can show the note, ask for confirmation, use `archive_note` with UUID) is appropriate.
+
+3. **Always the most recent.** No UUID, no history walking. `/undo` targets exactly one note — the most recent active Telegram capture. This matches the real use case: "I just sent something and it came out wrong."
+
+**Rejected alternatives:**
+- **Inline keyboard buttons on capture replies** — visual clutter on 100% of messages for a 1% use case. Buttons become stale after the grace window passes.
+- **`/archive <uuid>`** — requires the user to have the UUID, which they'd need to copy from an MCP session. Defeats the purpose of a quick Telegram undo.
+- **Source-agnostic undo** — would let Telegram undo an MCP capture, crossing modality boundaries and creating confusion about which system did what.
+- **Soft archive via `/undo`** — names matter. "Undo" means "take back what I just did." Archiving old notes is a deliberate curation act that belongs in an MCP session with full context.
+
+**Implementation:** `CaptureService.undoLatest()` on the MCP Worker, called via Service Binding RPC. Uses `fetchMostRecentBySource(db, 'telegram')` — a new DB helper that queries by source with `archived_at IS NULL`. Bot commands (`/start`, `/undo`) registered via Telegram's `setMyCommands` API.
+
+**Source:** Issue #142, PR #143.

@@ -156,6 +156,17 @@ Delivered:
 
 The design was derived linearly from the core architecture: since everything in the system is computed from `raw_input`, the only meaningful editorial operation is removal. The grace-window hybrid limits blast radius for untrusted MCP agents (soft delete = recoverable) while keeping the on-the-go correction loop clean (hard delete = no ghost rows for immediate mistakes).
 
+## Telegram /undo command (complete) — issue #142, PR #143
+
+The first Telegram bot command beyond `/start`: `/undo` hard-deletes the most recent Telegram capture within the grace window. Source-scoped (Telegram only), grace-window-only (refuses after 11 min), no soft-archive path.
+
+Delivered:
+- **`/undo` command** — exact match on `/undo`, placed after chat ID whitelist and before dedup (no note created, no dedup needed)
+- **`CaptureService.undoLatest()`** — Service Binding RPC method with source-filtered query (`fetchMostRecentBySource`)
+- **Three outcomes:** deleted (within grace window), refused (grace period passed), nothing to undo (no Telegram captures)
+- **Bot command registration** — both `/start` and `/undo` registered via Telegram `setMyCommands` API
+- **9 unit tests** covering grace window, boundary, custom config, error propagation
+
 ## Phase 3 — Associative trails and beyond (deferred)
 
 **Associative trails** — Curated or auto-generated sequences of notes that tell a story or trace a line of thinking. The `trails` and `trail_steps` tables were designed but not created in v2.
