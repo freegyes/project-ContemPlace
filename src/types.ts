@@ -3,8 +3,15 @@
 // CaptureService stub for Service Binding typing.
 // The actual implementation lives in mcp/src/index.ts (WorkerEntrypoint).
 // At runtime, Cloudflare resolves this via the [[services]] binding in wrangler.toml.
+export interface UndoResult {
+  action: 'deleted' | 'grace_period_passed' | 'none';
+  title?: string;
+  id?: string;
+}
+
 export interface CaptureServiceStub {
   capture(rawInput: string, source: string): Promise<ServiceCaptureResult>;
+  undoLatest(): Promise<UndoResult>;
 }
 
 export interface Env {
