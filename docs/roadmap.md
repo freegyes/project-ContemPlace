@@ -167,6 +167,18 @@ Delivered:
 - **Bot command registration** — both `/start` and `/undo` registered via Telegram `setMyCommands` API
 - **9 unit tests** covering grace window, boundary, custom config, error propagation
 
+## Cluster exploration — active investigation
+
+The synthesis layer (#120) was designed as MOC generation from fragment clusters. A first-principles design session (2026-03-16) reframed the question: the real use case isn't narrative summarization of clusters — it's **undirected browsing**. Seeing the shape of your thinking without knowing what you're looking for. The Obsidian graph view served this; nothing in the current MCP surface does.
+
+A `list_clusters` tool that groups fragments by tag co-occurrence and ranks clusters by gravity (size × link density) could provide the overview without any LLM synthesis — cheap, always current, trust-contract-safe by construction. Existing tools handle drill-down. Whether narrative synthesis is needed on top of this is an open question that depends on whether the overview alone satisfies the browsing use case.
+
+**Active issues:**
+- **#144** — Design: cluster exploration tool (approaches, output format, relationship to dashboard)
+- **#145** — Investigation: run tag co-occurrence clustering against the current corpus to validate the approach
+- **#120** — Synthesis layer (reframed — may be unnecessary if cluster exploration is sufficient)
+- **#101** — Visual dashboard (cluster data is a primary input for visual presentation)
+
 ## Phase 3 — Associative trails and beyond (deferred)
 
 **Associative trails** — Curated or auto-generated sequences of notes that tell a story or trace a line of thinking. The `trails` and `trail_steps` tables were designed but not created in v2.
