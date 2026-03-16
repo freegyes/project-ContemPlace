@@ -49,7 +49,7 @@ import {
   handleListRecent,
   handleGetRelated,
   handleCaptureNote,
-  handleArchiveNote,
+  handleRemoveNote,
 } from '../mcp/src/tools';
 import {
   searchNotes,
@@ -567,30 +567,30 @@ describe('handleCaptureNote', () => {
   });
 });
 
-// ── handleArchiveNote ────────────────────────────────────────────────────────
+// ── handleRemoveNote ────────────────────────────────────────────────────────
 
 // Helper: note created N minutes ago
 function minutesAgo(n: number): string {
   return new Date(Date.now() - n * 60 * 1000).toISOString();
 }
 
-describe('handleArchiveNote', () => {
+describe('handleRemoveNote', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   describe('input validation', () => {
     it('returns error when id is missing', async () => {
-      const r = toolResult(await handleArchiveNote({}, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({}, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
       expect(r.content[0]!.text).toMatch(/id is required/);
     });
 
     it('returns error when id is not a string', async () => {
-      const r = toolResult(await handleArchiveNote({ id: 123 }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: 123 }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
     });
 
     it('returns error when id fails UUID format', async () => {
-      const r = toolResult(await handleArchiveNote({ id: 'not-a-uuid' }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: 'not-a-uuid' }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
       expect(r.content[0]!.text).toMatch(/Invalid UUID/);
     });
@@ -599,7 +599,7 @@ describe('handleArchiveNote', () => {
   describe('note lookup', () => {
     it('returns "not found" when note does not exist', async () => {
       vi.mocked(fetchNoteForArchive).mockResolvedValueOnce(null);
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
       expect(r.content[0]!.text).toMatch(/not found/i);
     });
@@ -610,7 +610,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(60),
         archived_at: minutesAgo(5),
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(false);
       const body = JSON.parse(r.content[0]!.text);
       expect(body.archived).toBe(true);
@@ -623,7 +623,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(60),
         archived_at: minutesAgo(5),
       });
-      await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG);
+      await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG);
       expect(vi.mocked(archiveNote)).not.toHaveBeenCalled();
       expect(vi.mocked(hardDeleteNote)).not.toHaveBeenCalled();
     });
@@ -636,7 +636,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(2),
         archived_at: null,
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(false);
       const body = JSON.parse(r.content[0]!.text);
       expect(body.deleted).toBe(true);
@@ -650,7 +650,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(9),
         archived_at: null,
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       const body = JSON.parse(r.content[0]!.text);
       expect(body.deleted).toBe(true);
       expect(vi.mocked(hardDeleteNote)).toHaveBeenCalledOnce();
@@ -664,7 +664,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(15),
         archived_at: null,
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(false);
       const body = JSON.parse(r.content[0]!.text);
       expect(body.archived).toBe(true);
@@ -679,7 +679,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(11),
         archived_at: null,
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       const body = JSON.parse(r.content[0]!.text);
       expect(body.archived).toBe(true);
       expect(vi.mocked(archiveNote)).toHaveBeenCalledOnce();
@@ -692,7 +692,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(60 * 24),
         archived_at: null,
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       const body = JSON.parse(r.content[0]!.text);
       expect(body.archived).toBe(true);
     });
@@ -701,7 +701,7 @@ describe('handleArchiveNote', () => {
   describe('error handling', () => {
     it('returns toolError when fetchNoteForArchive throws', async () => {
       vi.mocked(fetchNoteForArchive).mockRejectedValueOnce(new Error('DB error'));
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
       expect(r.content[0]!.text).toMatch(/Archive operation failed/);
     });
@@ -713,7 +713,7 @@ describe('handleArchiveNote', () => {
         archived_at: null,
       });
       vi.mocked(hardDeleteNote).mockRejectedValueOnce(new Error('DB error'));
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
     });
 
@@ -724,7 +724,7 @@ describe('handleArchiveNote', () => {
         archived_at: null,
       });
       vi.mocked(archiveNote).mockRejectedValueOnce(new Error('DB error'));
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
     });
   });
@@ -738,7 +738,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(5),
         archived_at: null,
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, shortWindowConfig));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, shortWindowConfig));
       const body = JSON.parse(r.content[0]!.text);
       expect(body.archived).toBe(true);
       expect(vi.mocked(archiveNote)).toHaveBeenCalledOnce();
@@ -752,7 +752,7 @@ describe('handleArchiveNote', () => {
         created_at: minutesAgo(5),
         archived_at: null,
       });
-      const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, longWindowConfig));
+      const r = toolResult(await handleRemoveNote({ id: VALID_UUID }, mockDb, longWindowConfig));
       const body = JSON.parse(r.content[0]!.text);
       expect(body.deleted).toBe(true);
       expect(vi.mocked(hardDeleteNote)).toHaveBeenCalledOnce();

@@ -44,7 +44,7 @@ The MCP server is the primary interface — six tools, usable by any MCP-capable
 | `list_recent` | Most recent notes, newest first. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
 | `capture_note` | Pass raw words — the server runs the full capture pipeline. Do not pre-structure. |
-| `archive_note` | Remove a note. Recent notes are hard-deleted; older notes are soft-archived and recoverable. |
+| `remove_note` | Remove a note. Recent notes (< grace window) are permanently deleted; older notes are soft-archived and recoverable. |
 
 **Auth:** OAuth 2.1 (Authorization Code + PKCE) for browser clients like Claude.ai, or a static Bearer token for CLI/SDK callers like Claude Code. Both paths are permanent.
 
@@ -68,9 +68,9 @@ Every model is an environment variable. All AI calls route through OpenRouter �
 
 **You decide what goes in.** No background scraping, no automatic capture. You send what you want captured, and you're the quality gate. The system trusts your judgment — guard rails and warnings are fine, but your editorial control is what keeps the knowledge base honest. [The curator principle →](docs/philosophy.md#7-low-friction-aware-curator)
 
-**No lock-in.** Postgres you can query and export any time. MCP means any compatible agent works — Claude, ChatGPT, Cursor, custom scripts. Switch tools whenever you want. The database doesn't care who's reading it. [Data ownership →](docs/philosophy.md#11-your-data-any-agent)
+**No lock-in.** Postgres you can query and export any time. MCP means any compatible agent works — Claude, ChatGPT, Cursor, custom scripts. Switch tools whenever you want. The database doesn't care who's reading it. [Data ownership →](docs/philosophy.md#12-your-data-any-agent)
 
-The [full design philosophy](docs/philosophy.md) has eleven principles with the reasoning behind each — not marketing copy, but the actual design constraints the system is built against.
+The [full design philosophy](docs/philosophy.md) has twelve principles with the reasoning behind each — not marketing copy, but the actual design constraints the system is built against.
 
 ## Get started
 

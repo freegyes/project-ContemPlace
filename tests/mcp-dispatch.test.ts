@@ -15,14 +15,14 @@ vi.mock('../mcp/src/tools', () => ({
     { name: 'list_recent', description: 'List', inputSchema: { type: 'object', properties: {} } },
     { name: 'get_related', description: 'Related', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
     { name: 'capture_note', description: 'Capture', inputSchema: { type: 'object', properties: { raw_input: { type: 'string' } }, required: ['raw_input'] } },
-    { name: 'archive_note', description: 'Archive', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+    { name: 'remove_note', description: 'Remove', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   ],
   handleSearchNotes: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleGetNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleListRecent: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleGetRelated: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleCaptureNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
-  handleArchiveNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
+  handleRemoveNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
 }));
 
 vi.mock('cloudflare:workers', () => ({
@@ -49,7 +49,7 @@ vi.mock('../mcp/src/pipeline', () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 import { handleMcpRequest } from '../mcp/src/index';
-import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleArchiveNote } from '../mcp/src/tools';
+import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleRemoveNote } from '../mcp/src/tools';
 
 const MOCK_TOOL_RESULT = { content: [{ type: 'text', text: '{"ok":true}' }], isError: false };
 
@@ -206,9 +206,9 @@ describe('handleMcpRequest — JSON-RPC dispatch', () => {
       expect(vi.mocked(handleCaptureNote)).toHaveBeenCalledOnce();
     });
 
-    it('dispatches to handleArchiveNote for name="archive_note"', async () => {
-      await dispatch('tools/call', { name: 'archive_note', arguments: { id: 'aaaaaaaa-0000-0000-0000-000000000001' } });
-      expect(vi.mocked(handleArchiveNote)).toHaveBeenCalledOnce();
+    it('dispatches to handleRemoveNote for name="remove_note"', async () => {
+      await dispatch('tools/call', { name: 'remove_note', arguments: { id: 'aaaaaaaa-0000-0000-0000-000000000001' } });
+      expect(vi.mocked(handleRemoveNote)).toHaveBeenCalledOnce();
     });
 
     it('returns -32601 for an unknown tool name', async () => {

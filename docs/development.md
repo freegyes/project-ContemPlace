@@ -99,7 +99,7 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
     index.ts      OAuthProvider setup, CaptureService entrypoint (capture + undoLatest), McpApiHandler, resolveExternalToken bypass
     pipeline.ts   Single source of truth for capture logic (called by Service Binding RPC + capture_note tool)
     oauth.ts      Consent page HTML + AuthHandler (GET/POST /authorize)
-    tools.ts      All 5 tool handlers with input validation
+    tools.ts      All 6 tool handlers with input validation
     auth.ts       Bearer token auth + constant-time comparison
     config.ts     Config loading with validation
     db.ts         DB read/write functions

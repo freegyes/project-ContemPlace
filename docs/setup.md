@@ -185,7 +185,7 @@ Two paths, both permanent:
 | `EMBED_MODEL` | `openai/text-embedding-3-small` | Embedding model |
 | `MATCH_THRESHOLD` | `0.60` | Threshold for related-note lookup inside `capture_note` |
 | `MCP_SEARCH_THRESHOLD` | `0.35` | Default threshold for `search_notes` (lower to compensate for embedding space mismatch) |
-| `HARD_DELETE_WINDOW_MINUTES` | `11` | Grace window for `archive_note` — notes younger than this are hard-deleted, older notes are soft-archived |
+| `HARD_DELETE_WINDOW_MINUTES` | `11` | Grace window for `remove_note` — notes younger than this are permanently deleted, older notes are soft-archived |
 
 Defaults live in `mcp/src/config.ts`. Override via `mcp/wrangler.toml` `[vars]`.
 

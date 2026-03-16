@@ -60,7 +60,7 @@ mcp/
     index.ts         # OAuthProvider setup, CaptureService entrypoint (capture + undoLatest), McpApiHandler, resolveExternalToken bypass
     pipeline.ts      # Single source of truth for capture logic — called by Service Binding RPC + capture_note tool
     oauth.ts         # Consent page HTML renderer + AuthHandler (GET/POST /authorize)
-    tools.ts         # Tool definitions + handlers (search_notes, get_note, list_recent, get_related, capture_note, archive_note)
+    tools.ts         # Tool definitions + handlers (search_notes, get_note, list_recent, get_related, capture_note, remove_note)
     auth.ts          # Bearer token auth (validateAuth, isStaticTokenRequest, timingSafeEqual — constant-time comparison)
     config.ts        # Config loading with secret validation
     db.ts            # DB read/write functions (fetchNote, listRecentNotes, searchNotes, insertNote, …)
@@ -131,9 +131,9 @@ CONSENT_SECRET              # protects OAuth consent page; generate with: openss
 MCP_SEARCH_THRESHOLD        # default: 0.35 — used only by search_notes. Lower than MATCH_THRESHOLD
                              # because stored embeddings are metadata-augmented; bare query vectors
                              # score 0.41–0.49 against them, well below the 0.60 capture threshold.
-HARD_DELETE_WINDOW_MINUTES  # default: 11 — grace window for archive_note and /undo. Notes younger
-                             # than this are hard-deleted; older notes are soft-archived (archive_note)
-                             # or refused (/undo).
+HARD_DELETE_WINDOW_MINUTES  # default: 11 — grace window for remove_note and /undo. Notes younger
+                             # than this are permanently deleted; older notes are soft-archived
+                             # (remove_note) or refused (/undo).
 
 # Gardener Worker secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml)
 # SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are shared with the Telegram Worker above.
@@ -324,7 +324,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **Phase 2c (complete):** OAuth 2.1 for MCP server. Authorization Code + PKCE via `@cloudflare/workers-oauth-provider`, DCR enabled, `resolveExternalToken` for static token bypass, consent page protected by `CONSENT_SECRET`. Verified with Claude.ai web connector. Cursor/ChatGPT verification deferred (#102). Tagged `v3.0.0`.
 - **v3.1.0 (complete):** Drop type/intent/modality from capture pipeline (#110). Clean-slate v3 schema. 10-field → 7-field → 6-field LLM contract (entities removed from capture in #113). Embedding format simplified to `[Tags: ...] text`. Corpus re-captured from raw_input.
 - **v4.0.0 (complete):** Schema simplification bundle (#128, PR #131). Dropped 3 tables (concepts, note_concepts, note_chunks), 3 columns (refined_tags, maturity, importance_score), 2 RPC functions (match_chunks, batch_update_refined_tags). Link types simplified from 9 → 3 (contradicts, related, is-similar-to). MCP tools reduced from 8 → 5. Gardener simplified to similarity linking only.
-- **archive_note (complete):** MCP tool for note removal with grace-window hard delete (#87, PR #140). Notes < 11 min: hard delete. Older: soft archive. All existing tools now filter `archived_at IS NULL`. MCP tools 5 → 6.
+- **remove_note (complete):** MCP tool for note removal with time-dependent behavior (#87, PR #140). Notes < 11 min: permanently deleted. Older: soft archive. All existing tools now filter `archived_at IS NULL`. MCP tools 5 → 6. Renamed from `archive_note` — the old name promised archival but could permanently delete.
 - **Telegram /undo (complete):** `/undo` command hard-deletes most recent Telegram capture within grace window (#142, PR #143). Source-scoped (Telegram only), grace-window-only (refuses after 11 min). Bot commands registered automatically by `deploy.sh`.
 - **Phase 3 (deferred):** Associative trails, location extraction.
 

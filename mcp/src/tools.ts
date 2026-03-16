@@ -83,12 +83,12 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: 'archive_note',
-    description: 'Remove a note from the knowledge graph. Notes created within the grace window (default 11 minutes) are permanently hard-deleted — you are still in the capture session, correcting in real time. Older notes are soft-archived (recoverable via direct DB access). Returns { deleted: true } for hard delete or { archived: true, id: "..." } for soft archive. Always confirm with the user before calling.',
+    name: 'remove_note',
+    description: 'Remove a note from the active knowledge graph. What happens depends on the note\'s age: within the grace window (default 11 minutes), the note is permanently deleted — no recovery possible, because you\'re still in the capture session correcting in real time. Beyond the grace window, the note is soft-archived — hidden from all tools but recoverable via direct DB access. Returns { deleted: true } for permanent deletion or { archived: true, id: "..." } for soft archive. Always confirm with the user before calling.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: { type: 'string', description: 'UUID of the note to archive/delete' },
+        id: { type: 'string', description: 'UUID of the note to remove' },
       },
       required: ['id'],
     },
@@ -217,7 +217,7 @@ export async function handleCaptureNote(
   }
 }
 
-export async function handleArchiveNote(
+export async function handleRemoveNote(
   args: Record<string, unknown>,
   db: SupabaseClient,
   config: Config,
@@ -244,7 +244,7 @@ export async function handleArchiveNote(
       return toolSuccess({ archived: true, id });
     }
   } catch (err) {
-    console.error(JSON.stringify({ event: 'archive_note_error', error: String(err), id }));
+    console.error(JSON.stringify({ event: 'remove_note_error', error: String(err), id }));
     return toolError('Archive operation failed. Try again.');
   }
 }

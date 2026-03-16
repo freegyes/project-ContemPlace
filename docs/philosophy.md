@@ -95,7 +95,17 @@ Good balance is the key. The system adds structure through capture (title, tags,
 
 *Source: #116 (2026-03-14). Literature basis: Shipman & Marshall, "Formality Considered Harmful" (1999).*
 
-### 10. Automate everything that isn't thinking
+### 10. Names are behavioral contracts
+
+A tool called "undo" undoes. A tool called "archive" archives. A tool called "remove" removes. The name commits the system to specific behavior — any behavior that contradicts the name is a bug, even if it's technically useful.
+
+This matters because agents and users read tool names before descriptions. A name that promises one thing but does another erodes trust. When a tool has time-dependent or context-dependent behavior, the name should be neutral enough to cover all paths, and the description should make the mechanics explicit. `remove_note` honestly describes what happens (the note leaves the active graph) without promising a specific mechanism. The description explains that recent notes are permanently deleted while older ones are soft-archived.
+
+The same applies to bot commands. `/undo` means "take back what I just did" — not "archive something from last week." If the behavior doesn't match the name, rename the behavior or rename the command.
+
+*Source: `/undo` design discussion (2026-03-16). `archive_note` → `remove_note` rename driven by the same principle — the old name promised archival but could permanently delete.*
+
+### 11. Automate everything that isn't thinking
 
 Setup, deployment, configuration registration, migration — anything the system can do for you, it should. Every manual step is a chance for a missed configuration and a tax on the user's attention. The deploy pipeline exists to eliminate that tax. If a step can be automated, it belongs in the pipeline, not in a setup guide.
 
@@ -105,7 +115,7 @@ The user should never spend time on something the system could have handled. Gua
 
 *Source: deploy.sh bot command registration discussion (2026-03-16). Extends #7 (low friction) from capture to the entire system surface.*
 
-### 11. Your data, any agent
+### 12. Your data, any agent
 
 The irreducible core of ContemPlace is the database + MCP surface + gardening pipeline. The gardener is what turns the commonplace book into a PKM system — without it, you have a note store; with it, you have a connected knowledge graph. Everything else — the Telegram bot, import tools, a dashboard — is an optional input or presentation layer.
 

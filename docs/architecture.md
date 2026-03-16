@@ -110,7 +110,7 @@ The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth
 | `list_recent` | Recent notes, newest first |
 | `get_related` | All linked notes in both directions |
 | `capture_note` | Full capture pipeline (same logic as Telegram, synchronous) |
-| `archive_note` | Remove a note — hard delete if recent (< grace window), soft archive if older |
+| `remove_note` | Remove a note — permanent delete if recent (< grace window), soft archive if older |
 
 Tool descriptions in `TOOL_DEFINITIONS` (mcp/src/tools.ts) include behavioral guidance for connecting agents — what kind of input to pass, how to interpret results, when to use each tool. The `capture_note` description explicitly instructs agents to pass user's raw words without cleaning up or pre-structuring. These descriptions are the only guidance a connecting agent receives about how to use ContemPlace.
 

@@ -986,3 +986,15 @@ For hard-deleted notes, idempotency is impossible (the row is gone), so "not fou
 **Implementation:** `CaptureService.undoLatest()` on the MCP Worker, called via Service Binding RPC. Uses `fetchMostRecentBySource(db, 'telegram')` — a new DB helper that queries by source with `archived_at IS NULL`. Bot commands (`/start`, `/undo`) registered via Telegram's `setMyCommands` API.
 
 **Source:** Issue #142, PR #143.
+
+## archive_note renamed to remove_note — names are behavioral contracts (2026-03-16)
+
+**Decision:** Rename the `archive_note` MCP tool to `remove_note`. The old name promised archival but could permanently delete recent notes — an agent reading just the name would never expect that.
+
+**Why:** The `/undo` design session crystallized a principle: names are behavioral contracts. `/undo` was scoped to grace-window-only because "undo" means "take back what I just did," not "archive old stuff." Applying the same lens to `archive_note` revealed the same problem in reverse — "archive" implies recoverable storage, but notes within the grace window are permanently deleted.
+
+`remove_note` is neutral. "Remove from the active knowledge graph" honestly covers both paths. The description carries the time-dependent mechanics: permanent deletion for recent notes, soft archive for older ones.
+
+**What changed:** Tool name `archive_note` → `remove_note`. Handler `handleArchiveNote` → `handleRemoveNote`. Tool description rewritten to lead with the time-dependent behavior. Internal DB functions (`archiveNote`, `hardDeleteNote`, `fetchNoteForArchive`) unchanged — they accurately describe their DB-level operations.
+
+**Source:** Session reflection on naming contracts, 2026-03-16. New design principle #10 in `docs/philosophy.md`.

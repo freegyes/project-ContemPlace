@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadConfig } from './config';
 import { timingSafeEqual } from './auth';
 import { createOpenAIClient } from './embed';
-import { TOOL_DEFINITIONS, handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleArchiveNote } from './tools';
+import { TOOL_DEFINITIONS, handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleRemoveNote } from './tools';
 import { runCapturePipeline } from './pipeline';
 import { AuthHandler } from './oauth';
 import type { Env, ServiceCaptureResult, UndoResult } from './types';
@@ -102,8 +102,8 @@ export async function handleMcpRequest(request: Request, env: Env): Promise<Resp
       case 'capture_note':
         result = await handleCaptureNote(args, db, openai, config);
         break;
-      case 'archive_note':
-        result = await handleArchiveNote(args, db, config);
+      case 'remove_note':
+        result = await handleRemoveNote(args, db, config);
         break;
       default:
         return jsonRpcError(id, -32601, `Unknown tool: ${toolName}`);
