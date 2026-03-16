@@ -162,12 +162,12 @@ describe('MCP Worker — protocol', () => {
     expect(res.status).toBe(204);
   });
 
-  it('tools/list returns 5 tools with name and inputSchema', async () => {
+  it('tools/list returns 6 tools with name and inputSchema', async () => {
     const res = await rpc('tools/list');
     const body = await res.json() as Record<string, unknown>;
     const tools = (body['result'] as Record<string, unknown>)?.['tools'] as Array<Record<string, unknown>>;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(5);
+    expect(tools).toHaveLength(6);
     for (const tool of tools) {
       expect(tool).toHaveProperty('name');
       expect(tool).toHaveProperty('inputSchema');
