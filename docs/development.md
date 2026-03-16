@@ -117,6 +117,12 @@ gardener/         Gardener Worker (nightly similarity linking)
     config.ts     Config loading with threshold validation
     types.ts      TypeScript interfaces
   wrangler.toml
+.claude/
+  commands/       Custom command prompts (Claude Code slash commands)
+    extract-fragments.md  Example recipe: topic-driven Obsidian re-capture sessions
+    harvest-ideas.md      Search corpus for actionable product ideas
+    audit-captures.md     Capture quality audit
+    work-on-issue.md      Full issue workflow (gather → review → plan → implement → ship)
 scripts/
   deploy.sh       Automated deploy pipeline
 supabase/
