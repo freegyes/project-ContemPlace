@@ -920,3 +920,47 @@ This keeps the on-the-go correction loop clean (no ghost rows for immediate mist
 **Return value** communicates which path was taken: `{ deleted: true }` for hard delete, `{ archived: true, id: "..." }` for soft delete — so the calling agent and user know what happened.
 
 **Source:** Issues #87, #88, #89, #98. First-principles design session 2026-03-16.
+
+## archive_note implementation decisions from specialist review (2026-03-16)
+
+**Context:** The ADR above was a first-principles hypothesis. Before implementation, two specialist review agents evaluated the design against industrial best practices, MCP API design norms, and real-world PKM systems (Notion, Obsidian, Roam, Apple Notes, Bear, Standard Notes). These decisions were surfaced by the review and adopted during implementation (PR #140).
+
+### Idempotent soft delete
+
+**Decision:** Calling `archive_note` on an already-archived note returns `{ archived: true, id: "..." }` (success), not "Note not found."
+
+**Why:** A flaky network causes the agent to retry. If the first call succeeds (archives the note) and the retry gets "not found," the agent reports an error to the user for an operation that actually succeeded. Making soft delete idempotent eliminates this failure mode. Implementation: `fetchNoteForArchive` queries without the `archived_at IS NULL` filter and checks three states — not found, already archived, active.
+
+For hard-deleted notes, idempotency is impossible (the row is gone), so "not found" on retry is the only possible response. This is acceptable because it only affects notes less than 11 minutes old — the retry window where a note was just hard-deleted is tiny.
+
+### Filter links to archived notes in get_related
+
+**Decision:** `fetchNoteLinks` filters out links where the other note is archived. If note A (active) has a link to note B (archived), `get_related(A)` does not show that link.
+
+**Why:** Both specialist reviewers flagged this as the top implementation concern. Without this filter, `get_related` returns links pointing to notes that `get_note` says don't exist — a dangling reference at the API level. The fix: the title-lookup query inside `fetchNoteLinks` adds `.is('archived_at', null)`, and links where no title was resolved (because the other note is archived) are excluded from the response. Gardener-created `is-similar-to` links to archived notes self-clean on the next nightly run (clean-slate strategy).
+
+### Grace window boundary: strict less-than
+
+**Decision:** The comparison is `ageMs < windowMs` — a note exactly at the boundary (e.g., exactly 11 minutes old) goes to soft archive, not hard delete.
+
+**Why:** When the outcome is ambiguous, choose the less destructive path. Soft archive is recoverable; hard delete is not.
+
+### Default grace window: 11 minutes
+
+**Decision:** `HARD_DELETE_WINDOW_MINUTES` defaults to 11, not 10.
+
+**Why:** User preference. It's prime.
+
+### Archived notes invisible across all MCP tools
+
+**Decision:** `fetchNote`, `listRecentNotes`, and the title-lookup query inside `fetchNoteLinks` all add `.is('archived_at', null)`. Archived notes are invisible to `get_note`, `list_recent`, `get_related`, and `search_notes` (which already filtered via the `match_notes` RPC).
+
+**Why:** The original ADR noted that RPC functions already filtered `archived_at IS NULL`, but the direct Supabase client queries in `db.ts` did not. Without this fix, archived notes would still appear in `get_note` and `list_recent` responses — defeating the purpose of archival. Unarchive remains a manual DB operation (`UPDATE notes SET archived_at = NULL WHERE id = '...'`), consistent with the ADR's design that recovery is an admin action, not an agent action.
+
+### No audit log entry for archive/delete
+
+**Decision:** Archive and delete events are logged to the Cloudflare Workers console (`console.log` with structured JSON), not to the `enrichment_log` table.
+
+**Why:** For hard delete, an `enrichment_log` entry would be CASCADE-deleted along with the note — useless. For soft delete, the `archived_at` timestamp on the note itself is sufficient forensic evidence in a single-user system. Console logs survive regardless of database state and follow the existing structured logging pattern throughout the codebase.
+
+**Source:** Specialist review during #87 implementation, 2026-03-16.
