@@ -262,6 +262,32 @@ export async function searchNotes(
   return (data as MatchedNote[]) ?? [];
 }
 
+// ── Undo functions ────────────────────────────────────────────────────────
+
+export interface MostRecentNote {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+// Fetch the most recent active note from a specific source.
+export async function fetchMostRecentBySource(
+  db: SupabaseClient,
+  source: string,
+): Promise<MostRecentNote | null> {
+  const { data, error } = await db
+    .from('notes')
+    .select('id, title, created_at')
+    .eq('source', source)
+    .is('archived_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data as MostRecentNote;
+}
+
 // ── Archive functions ──────────────────────────────────────────────────────
 
 export interface NoteForArchive {

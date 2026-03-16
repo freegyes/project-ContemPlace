@@ -7,8 +7,8 @@ import { createOpenAIClient } from './embed';
 import { TOOL_DEFINITIONS, handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleArchiveNote } from './tools';
 import { runCapturePipeline } from './pipeline';
 import { AuthHandler } from './oauth';
-import type { Env } from './types';
-import type { ServiceCaptureResult } from './types';
+import type { Env, ServiceCaptureResult, UndoResult } from './types';
+import { fetchMostRecentBySource, hardDeleteNote } from './db';
 
 // ── JSON-RPC helpers ─────────────────────────────────────────────────────────
 
@@ -166,6 +166,27 @@ export class CaptureService extends WorkerEntrypoint<Env> {
     const db = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
     const openai = createOpenAIClient(config);
     return runCapturePipeline(rawInput, source, db, openai, config);
+  }
+
+  async undoLatest(): Promise<UndoResult> {
+    const config = loadConfig(this.env);
+    const db = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
+
+    const note = await fetchMostRecentBySource(db, 'telegram');
+    if (!note) {
+      return { action: 'none' };
+    }
+
+    const ageMs = Date.now() - new Date(note.created_at).getTime();
+    const windowMs = config.hardDeleteWindowMinutes * 60 * 1000;
+
+    if (ageMs >= windowMs) {
+      return { action: 'grace_period_passed', title: note.title, id: note.id };
+    }
+
+    await hardDeleteNote(db, note.id);
+    console.log(JSON.stringify({ event: 'undo_hard_deleted', id: note.id, title: note.title }));
+    return { action: 'deleted', title: note.title, id: note.id };
   }
 }
 

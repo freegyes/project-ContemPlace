@@ -1,4 +1,4 @@
-import type { Env, TelegramUpdate, ServiceCaptureResult } from './types';
+import type { Env, TelegramUpdate, ServiceCaptureResult, UndoResult } from './types';
 import { loadConfig } from './config';
 import { sendTelegramMessage, sendTypingAction } from './telegram';
 import { createSupabaseClient, tryClaimUpdate } from './db';
@@ -61,6 +61,12 @@ export default {
       return new Response('ok', { status: 200 });
     }
 
+    // ── 6b. /undo command ──────────────────────────────────────────────────
+    if (text.trim() === '/undo') {
+      ctx.waitUntil(processUndo(env, config, chatId));
+      return new Response('ok', { status: 200 });
+    }
+
     // ── 7. Dedup check ───────────────────────────────────────────────────────
     const db = createSupabaseClient(config);
     const isNew = await tryClaimUpdate(db, update.update_id);
@@ -111,6 +117,39 @@ async function processCapture(
   }
 }
 
+async function processUndo(
+  env: Env,
+  config: { telegramBotToken: string; telegramWebhookSecret: string; allowedChatIds: number[]; supabaseUrl: string; supabaseServiceRoleKey: string },
+  chatId: number,
+): Promise<void> {
+  try {
+    const result: UndoResult = await env.CAPTURE_SERVICE.undoLatest();
+
+    let reply: string;
+    switch (result.action) {
+      case 'deleted':
+        reply = `Undone: <b>${escapeHtml(result.title!)}</b>`;
+        break;
+      case 'grace_period_passed':
+        reply = 'The grace period has passed. To archive a note, use an MCP session.';
+        break;
+      case 'none':
+        reply = 'Nothing to undo — no recent Telegram captures.';
+        break;
+    }
+
+    await sendTelegramMessage(config, chatId, reply, 'HTML');
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error(JSON.stringify({ event: 'undo_error', error: errorMessage, chatId }));
+    await sendTelegramMessage(config, chatId, 'Something went wrong with undo. Try again.');
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ── Visual indicators for Telegram reply ─────────────────────────────────────
 // Emojis give each classification a consistent visual anchor so the user can
 // spot behavioral patterns at a glance without reading every label.
@@ -119,7 +158,7 @@ const LINK_EMOJI: Record<string, string> = {
   contradicts: '⚡', related: '🔗',
 };
 function formatTelegramReply(result: ServiceCaptureResult): string {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const esc = escapeHtml;
   const sep = '──────────────────────';
 
   // Title and body are prominent — everything else is italic metadata

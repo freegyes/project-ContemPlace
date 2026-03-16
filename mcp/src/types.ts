@@ -83,6 +83,15 @@ export interface LinkWithTitle {
   direction: 'outbound' | 'inbound';
 }
 
+// ── Undo result ─────────────────────────────────────────────────────────────
+// Returned by CaptureService.undoLatest() — safe for structured cloning across Service Bindings.
+
+export interface UndoResult {
+  action: 'deleted' | 'grace_period_passed' | 'none';
+  title?: string;
+  id?: string;
+}
+
 // ── Service Binding result ──────────────────────────────────────────────────
 // Rich result returned by CaptureService.capture() — designed for all gateways.
 // All fields are strings, arrays, or null — safe for structured cloning across Service Bindings.
