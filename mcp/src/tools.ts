@@ -84,7 +84,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'archive_note',
-    description: 'Remove a note from the knowledge graph. Notes created within the grace window (default 10 minutes) are permanently hard-deleted — you are still in the capture session, correcting in real time. Older notes are soft-archived (recoverable via direct DB access). Returns { deleted: true } for hard delete or { archived: true, id: "..." } for soft archive. Always confirm with the user before calling.',
+    description: 'Remove a note from the knowledge graph. Notes created within the grace window (default 11 minutes) are permanently hard-deleted — you are still in the capture session, correcting in real time. Older notes are soft-archived (recoverable via direct DB access). Returns { deleted: true } for hard delete or { archived: true, id: "..." } for soft archive. Always confirm with the user before calling.',
     inputSchema: {
       type: 'object',
       properties: {

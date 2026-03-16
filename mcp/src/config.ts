@@ -24,7 +24,7 @@ export function loadConfig(env: Env): Config {
     embedModel: env.EMBED_MODEL || 'openai/text-embedding-3-small',
     matchThreshold: parseAndValidateThreshold(env.MATCH_THRESHOLD, 0.60, 'MATCH_THRESHOLD'),
     searchThreshold: parseAndValidateThreshold(env.MCP_SEARCH_THRESHOLD, 0.35, 'MCP_SEARCH_THRESHOLD'),
-    hardDeleteWindowMinutes: parsePositiveInt(env.HARD_DELETE_WINDOW_MINUTES, 10, 'HARD_DELETE_WINDOW_MINUTES'),
+    hardDeleteWindowMinutes: parsePositiveInt(env.HARD_DELETE_WINDOW_MINUTES, 11, 'HARD_DELETE_WINDOW_MINUTES'),
   };
 }
 

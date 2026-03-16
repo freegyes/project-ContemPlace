@@ -124,9 +124,9 @@ describe('loadConfig', () => {
     expect(config.supabaseServiceRoleKey).toBe('plain-key');
   });
 
-  it('uses 10 as default hardDeleteWindowMinutes when HARD_DELETE_WINDOW_MINUTES is absent', () => {
+  it('uses 11 as default hardDeleteWindowMinutes when HARD_DELETE_WINDOW_MINUTES is absent', () => {
     const config = loadConfig(env({ HARD_DELETE_WINDOW_MINUTES: undefined }));
-    expect(config.hardDeleteWindowMinutes).toBe(10);
+    expect(config.hardDeleteWindowMinutes).toBe(11);
   });
 
   it('parses a valid HARD_DELETE_WINDOW_MINUTES integer', () => {

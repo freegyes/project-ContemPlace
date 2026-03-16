@@ -79,7 +79,7 @@ const MOCK_CONFIG: Config = {
   embedModel: 'openai/text-embedding-3-small',
   matchThreshold: 0.60,
   searchThreshold: 0.35,
-  hardDeleteWindowMinutes: 10,
+  hardDeleteWindowMinutes: 11,
 };
 
 const mockDb = {} as unknown as SupabaseClient;
@@ -644,7 +644,7 @@ describe('handleArchiveNote', () => {
       expect(vi.mocked(archiveNote)).not.toHaveBeenCalled();
     });
 
-    it('hard-deletes a note created 9 minutes ago (still within 10-minute window)', async () => {
+    it('hard-deletes a note created 9 minutes ago (still within 11-minute window)', async () => {
       vi.mocked(fetchNoteForArchive).mockResolvedValueOnce({
         id: VALID_UUID,
         created_at: minutesAgo(9),
@@ -676,7 +676,7 @@ describe('handleArchiveNote', () => {
     it('soft-archives a note created exactly at the grace window boundary', async () => {
       vi.mocked(fetchNoteForArchive).mockResolvedValueOnce({
         id: VALID_UUID,
-        created_at: minutesAgo(10),
+        created_at: minutesAgo(11),
         archived_at: null,
       });
       const r = toolResult(await handleArchiveNote({ id: VALID_UUID }, mockDb, MOCK_CONFIG));
