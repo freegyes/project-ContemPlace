@@ -2,7 +2,7 @@
 
 *How the system works internally — Workers, data flow, embedding strategy, error handling. Read this to understand what happens between receiving a message and storing a note.*
 
-ContemPlace's irreducible core is the **database + MCP surface**. The database (Supabase with pgvector) stores notes, embeddings, and links. The MCP server exposes this to any agent — input via `capture_note`, retrieval via `search_notes`/`get_related`/`get_note`/`list_recent`. Everything else is a module.
+ContemPlace's irreducible core is the **database + MCP surface + gardening pipeline**. The database (Supabase with pgvector) stores notes, embeddings, and links. The MCP server exposes this to any agent — input via `capture_note`, retrieval via `search_notes`/`get_related`/`get_note`/`list_recent`. The gardener surfaces connections that make the graph useful. Everything else — input channels like Telegram, import tools, a dashboard — is optional.
 
 The current implementation runs as three Cloudflare Workers: a **Telegram capture Worker** (a convenient input channel), an **MCP Worker** (the core interface), and a **Gardener Worker** (the enrichment layer). Supabase provides the database — Postgres with pgvector for semantic search. There are no Edge Functions, no queues, no background job runners.
 

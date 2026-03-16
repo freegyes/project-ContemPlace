@@ -243,9 +243,9 @@ The `url` field in the response should match your Worker URL.
 
 Send a text message to your bot. You should get a structured confirmation back within ~5 seconds — a bold title, body text, tags, and optional linked/corrections lines.
 
-## 7. Deploy the Gardener Worker (optional)
+## 7. Deploy the Gardener Worker
 
-The gardener runs nightly at 02:00 UTC, creating similarity links between notes. Optional but recommended — it's what turns the database from a note store into a connected knowledge graph.
+The gardener runs nightly at 02:00 UTC, creating similarity links between notes. It's what turns the database from a note store into a connected knowledge graph.
 
 ```bash
 wrangler secret put SUPABASE_URL -c gardener/wrangler.toml

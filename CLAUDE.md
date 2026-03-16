@@ -353,7 +353,7 @@ Use `--skip-smoke` to skip step 7 and test manually.
 
 A commonplace book that becomes a PKM system. You use it as you would a commonplace book — send whatever is on your mind, no processing obligation. Under the hood, the system turns your accumulation into organized, queryable knowledge through gardening (similarity links) and eventually synthesis (cluster summaries). The MCP surface makes your memory portable across any agent.
 
-The irreducible core is the **database + MCP surface**. Everything else — the Telegram bot, import tools, a dashboard — is an optional module.
+The irreducible core is the **database + MCP surface + gardening pipeline**. The Telegram bot, import tools, and a dashboard are optional input/presentation layers.
 
 Three layers, each with a clear job:
 
@@ -453,7 +453,7 @@ Each layer owns a specific type of information. **Never duplicate across layers*
 | **`docs/philosophy.md`** | Product design principles: fragment-first capture, trust contract, synthesis layer, emergent structure. The "why" behind architectural choices. | When product principles change |
 | **`docs/capture-agent.md`** | Capture pipeline behavior, linking logic, voice correction. | When capture behavior changes |
 | **`CLAUDE.md`** | Stable AI context: architecture, hard constraints, key files, conventions. No current state, no issue indexes, no phase status. | When architecture or conventions change |
-| **`README.md`** | Product front door: what it is, why it matters, status, modules, philosophy, FAQ. No bash commands, no config tables. | When any user-visible surface changes |
+| **`README.md`** | Product front door: what it is, how it works, trust and control, FAQ, documentation index. No bash commands, no config tables. | When any user-visible surface changes |
 | **`docs/setup.md`** | Full deploy guide: prerequisites, secrets, Worker deployment, configuration tables, env var reference. | When deploy process or config changes |
 | **`docs/development.md`** | Test commands, project layout, file-by-file breakdown, contributor reference. | When tests, layout, or dev workflow changes |
 

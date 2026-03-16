@@ -97,7 +97,7 @@ Good balance is the key. The system adds structure through capture (title, tags,
 
 ### 10. Your data, any agent
 
-The irreducible core of ContemPlace is the database + MCP surface. Everything else — the Telegram bot, the gardener, import tools, a dashboard — is an optional module.
+The irreducible core of ContemPlace is the database + MCP surface + gardening pipeline. The gardener is what turns the commonplace book into a PKM system — without it, you have a note store; with it, you have a connected knowledge graph. Everything else — the Telegram bot, import tools, a dashboard — is an optional input or presentation layer.
 
 Your memory lives in Postgres you can always query and export. Any MCP-capable agent can read and write it. You stop being locked into any single agent's ecosystem. Today's LLM interprets your words one way; tomorrow's can reinterpret the same raw input with better understanding. Enrichment is always additive, never destructive.
 
