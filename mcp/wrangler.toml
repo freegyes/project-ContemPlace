@@ -19,3 +19,11 @@ preview_id = "YOUR_KV_PREVIEW_ID"  # create with: wrangler kv namespace create O
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 # OPENROUTER_API_KEY
+
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
