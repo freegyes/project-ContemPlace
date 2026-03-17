@@ -126,6 +126,10 @@ Apply only what the user approved, incorporating any modifications they requeste
 
 Keep the report tight. The changes speak for themselves — the report just indexes them.
 
+### Phase 6: Commit check
+
+After applying changes, check git status. If there are uncommitted changes (from the reflection edits or from earlier in the session), present them and offer to commit and push. This is the last step — nothing should leave the session uncommitted.
+
 ## Calibration
 
 - **Pushbacks are gifts, not complaints.** Treat every correction as a system improvement opportunity. The user shouldn't have to give the same feedback twice.
