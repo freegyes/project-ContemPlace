@@ -4,7 +4,7 @@ Search an Obsidian vault for notes related to a topic, decompose them into idea 
 
 ## Arguments
 
-$ARGUMENTS — the topic to search for, described naturally. Examples: "I had thoughts about making a lap steel guitar", "notes about incremental formalization and PKM design", "my reflections on bookbinding techniques".
+$ARGUMENTS — the topic to search for, described naturally. Examples: "I had thoughts about making a lap steel guitar", "notes about incremental formalization and PKM design", "my reflections on bookbinding techniques". Can be empty.
 
 ## Prerequisites
 
@@ -13,6 +13,27 @@ This command requires MCP access to both:
 - **ContemPlace** — `search_notes` and `capture_note` tools
 
 ## Workflow
+
+### Phase 0: Topic selection (when no argument given)
+
+If `$ARGUMENTS` is empty, help the user pick a topic:
+
+1. **Report extraction progress.** Count notes with `contemplace: extracted` in frontmatter (grep) and total notes with `type: idea` or `type: reflection` in frontmatter (grep). Exclude non-note files (CLAUDE.md, command files). Report:
+   ```
+   Extraction progress: X / Y notes extracted (Z%)
+   ```
+
+2. **Identify unextracted clusters.** Glob for `MOC*.md` files. Read each MOC and check which of its linked notes lack `contemplace: extracted`. Rank MOCs by number of unextracted notes. Pick the top 3-5 MOCs with the most unextracted material.
+
+3. **Present recommendations:**
+   ```
+   Suggested topics for extraction:
+     - "topic description" — N unextracted notes (MOC Name)
+     - "topic description" — N unextracted notes (MOC Name)
+     ...
+   ```
+
+4. Wait for the user to pick one, then proceed to Phase 1 with that topic.
 
 ### Phase 1: Gather source material and style reference
 
@@ -74,14 +95,16 @@ The Obsidian notes are heavily edited, LLM-synthesized prose. The user didn't wr
 - Do not merge ideas from different parts of the source. One fragment, one idea.
 - Questions stay as questions. Claims stay as claims. Don't upgrade uncertainty to certainty.
 - If a fragment references a specific source (book, person, article), keep the reference.
-- **Strip cross-references.** Do not bake in connections like "same idea as X" or "same principle as Y." The Obsidian notes are full of wikilinks tying ideas together — those belong to the Obsidian graph, not to a raw capture. The ContemPlace capture pipeline discovers connections automatically through embedding similarity. A fragment should read like a standalone thought the user had, not a node in a knowledge graph.
+- **Strip cross-references.** Do not bake in connections like "same idea as X" or "same principle as Y." The Obsidian notes are full of wikilinks tying ideas together — those belong to the Obsidian graph, not to a raw capture. The ContemPlace capture pipeline discovers connections automatically through embedding similarity. A fragment should read like a standalone thought the user had, not a node in a knowledge graph. This includes **implicit cross-references** — suggesting a specific project's files as "a good first test" is still a cross-reference even without a wikilink. If removing the reference leaves the fragment too bare, that's fine: a short fragment is better than one with baked-in connections.
 - **No principle-speak.** Fragments describe what to make, what was observed, or what happened — not universal truths or transferable principles. "Template-route a lap steel body from a single slab of wood" not "Template routing is a useful technique to learn for any shaped woodworking project." If a sentence could appear in a textbook, it's not re-voiced enough.
+- **No synthesized jargon.** If a term came from LLM polishing rather than the user's own vocabulary, replace it with the simpler thing the user would actually say. "An engraved plate you can use in any printing process" not "a reusable intaglio printing matrix." When in doubt, check: would the user say this mid-conversation? If not, simplify.
 
 ### Phase 3b: Self-check against real fragments
 
 Before presenting to the user, sanity-check the re-voiced fragments against 3-5 real ContemPlace fragments from the same domain (retrieved in Phase 1 step 4). Put them side by side and ask: does my output read like these? Check for:
-- Cross-references that leaked in ("same idea as X", "connects to Y")
+- Cross-references that leaked in ("same idea as X", "connects to Y") — including implicit ones like "X files would be a good first test"
 - Principle-speak or generalizations the user would never say mid-capture
+- Synthesized jargon — terms that sound precise but came from LLM polishing, not the user's mouth
 - Register mismatch — too formal, too abstract, too polished
 
 If fragments fail the check, rework them before presenting. The user should see your best attempt, not a first draft that needs a correction round.
@@ -121,7 +144,7 @@ For each approved fragment, call `capture_note` with:
 - `raw_input`: the approved fragment text — clean, no prefixes, no metadata wrappers
 - `source`: `"obsidian-import"`
 
-Capture sequentially, one at a time. After each capture, briefly report the result (title and tags assigned by the capture pipeline). If a capture fails, report the error and ask whether to retry, skip, or stop.
+Capture in parallel batches of ~6 for efficiency. After each batch, briefly report progress. If a capture fails, report the error and ask whether to retry, skip, or stop.
 
 After all captures complete, print a summary:
 ```
@@ -166,9 +189,19 @@ End the session by reflecting on the user's corrections and editorial decisions 
 
 If the user says yes, propose specific edits to this command file and apply them. The command evolves with use.
 
+### Phase 8: Progress report
+
+After the session is complete, report overall extraction progress using the same method as Phase 0 step 1:
+
+```
+Extraction progress: X / Y notes extracted (Z%)
+```
+
+This gives the user a running sense of how much of the vault has been migrated to ContemPlace.
+
 ## Calibration
 
-- **This is a small-batch, high-touch process.** Expect 1-15 fragments per session. The user wants close editorial control. Do not try to be efficient at the cost of curation quality.
+- **This is a small-batch, high-touch process.** Expect 1-25 fragments per session depending on cluster size. The user wants close editorial control but can review large batches efficiently when fragments are well-organized by theme. Do not try to be efficient at the cost of curation quality.
 - **Re-voicing is the hard part.** The quality bar is: would the user recognize this as something they'd plausibly say? If it sounds like an essay excerpt, it's not re-voiced enough. If it loses the idea's precision, it's over-simplified.
 - **The user's corrections are the most valuable signal.** Pay close attention to how they rework fragments — that's direct evidence of their voice and standards.
 - **Don't be precious about your decomposition.** If the user says "that's one idea, not three," they're right. Their editorial judgment is the ground truth.

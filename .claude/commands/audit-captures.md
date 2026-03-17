@@ -66,7 +66,7 @@ Check each fragment for:
 - **Voice preservation**: Compare `raw_input` to `body`. Is the body a faithful presentation of the user's words, or did the LLM compress, interpret, or add meaning? Flag any sentence in the body that isn't traceable to the raw input.
 - **No contamination**: Does the body contain conclusions, inferences, or synthesized statements the user didn't express?
 - **Question preservation**: If the raw input contains questions, are they preserved as questions in the body? Or were they reframed as statements or answered?
-- **Sentiment preservation**: If the raw input contains evaluative stance ("I liked," "I'm missing," "it felt like"), is that preserved? Or was it neutralized into a description?
+- **Evaluative stance preservation**: If the raw input contains evaluative stance — emotional reactions ("I liked," "I'm missing," "it felt like") or assessments ("possibly the best," "I prefer X over Y," "better than") — is that preserved? Or was it neutralized into a factual description, or moved to the title but stripped from the body?
 - **Correction quality**: If `corrections` is present, are they plausible voice-dictation fixes? Any false corrections (changing a word the user meant)?
 
 #### 3b. Structural quality
@@ -123,7 +123,7 @@ For each use case, rate: **works well** / **works but could be better** / **does
 #### Report header
 - Date, sample size, date range of fragments analyzed
 - Corpus stats: total notes (from list_recent with high limit), source breakdown, average links per note
-- Gardener run stats (from the trigger response): notes processed, links created/deleted
+- Gardener run: explicitly state that the gardener was triggered on-demand during the audit (not relying on stale nightly data). The gardener's similarity linker does a clean-slate delete + reinsert each run, so report the **resulting state**: "N `is-similar-to` links after run (up from M)" — not "N created, M deleted," which implies provenance we don't have. Also report notes processed and notes enriched. Any finding about gardener link presence or absence is only meaningful with this provenance established.
 
 #### Gaps (first)
 Where reality diverges from the philosophy. For each gap:
@@ -167,7 +167,7 @@ type: project
 
 **Date:** YYYY-MM-DD | **Sample:** N fragments | **Corpus:** N notes
 
-**Gardener:** N notes processed, N links created
+**Gardener:** N notes processed, N `is-similar-to` links after run (up from M)
 
 **Findings:**
 - [pattern found, severity, N/total affected]

@@ -123,6 +123,7 @@ gardener/         Gardener Worker (nightly similarity linking)
     harvest-ideas.md      Search corpus for actionable product ideas
     audit-captures.md     Capture quality audit
     work-on-issue.md      Full issue workflow (gather → review → plan → implement → ship)
+    reflect.md            Session-closing ritual: review pushbacks, improve commands/docs/memory
 scripts/
   deploy.sh       Automated deploy pipeline
 supabase/
