@@ -38,7 +38,7 @@
 #     psql $DB_URL -c "CREATE EXTENSION IF NOT EXISTS vector SCHEMA extensions"
 #     psql $DB_URL -f roles.sql    # errors on managed Supabase — roles already exist
 #     psql $DB_URL -f schema.sql
-#     psql $DB_URL -f data.sql     # ignore "permission denied" for auth/storage tables
+#     psql $DB_URL -f data.sql
 #
 # ── Customization ────────────────────────────────────────────────────────────
 #
@@ -75,7 +75,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
       - name: Dump data
-        run: supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -f data.sql
+        run: supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy --schema public -f data.sql
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
