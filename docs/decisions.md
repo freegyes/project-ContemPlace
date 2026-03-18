@@ -1072,3 +1072,18 @@ Multi-resolution comparison is the simplest approach that captures real overlap.
 This confirms the design memo's signal quality caveat: current signals are proof-of-concept. Tag quality improvements (#151) and normalization (#147) are prerequisites for tags to carry useful clustering signal.
 
 **Source:** #152 experiment results, 2026-03-17.
+
+## Automated backup: GitHub Actions + supabase db dump (2026-03-18)
+
+**Decision:** Daily automated backups via GitHub Actions running `supabase db dump`, stored in a private GitHub repository. Cloudflare Worker backup rejected. Supabase Pro plan deferred.
+
+**Why:** The Supabase free tier provides automated daily backups but they are not user-accessible — no download, no restore from the dashboard. `raw_input` is irreplaceable by design, so an independent backup path is essential. Investigation (#96) surveyed five approaches:
+
+- **CF Worker backup: dead end.** V8 isolates cannot run `pg_dump` or any native binary. Reimplementing dump logic in JavaScript would miss RPC functions, indexes, and constraints.
+- **Supabase Pro ($25/mo):** Dashboard-accessible backups with 7-day retention. Not justified at current scale (~200 notes, ~1.4MB) — revisit when corpus reaches 100K+ notes or instant restore justifies the cost.
+- **Local cron:** Works but requires the machine to be on. CI is more reliable for daily scheduled work.
+- **GitHub Actions + CLI dump:** Officially documented by Supabase, handles pgvector correctly, costs nothing (free tier: 2000 min/mo), stores in git (free retention via history).
+
+**Product angle:** Backup as a user-configurable feature, not just internal infrastructure. The workflow template we build becomes part of the setup guide — any ContemPlace fork can enable daily backups by adding one GitHub Secret. This strengthens the product's core promise: your memory lives in a database you own, with a recovery story you control.
+
+**Source:** Issue #96 investigation, #159 implementation. Supabase docs: [Automated backups using GitHub Actions](https://supabase.com/docs/guides/deployment/ci/backups).

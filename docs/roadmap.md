@@ -167,6 +167,14 @@ Delivered:
 - **Bot command registration** — both `/start` and `/undo` registered via Telegram `setMyCommands` API
 - **9 unit tests** covering grace window, boundary, custom config, error propagation
 
+## Automated backup — planned (issue #159)
+
+Investigation (#96) confirmed the approach: GitHub Actions + `supabase db dump` to a private repository. The dump handles pgvector embeddings correctly and is trivially small at current scale (~1.4MB for ~200 notes). CF Worker backup is not viable (V8 can't run pg_dump).
+
+This is both infrastructure and a product feature. The workflow we build becomes a template in the setup guide — any ContemPlace deployment can enable daily automated backup by configuring one GitHub Secret.
+
+Sequenced: verify dump round-trip → build workflow → validate end-to-end → document as user feature.
+
 ## Cluster exploration — active design phase
 
 The synthesis layer (#120) was designed as MOC generation from fragment clusters. A first-principles design session (2026-03-16) reframed the question: the real use case isn't narrative summarization — it's **undirected browsing**. Seeing the shape of your thinking without knowing what you're looking for. The Obsidian graph view served this; nothing in the current MCP surface does.
