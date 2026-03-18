@@ -1072,3 +1072,17 @@ Multi-resolution comparison is the simplest approach that captures real overlap.
 This confirms the design memo's signal quality caveat: current signals are proof-of-concept. Tag quality improvements (#151) and normalization (#147) are prerequisites for tags to carry useful clustering signal.
 
 **Source:** #152 experiment results, 2026-03-17.
+
+## Gardener similarity linking — purpose defined (2026-03-18)
+
+**Decision:** The gardener's similarity linking exists to complete the graph that capture-time linking structurally cannot. Two specific blind spots:
+
+1. **Backward blindness.** Capture-time linking only looks backward — a new note evaluates existing notes, but earlier notes never evaluate later arrivals. Monday's fragment never initiates a link to Tuesday's. The gardener compares all pairs regardless of creation order.
+
+2. **Context window truncation.** The capture pipeline presents only the top 5 candidates to the LLM. In a dense topic, candidates 6–15 might all deserve links but the LLM never sees them. The gardener's `find_similar_pairs` returns all pairs above threshold with no fixed candidate window.
+
+A supplementary mechanism difference: capture-time matching compares raw text against augmented stored embeddings, while the gardener compares augmented against augmented. Shared tags produce a cosine boost the capture pipeline doesn't see.
+
+**Why:** Five capture audits (2026-03-15 through 2026-03-18) consistently showed gardener links concentrated in dense obsidian-import clusters and absent from Telegram captures. The gardener produced only 36 `is-similar-to` links across 175 notes — too sparse to contribute to clustering. Articulating the purpose precisely was necessary before empirically tuning thresholds (#149, #158), so success and failure could be tested against a concrete goal rather than a vague sense of "more links."
+
+**Source:** #149 investigation session, 2026-03-18. Goal statement in `docs/architecture.md` → "Gardener pipeline → Goal."
