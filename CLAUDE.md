@@ -81,6 +81,7 @@ gardener/
 scripts/
   deploy.sh          # Automated deploy pipeline (schema → typecheck → unit tests → MCP Worker → Telegram Worker → bot commands → Gardener Worker → smoke tests)
   cluster-experiment.ts  # Clustering experiment — weighted graph + Louvain against live corpus (read-only, run via `npx tsx`)
+  threshold-analysis.ts  # Threshold analysis — pairwise distribution, gardener sweep, source stratification (read-only, run via `npx tsx`)
 supabase/
   config.toml
   migrations/
@@ -245,6 +246,10 @@ npx tsx scripts/cluster-experiment.ts
 
 # With custom cosine floor threshold
 npx tsx scripts/cluster-experiment.ts --floor=0.40
+
+# ── Threshold Analysis ──────────────────────────────────────────────────────
+# Run threshold analysis against live corpus (read-only, no writes)
+npx tsx scripts/threshold-analysis.ts
 
 # ── Backup ────────────────────────────────────────────────────────────────────
 # Trigger a backup manually (requires GitHub Actions secrets to be configured)

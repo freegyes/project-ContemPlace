@@ -127,6 +127,7 @@ gardener/         Gardener Worker (nightly similarity linking)
 scripts/
   deploy.sh                 Automated deploy pipeline
   cluster-experiment.ts     Clustering experiment — weighted graph + Louvain against live corpus (read-only)
+  threshold-analysis.ts     Threshold analysis — pairwise distribution, gardener sweep, source stratification (read-only)
 supabase/
   migrations/     Schema migrations (v4 is current)
 tests/
