@@ -2,7 +2,7 @@
 
 *The database contract — all tables, columns, RPC functions, and indexes. Read this if you're querying the database directly or writing a migration.*
 
-The v4 schema has 5 tables, 2 RPC functions, and indexes optimized for both vector similarity search and traditional filtering. All tables have RLS enabled with `deny all` policies — access is exclusively via the service role key.
+The v4 schema has 6 tables, 2 RPC functions, and indexes optimized for both vector similarity search and traditional filtering. All tables have RLS enabled with `deny all` policies — access is exclusively via the service role key.
 
 ## Tables
 
@@ -93,6 +93,23 @@ Stores the stylistic prompt rules (the "capture voice") fetched at runtime by an
 
 Edit the `default` row to tune capture behavior without redeploying.
 
+### clusters
+
+Pre-computed Louvain community detection results. Clean-slate per gardener run — all rows deleted and re-inserted.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid (PK) | |
+| `resolution` | float | Louvain resolution parameter (e.g. 1.0, 1.5, 2.0) |
+| `label` | text | Human-readable label from top tags (e.g. "cooking / italian / pasta") |
+| `note_ids` | uuid[] | Member note IDs |
+| `top_tags` | text[] | Top-3 most frequent tags across members |
+| `gravity` | float | Recency-weighted size: `size × avg(1 / (1 + age_days))` |
+| `modularity` | float | Louvain modularity score for this resolution |
+| `created_at` | timestamptz | |
+
+**Index:** `clusters_resolution_idx` (B-tree on `resolution`) for filtering by zoom level.
+
 ### processed_updates
 
 Telegram deduplication. Stores each `update_id` to prevent reprocessing.
@@ -134,7 +151,7 @@ Self-join cosine similarity search across all notes. Replaces N individual `matc
 ```sql
 find_similar_pairs(
   similarity_threshold  float  DEFAULT 0.7,
-  max_pairs             int    DEFAULT 500
+  max_pairs             int    DEFAULT 10000
 )
 ```
 
@@ -142,7 +159,7 @@ Returns: `note_a`, `note_b`, `similarity`. Orders pairs with `note_a < note_b` t
 
 ## Row Level Security
 
-All 5 tables have RLS enabled with a single `deny all` policy. This means:
+All 6 tables have RLS enabled with a single `deny all` policy. This means:
 
 - The **anon key** has zero access to any table
 - The **service role key** bypasses RLS entirely (by design)

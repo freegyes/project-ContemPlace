@@ -1138,3 +1138,27 @@ A supplementary mechanism difference: capture-time matching compares raw text ag
 **Why:** Discovered during implementation and restore testing. The `--schema public` fix was the most significant — it turned a documented workaround into a clean solution. The quoting issue was caught by the first GitHub Actions run (schema dump is produced by Supabase's pg_dump Docker image, which quotes all identifiers).
 
 **Source:** #159 implementation, restore round-trip test on throwaway Supabase project (2026-03-18).
+
+## Gardener clustering: cosine-only Louvain with shared pair fetch (2026-03-18)
+
+**Decision:** Implement cluster detection as a second gardener phase using Graphology's Louvain `.detailed()` with cosine-only edge weights. Fetch all pairs at `GARDENER_COSINE_FLOOR` (0.40) once and share between similarity linking (filtered >= 0.65) and clustering (all pairs). Store pre-computed results in a `clusters` table with clean-slate-per-run semantics.
+
+**Why:** The #152 experiment validated that cosine similarity alone produces coherent clusters (3 real domains at resolution 1.0 across 164 notes). Tags contribute marginal signal (5.4% pair overlap), and links reinforce rather than reshape cosine structure. Starting cosine-only keeps the implementation simple; tags, links, and entities become upgrade paths as signal quality improves (#151, #147, #125). Shared pair fetch saves one RPC round-trip per gardener run. Clustering failure is isolated via try/catch — it never affects the core similarity linker.
+
+**Source:** #153 (implementation spec), #156 (PR 1 of 2), #152 (experiment validation). PR #164.
+
+## Gravity formula: recency-weighted size (2026-03-18)
+
+**Decision:** Cluster gravity = `size × avg(1 / (1 + age_days))`. Intentionally biases toward clusters with recent activity.
+
+**Why:** A small cluster about something you're actively working on should outrank a large stale cluster. Pure size ranking would bury current work under historical accumulation. The `1/(1+age)` decay function gives today's note full weight (1.0) and a year-old note ~0.003. This matches the product philosophy: ContemPlace surfaces what's currently on your mind, not just what's historically dense.
+
+**Source:** #153 design spec. Confirmed during specialist review of PR #164.
+
+## Labels from tag aggregation, not LLM (2026-03-18)
+
+**Decision:** Cluster labels are derived from top-3 most frequent tags across members. No LLM calls. Format: `"tag1 / tag2 / tag3"`. Fallback: `"Cluster (N notes)"` when no tags exist.
+
+**Why:** The gardener stays LLM-free — all computation is deterministic and mathematical. Tag labels are sufficient for browsing (verified against live clusters: "pen-plotting / printmaking / generative-art" is immediately meaningful). LLM-generated narrative labels are an upgrade path but add cost, latency, and non-determinism to a nightly batch that should be cheap and reliable.
+
+**Source:** #153 design spec. Live verification against 186-note corpus confirmed label quality.

@@ -15,7 +15,8 @@ npx vitest run tests/parser.test.ts tests/undo.test.ts \
   tests/mcp-tools.test.ts tests/mcp-dispatch.test.ts \
   tests/mcp-index.test.ts tests/mcp-oauth.test.ts \
   tests/gardener-similarity.test.ts tests/gardener-config.test.ts \
-  tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
+  tests/gardener-alert.test.ts tests/gardener-trigger.test.ts \
+  tests/gardener-clustering.test.ts
 
 # Or individually:
 npx vitest run tests/parser.test.ts              # Capture response parsing
@@ -24,6 +25,7 @@ npx vitest run tests/mcp-tools.test.ts           # All 6 MCP tool handlers
 npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch
 npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler
 npx vitest run tests/mcp-index.test.ts           # OAuthProvider + resolveExternalToken
+npx vitest run tests/gardener-clustering.test.ts # Louvain clustering (graph build, gravity, labels)
 ```
 
 ### Smoke tests (live workers, requires `.dev.vars`)
@@ -107,14 +109,15 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
     capture.ts    System frame, LLM call, response parser (parseCaptureResponse)
     types.ts      MCP-specific TypeScript interfaces + ServiceCaptureResult
   wrangler.toml
-gardener/         Gardener Worker (nightly similarity linking)
+gardener/         Gardener Worker (nightly similarity linking + cluster detection)
   src/
-    index.ts      Cron-triggered entry point — orchestrates similarity linking
+    index.ts      Cron-triggered entry point — orchestrates similarity linking + clustering
+    clustering.ts Louvain community detection via Graphology (multi-resolution, gravity, tag labels)
     similarity.ts Link context builder (shared tags)
-    db.ts         Supabase operations (similarity linking)
+    db.ts         Supabase operations (similarity linking + cluster storage)
     alert.ts      Best-effort Telegram failure notification
     auth.ts       Bearer token auth for /trigger endpoint
-    config.ts     Config loading with threshold validation
+    config.ts     Config loading with threshold + clustering config validation
     types.ts      TypeScript interfaces
   wrangler.toml
 .claude/
@@ -142,7 +145,8 @@ tests/
   mcp-dispatch.test.ts    JSON-RPC dispatch
   mcp-smoke.test.ts       Live MCP Worker + OAuth discovery
   gardener-similarity.test.ts  buildContext + UUID dedup
-  gardener-config.test.ts      Gardener config loading
+  gardener-config.test.ts      Gardener config loading (thresholds, cosineFloor, resolutions)
+  gardener-clustering.test.ts  Louvain clustering (graph build, gravity, labels, singletons)
   gardener-alert.test.ts       Telegram failure alerting
   gardener-trigger.test.ts     /trigger endpoint auth + routing
   gardener-integration.test.ts capture → gardener → get_related

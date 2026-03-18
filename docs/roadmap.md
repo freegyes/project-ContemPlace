@@ -175,38 +175,51 @@ The workflow includes verification checks (non-empty files, pgvector presence, R
 
 Documented in `docs/setup.md` section 8 as a user-configurable feature — any ContemPlace fork enables daily backup by adding three GitHub settings.
 
-## Cluster exploration — active design phase
+## Cluster exploration — implementation in progress
 
 The synthesis layer (#120) was designed as MOC generation from fragment clusters. A first-principles design session (2026-03-16) reframed the question: the real use case isn't narrative summarization — it's **undirected browsing**. Seeing the shape of your thinking without knowing what you're looking for. The Obsidian graph view served this; nothing in the current MCP surface does.
 
-A literature review and design session (2026-03-17) produced concrete design decisions:
+### Gardener clustering pipeline — delivered (PR #164, 2026-03-18)
 
-- **Approach:** Weighted graph fusion combining embeddings (cosine similarity), tags (Jaccard co-occurrence), explicit links, and eventually entities into a single weighted edge. Weights are tunable parameters.
-- **Algorithm:** Louvain community detection via Graphology (TypeScript-native, works in V8). Custom implementation not ruled out.
-- **Structure:** Flat clusters with overlap — no hierarchy, no nesting. A resolution parameter controls granularity; the consumer picks the zoom level. Hard assignment rejected; multi-membership from day one.
+PR 1 of 2: the gardener now computes Louvain clusters and stores them in the DB. Deployed and verified against 186 notes.
+
+Delivered:
+- **`clusters` table** with RLS deny-all — resolution, label, note_ids, top_tags, gravity, modularity
+- **Graphology integration** — pure JS graph library running in CF Workers V8 (119KB gzip, 659KB total bundle)
+- **Multi-resolution Louvain** — runs `.detailed()` at each resolution in `GARDENER_CLUSTER_RESOLUTIONS` (default 1.0, 1.5, 2.0)
+- **Orchestrator refactoring** — single `find_similar_pairs` call at `GARDENER_COSINE_FLOOR` (0.40), filtered >= `GARDENER_SIMILARITY_THRESHOLD` (0.65) for linker, full set to clustering
+- **Error isolation** — clustering failure logged but never kills the gardener run
+- **Gravity** — `size × avg(1 / (1 + age_days))` — recency-weighted, biases toward active clusters
+- **Labels** — top-3 most frequent tags, no LLM calls (gardener stays LLM-free)
+
+Live results (186 notes): 9 clusters at res 1.0 (modularity 0.60), 11 at 1.5, 12 at 2.0. Coherent labels: pen-plotting/printmaking/generative-art, laser-cutting/instrument-design, audio-plugin/plugdata/sound-soup, note-taking/knowledge-capture, contemplace/mcp/knowledge-management.
+
+### Design decisions
+
+- **Approach:** Weighted graph fusion combining embeddings (cosine similarity), tags (Jaccard co-occurrence), explicit links, and eventually entities into a single weighted edge. v1 is cosine-only; signals are an upgrade path.
+- **Algorithm:** Louvain community detection via Graphology (TypeScript-native, works in V8).
+- **Structure:** Flat clusters with overlap — no hierarchy, no nesting. Resolution controls granularity; multi-membership via multi-resolution comparison.
 - **Computation:** Gardener-time, stored in DB. A `list_clusters` MCP tool reads pre-computed results.
-- **Labels:** LLM-assisted at gardening time for dashboard-browseable cluster names.
-- **Gravity:** Recency-weighted, not just size — new clusters about current work should surface even when small.
+- **Labels:** Top-N tag aggregation (LLM-free). LLM-assisted labels are an upgrade path.
+- **Gravity:** Recency-weighted, not just size — new clusters about current work surface even when small.
 
 ### Experiment results (#152, 2026-03-17)
 
 A local experiment script (`scripts/cluster-experiment.ts`) ran weighted graph clustering against the live corpus (164 notes) with 6 weight configurations across 4 resolutions. Key findings:
 
-- **Cosine-only produces coherent clusters.** At resolution 1.0, three clusters map to real domains: ContemPlace/PKM (74 notes), making/instruments (57 notes), pen-plotting/art (33 notes).
-- **Resolution is the most useful parameter.** 0.5 → 1 cluster, 1.0 → 3, 1.5 → 6, 2.0 → 9+. Genuinely controls zoom level.
-- **Tags add marginal signal.** Only 5.4% of note pairs share any tag. Tag Jaccard is near-zero for most edges.
-- **Links reinforce cosine.** Adding gardener links moved only 9/164 notes vs the cosine baseline.
-- **Overlap is real.** 134/164 notes change cluster across resolutions. Modularity is low (0.27–0.32) — soft boundaries, expected for a commonplace book.
+- **Cosine-only produces coherent clusters.** At resolution 1.0, three clusters map to real domains.
+- **Resolution is the most useful parameter.** 0.5 → 1 cluster, 1.0 → 3, 1.5 → 6, 2.0 → 9+.
+- **Tags add marginal signal.** Only 5.4% of note pairs share any tag.
+- **Overlap is real.** 134/164 notes change cluster across resolutions. Modularity is low (0.27–0.32).
 
-**Decision:** Start with cosine-only clustering. The fusion formula (tags, links, entities) becomes an upgrade path as signal quality improves. Multi-resolution Louvain is the overlap model. See `docs/decisions.md` for the full ADRs.
-
-**Sequenced next steps:**
-1. ~~**#152** — Experiment: weighted graph clustering against live corpus~~ **Done.** Validated cosine-only, resolution parameter, multi-resolution overlap.
-2. **#149** — Threshold assessment (elevated to key product feature)
-3. **#151** — Capture-time tag quality and consistency (quantified: 478 unique tags, 5.4% pair overlap)
-4. **#147** — Gardener-time tag normalization
-5. **#144** — Gardener clustering pipeline + `list_clusters` tool (cosine-only first iteration)
-6. **#125** — Entity dictionary (fourth clustering signal)
+### Next steps
+1. ~~**#152** — Experiment~~ **Done.**
+2. ~~**#156** — Gardener clustering pipeline (PR 1 of 2)~~ **Done.** (PR #164)
+3. **PR 2 of 2** — `list_clusters` MCP tool (reads pre-computed clusters)
+4. **#149** — Threshold assessment
+5. **#151** — Capture-time tag quality and consistency
+6. **#147** — Gardener-time tag normalization
+7. **#125** — Entity dictionary (fourth clustering signal)
 
 **Related:** #120 (synthesis — may be unnecessary if cluster exploration suffices), #101 (visual dashboard — cluster data is primary input)
 

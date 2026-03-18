@@ -71,9 +71,10 @@ gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
   src/
-    index.ts         # scheduled() + fetch() exports — orchestrates similarity linking
-    config.ts        # Config loading (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, thresholds)
-    db.ts            # Similarity DB ops
+    index.ts         # scheduled() + fetch() exports — orchestrates similarity linking + clustering
+    clustering.ts    # Louvain community detection via Graphology (multi-resolution, gravity, tag labels)
+    config.ts        # Config loading (thresholds, cosineFloor, clusterResolutions)
+    db.ts            # Similarity + cluster DB ops
     similarity.ts    # buildContext() — auto-generates link context from shared tags
     alert.ts         # sendAlert() — best-effort Telegram failure notification
     auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
@@ -86,6 +87,7 @@ supabase/
   migrations/
     20260314000000_v3_schema.sql   # Base schema (v3 — clean-slate, no type/intent/modality)
     20260315000000_v4_simplification.sql  # Schema simplification (drop SKOS, chunking, simplify links)
+    20260318000000_clusters_table.sql    # Clusters table for Louvain community detection results
 tests/
   parser.test.ts              # Unit tests for mcp/src/capture.ts parseCaptureResponse (no network)
   undo.test.ts                # Unit tests for /undo command (grace window, source filter, errors)
@@ -101,6 +103,7 @@ tests/
   semantic.test.ts            # Semantic correctness suite — tagging, linking, search quality (hits live stack)
   gardener-similarity.test.ts # Unit tests for buildContext() and UUID ordering deduplication
   gardener-config.test.ts     # Unit tests for gardener/src/config.ts loadConfig
+  gardener-clustering.test.ts # Unit tests for Louvain clustering (graph build, gravity, labels)
   gardener-alert.test.ts      # Unit tests for sendAlert() — Telegram alerting
   gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing
   gardener-integration.test.ts # Integration test: capture → gardener /trigger → get_related (live stack)
@@ -228,7 +231,7 @@ wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml          # option
 npx tsc --noEmit -p gardener/tsconfig.json
 
 # Run Gardener unit tests (local, no network)
-npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts
+npx vitest run tests/gardener-similarity.test.ts tests/gardener-config.test.ts tests/gardener-alert.test.ts tests/gardener-trigger.test.ts tests/gardener-clustering.test.ts
 
 # Run Gardener integration test (live stack — captures notes, triggers gardener, checks get_related)
 # Requires MCP_WORKER_URL, MCP_API_KEY, GARDENER_WORKER_URL, GARDENER_API_KEY in .dev.vars
@@ -326,9 +329,10 @@ The LLM returns this JSON and nothing else:
 
 ## Schema (v4)
 
-5 tables total:
+6 tables total:
 - `notes` — core notes with entities, corrections, summary, categories, metadata, archived_at, embedding, embedded_at, content_tsv
 - `links` — 3 link types: `contradicts`, `related` (capture-time), `is-similar-to` (gardening-time); includes context, confidence, created_by
+- `clusters` — pre-computed Louvain clusters (resolution, label, note_ids, top_tags, gravity, modularity); clean-slate per gardener run
 - `enrichment_log` — audit trail per note per enrichment type
 - `capture_profiles` — user-editable stylistic prompt rules; seeded with 'default' profile
 - `processed_updates` — Telegram dedup
@@ -359,7 +363,7 @@ Verify: `curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 - **v4.0.0 (complete):** Schema simplification bundle (#128, PR #131). Dropped 3 tables (concepts, note_concepts, note_chunks), 3 columns (refined_tags, maturity, importance_score), 2 RPC functions (match_chunks, batch_update_refined_tags). Link types simplified from 9 → 3 (contradicts, related, is-similar-to). MCP tools reduced from 8 → 5. Gardener simplified to similarity linking only.
 - **remove_note (complete):** MCP tool for note removal with time-dependent behavior (#87, PR #140). Notes < 11 min: permanently deleted. Older: soft archive. All existing tools now filter `archived_at IS NULL`. Renamed from `archive_note` — the old name promised archival but could permanently delete.
 - **Telegram /undo (complete):** `/undo` command hard-deletes most recent Telegram capture within grace window (#142, PR #143). Source-scoped (Telegram only), grace-window-only (refuses after 11 min). Bot commands registered automatically by `deploy.sh`.
-- **Cluster exploration (active design phase):** Louvain community detection via Graphology. Experiment (#152) validated cosine-only as starting point — 3 coherent clusters at resolution 1.0 across 164 notes. Multi-resolution overlap model (134/164 notes change cluster across resolutions). Tags and links are an upgrade path pending quality improvements (#151, #147). Gardener-time computation, `list_clusters` MCP tool reads pre-computed results. Implementation next (#144).
+- **Cluster exploration (implementation in progress):** Louvain community detection via Graphology. PR 1 of 2 delivered (#156, PR #164): gardener computes multi-resolution clusters (cosine-only) and stores in `clusters` table. Verified against 186 notes — 9 clusters at res 1.0, coherent labels. PR 2 of 2 pending: `list_clusters` MCP tool reads pre-computed results. Tags, links, entities are upgrade paths (#151, #147, #125).
 - **Phase 3 (deferred):** Associative trails, location extraction.
 
 ## Deploy

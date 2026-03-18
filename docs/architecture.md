@@ -22,7 +22,7 @@ OpenRouter sits between the Workers and all AI models. This adds a hop but means
 |---|---|---|---|
 | **Telegram capture** | `contemplace` | Receives Telegram webhooks, delegates capture to MCP Worker via Service Binding, formats HTML reply | Telegram webhook POST |
 | **MCP server** | `mcp-contemplace` | MCP tools via JSON-RPC 2.0 over HTTP. Hosts `CaptureService` entrypoint for Service Binding RPC (`capture()` + `undoLatest()`). | HTTP POST /mcp, Service Binding RPC |
-| **Gardener** | `contemplace-gardener` | Nightly enrichment: similarity linking | Cron (02:00 UTC) or POST /trigger |
+| **Gardener** | `contemplace-gardener` | Nightly enrichment: similarity linking + cluster detection | Cron (02:00 UTC) or POST /trigger |
 
 Each Worker is independently deployed with its own `wrangler.toml` and secrets. They share the same Supabase database and use the same `openai` SDK pattern for OpenRouter calls.
 
@@ -136,19 +136,35 @@ A technical nuance: the comparison basis also differs. Capture-time matching com
 
 ### Operation
 
-The Gardener Worker runs similarity linking, with error isolation and best-effort alerting:
+The Gardener Worker runs two phases — similarity linking and cluster detection — with error isolation and best-effort alerting:
 
 ```
  Cron trigger (02:00 UTC) or POST /trigger
        │
        ▼
  ┌─────────────────────────────────┐
- │  Similarity linking             │
- │  • find_similar_pairs() RPC     │
- │  • Clean-slate delete + reinsert│
- │  • Auto-context from shared     │
- │    tags                         │
- └─────────────────────────────────┘
+ │  1. Fetch shared data           │
+ │     • fetchNotesForSimilarity   │
+ │     • find_similar_pairs at     │
+ │       cosineFloor (0.40)        │
+ └──────────────┬──────────────────┘
+                │
+       ┌────────┴────────┐
+       ▼                 ▼
+ ┌───────────────┐ ┌───────────────┐
+ │ 2. Similarity │ │ 3. Clustering │
+ │    linking    │ │    (try/catch)│
+ │ • Filter pairs│ │ • Graphology  │
+ │   >= 0.65     │ │   graph build │
+ │ • Clean-slate │ │ • Louvain at  │
+ │   delete +    │ │   each        │
+ │   reinsert    │ │   resolution  │
+ │ • Context from│ │ • Gravity +   │
+ │   shared tags │ │   tag labels  │
+ └───────────────┘ │ • Clean-slate │
+                   │   delete +    │
+                   │   insert      │
+                   └───────────────┘
        │
        ▼  on any error
  ┌─────────────────────────────────┐
@@ -156,6 +172,10 @@ The Gardener Worker runs similarity linking, with error isolation and best-effor
  │  (if TELEGRAM_BOT_TOKEN set)    │
  └─────────────────────────────────┘
 ```
+
+The orchestrator fetches pairs once at `GARDENER_COSINE_FLOOR` (0.40) and shares them between phases. Pairs >= `GARDENER_SIMILARITY_THRESHOLD` (0.65) go to the linker; all pairs go to clustering. Clustering failure is isolated via try/catch — it never kills the gardener run or affects similarity links.
+
+Cluster detection uses Louvain community detection via Graphology (pure JS, runs in CF Workers V8). Multi-resolution: runs at each value in `GARDENER_CLUSTER_RESOLUTIONS` (default 1.0, 1.5, 2.0). Higher resolution = more granular clusters. Results stored in the `clusters` table with gravity (recency-weighted size) and top-3 tag labels.
 
 Subrequest budget is minimal and well within CF Workers' 50 free-tier limit, thanks to the `find_similar_pairs` batch RPC function.
 
