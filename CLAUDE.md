@@ -114,6 +114,9 @@ tests/
     work-on-issue.md      # Custom command: full issue workflow — gather → review → plan → implement → verify → ship
     reflect.md            # Custom command: session-closing ritual — review pushbacks, improve commands/docs/memory
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap)
+.github/
+  workflows/
+    backup.yml       # Automated daily Supabase backup to a private GitHub repo (cron + workflow_dispatch)
 wrangler.toml        # Telegram Worker Cloudflare config
 package.json
 tsconfig.json
@@ -161,6 +164,11 @@ WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
 TELEGRAM_CHAT_ID            # your personal chat ID, for smoke tests
 MCP_WORKER_URL              # deployed MCP Worker URL, for mcp-smoke tests
 GARDENER_WORKER_URL         # deployed Gardener Worker URL, for gardener-integration tests
+
+# GitHub Actions — backup workflow (set via repo Settings → Secrets and variables → Actions)
+SUPABASE_DB_URL             # Postgres connection string (session mode pooler, port 5432)
+BACKUP_PAT                  # fine-grained PAT with Contents write on the backup repo
+BACKUP_REPO                 # (variable, not secret) "owner/repo" of the backup repo
 ```
 
 ## Key Commands
@@ -236,6 +244,13 @@ npx tsx scripts/cluster-experiment.ts
 
 # With custom cosine floor threshold
 npx tsx scripts/cluster-experiment.ts --floor=0.40
+
+# ── Backup ────────────────────────────────────────────────────────────────────
+# Trigger a backup manually (requires GitHub Actions secrets to be configured)
+gh workflow run backup.yml
+
+# Watch the most recent backup run
+gh run watch
 ```
 
 ## Hard Constraints

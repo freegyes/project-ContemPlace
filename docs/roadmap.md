@@ -167,13 +167,13 @@ Delivered:
 - **Bot command registration** — both `/start` and `/undo` registered via Telegram `setMyCommands` API
 - **9 unit tests** covering grace window, boundary, custom config, error propagation
 
-## Automated backup — planned (issue #159)
+## Automated backup — delivered (issue #159, PR #163)
 
-Investigation (#96) confirmed the approach: GitHub Actions + `supabase db dump` to a private repository. The dump handles pgvector embeddings correctly and is trivially small at current scale (~1.4MB for ~200 notes). CF Worker backup is not viable (V8 can't run pg_dump).
+GitHub Actions workflow (`.github/workflows/backup.yml`) runs daily at 04:00 UTC, producing three SQL files via `supabase db dump`: roles, schema (DDL + RPC functions + pgvector), and data (COPY format). Dumps are pushed to a configurable private GitHub repository. Git history provides natural retention.
 
-This is both infrastructure and a product feature. The workflow we build becomes a template in the setup guide — any ContemPlace deployment can enable daily automated backup by configuring one GitHub Secret.
+The workflow includes verification checks (non-empty files, pgvector presence, RPC functions, notes data) and optional Telegram failure alerts. Setup requires two secrets (`SUPABASE_DB_URL`, `BACKUP_PAT`) and one variable (`BACKUP_REPO`).
 
-Sequenced: verify dump round-trip → build workflow → validate end-to-end → document as user feature.
+Documented in `docs/setup.md` section 8 as a user-configurable feature — any ContemPlace fork enables daily backup by adding three GitHub settings.
 
 ## Cluster exploration — active design phase
 

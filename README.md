@@ -70,6 +70,8 @@ Every model is an environment variable. All AI calls route through OpenRouter �
 
 **No lock-in.** Postgres you can query and export any time. MCP means any compatible agent works — Claude, ChatGPT, Cursor, custom scripts. Switch tools whenever you want. The database doesn't care who's reading it. [Data ownership →](docs/philosophy.md#12-your-data-any-agent)
 
+**Daily backups included.** A GitHub Actions workflow dumps your database daily to a private repo you control — schema, data, and roles in three SQL files. Two secrets and one variable to configure. [Setup →](docs/setup.md#8-configure-automated-backups-optional)
+
 The [full design philosophy](docs/philosophy.md) lays out the design principles with the reasoning behind each — not marketing copy, but the actual constraints the system is built against.
 
 ## Get started

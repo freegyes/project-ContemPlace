@@ -147,6 +147,9 @@ tests/
   gardener-trigger.test.ts     /trigger endpoint auth + routing
   gardener-integration.test.ts capture → gardener → get_related
   semantic.test.ts             Tagging, linking, search quality
+.github/
+  workflows/
+    backup.yml        Automated daily Supabase backup to private GitHub repo
 docs/             Architecture, schema, decisions, roadmap
 ```
 

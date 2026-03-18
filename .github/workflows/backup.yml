@@ -1,0 +1,151 @@
+# Automated daily backup of the ContemPlace Supabase database.
+#
+# Produces three SQL files using `supabase db dump`:
+#   roles.sql  — database roles (--role-only)
+#   schema.sql — tables, indexes, RPC functions, extensions
+#   data.sql   — all row data in COPY format (--data-only --use-copy)
+#
+# Dumps are pushed to a separate private GitHub repository. Git history
+# provides natural retention — unchanged dumps produce no new commit.
+#
+# ── Setup ────────────────────────────────────────────────────────────────────
+#
+#   1. Create a private GitHub repo for backups (e.g., "yourname/contemplace-backups")
+#   2. Create a fine-grained Personal Access Token with Contents read/write on that repo
+#   3. In this repo → Settings → Secrets and variables → Actions:
+#      Secret:   SUPABASE_DB_URL  — Postgres connection string (session mode, port 5432)
+#      Secret:   BACKUP_PAT       — the PAT from step 2
+#      Variable: BACKUP_REPO      — "owner/repo" of the backup repository
+#
+#   Optional — Telegram failure alerts (reuses the capture bot):
+#      Secret:   TELEGRAM_BOT_TOKEN     — same token as the capture Worker
+#      Secret:   TELEGRAM_ALERT_CHAT_ID — chat ID to receive alerts
+#
+# ── Connection string format ─────────────────────────────────────────────────
+#
+#   Session mode pooler (recommended):
+#     postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+#
+#   Direct connection:
+#     postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres
+#
+#   Find both in Supabase dashboard → Project Settings → Database → Connection string.
+#   Use session mode (port 5432), NOT transaction mode (port 6543) — pg_dump needs sessions.
+#
+# ── Restore ──────────────────────────────────────────────────────────────────
+#
+#   On a fresh or existing Supabase project:
+#     psql $DB_URL -c "CREATE EXTENSION IF NOT EXISTS vector"
+#     psql $DB_URL -f roles.sql
+#     psql $DB_URL -f schema.sql
+#     psql $DB_URL -f data.sql
+#
+# ── Customization ────────────────────────────────────────────────────────────
+#
+#   - Cron schedule: edit the cron expression below (default: daily 04:00 UTC)
+#   - Storage target: replace the "Push to backup repository" step to use
+#     R2, S3, or any other destination instead of a GitHub repo
+
+name: Database Backup
+
+on:
+  schedule:
+    - cron: '0 4 * * *'      # Daily at 04:00 UTC
+  workflow_dispatch:           # Manual trigger via Actions tab or `gh workflow run`
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Dump roles
+        run: supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f roles.sql
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Dump schema
+        run: supabase db dump --db-url "$SUPABASE_DB_URL" -f schema.sql
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Dump data
+        run: supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -f data.sql
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Verify dumps
+        run: |
+          # Each file must be non-empty
+          for f in roles.sql schema.sql data.sql; do
+            if [ ! -s "$f" ]; then
+              echo "::error::$f is empty"
+              exit 1
+            fi
+            echo "$f: $(wc -l < "$f" | tr -d ' ') lines, $(du -h "$f" | cut -f1)"
+          done
+
+          # pgvector extension must appear in schema
+          grep -q 'vector' schema.sql || { echo "::error::pgvector not in schema dump"; exit 1; }
+
+          # RPC functions must be present
+          grep -q 'match_notes' schema.sql || { echo "::error::match_notes RPC missing"; exit 1; }
+          grep -q 'find_similar_pairs' schema.sql || { echo "::error::find_similar_pairs RPC missing"; exit 1; }
+
+          # Data must include notes table rows and capture_profiles seed
+          grep -q 'COPY public.notes' data.sql || { echo "::error::notes data missing"; exit 1; }
+          grep -q 'capture_profiles' data.sql || { echo "::error::capture_profiles seed data missing"; exit 1; }
+
+          echo "All verification checks passed"
+
+      - name: Push to backup repository
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          git init backup-repo
+          cd backup-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git remote add origin "https://x-access-token:${BACKUP_PAT}@github.com/${BACKUP_REPO}.git"
+
+          # Pull existing history if the backup repo already has commits
+          if git fetch origin main 2>/dev/null; then
+            git checkout main
+          else
+            git checkout -b main
+          fi
+
+          cp ../roles.sql ../schema.sql ../data.sql .
+
+          git add roles.sql schema.sql data.sql
+          if git diff --cached --quiet; then
+            echo "No changes since last backup — skipping commit"
+          else
+            git commit -m "backup: ${TIMESTAMP}"
+            git push origin main
+            echo "Backup pushed: ${TIMESTAMP}"
+          fi
+        env:
+          BACKUP_PAT: ${{ secrets.BACKUP_PAT }}
+          BACKUP_REPO: ${{ vars.BACKUP_REPO }}
+
+      # Optional: Telegram alert on failure. Set TELEGRAM_BOT_TOKEN and
+      # TELEGRAM_ALERT_CHAT_ID secrets to enable — otherwise this step is skipped.
+      - name: Notify failure via Telegram
+        if: failure()
+        run: |
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_ALERT_CHAT_ID" ]; then
+            curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${TELEGRAM_ALERT_CHAT_ID}" \
+              -d "text=⚠️ ContemPlace database backup failed. Check GitHub Actions." \
+              || echo "Telegram alert failed (non-critical)"
+          fi
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALERT_CHAT_ID: ${{ secrets.TELEGRAM_ALERT_CHAT_ID }}

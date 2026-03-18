@@ -279,6 +279,85 @@ curl -X POST "https://contemplace-gardener.<YOUR_SUBDOMAIN>.workers.dev/trigger"
 
 Defaults live in `gardener/src/config.ts`. Override via `gardener/wrangler.toml` `[vars]`.
 
+## 8. Configure automated backups (optional)
+
+A GitHub Actions workflow dumps the full database daily — schema, data, and roles — to a private GitHub repository you control. Git history in that repo provides natural retention with zero maintenance.
+
+### Create the backup repository
+
+Create a **private** GitHub repository for backups (e.g., `yourname/contemplace-backups`). It can be empty — the workflow creates the initial commit.
+
+### Find your database connection string
+
+In the Supabase dashboard: Project Settings → Database → Connection string → **Session mode** (port 5432).
+
+The format looks like:
+
+```
+postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+```
+
+Use session mode (port 5432), not transaction mode (port 6543). `pg_dump` requires a session-capable connection.
+
+### Create a Personal Access Token
+
+The workflow needs push access to the backup repo. Create a [fine-grained Personal Access Token](https://github.com/settings/personal-access-tokens/new):
+
+- **Repository access:** Only the backup repository
+- **Permissions:** Contents → Read and write
+
+### Set secrets and variables
+
+In this repository's Settings → Secrets and variables → Actions:
+
+| Type | Name | Value |
+|---|---|---|
+| Secret | `SUPABASE_DB_URL` | The connection string from above |
+| Secret | `BACKUP_PAT` | The Personal Access Token |
+| Variable | `BACKUP_REPO` | `owner/repo` of the backup repository (e.g., `yourname/contemplace-backups`) |
+
+Optional — for Telegram failure alerts:
+
+| Type | Name | Value |
+|---|---|---|
+| Secret | `TELEGRAM_BOT_TOKEN` | Same bot token as the capture Worker |
+| Secret | `TELEGRAM_ALERT_CHAT_ID` | Chat ID to receive failure alerts |
+
+### Verify
+
+Trigger the workflow manually:
+
+```bash
+gh workflow run backup.yml
+```
+
+Watch the run:
+
+```bash
+gh run watch
+```
+
+Check the backup repository — you should see three files: `roles.sql`, `schema.sql`, `data.sql`.
+
+### Restore from backup
+
+On a fresh Supabase project (or the same one after a disaster):
+
+```bash
+psql $DB_URL -c "CREATE EXTENSION IF NOT EXISTS vector"
+psql $DB_URL -f roles.sql
+psql $DB_URL -f schema.sql
+psql $DB_URL -f data.sql
+```
+
+Verify: note count matches, `match_notes` and `find_similar_pairs` RPCs work, `capture_profiles` seed data is present.
+
+### Customization
+
+- **Schedule:** Edit the cron expression in `.github/workflows/backup.yml` (default: daily at 04:00 UTC).
+- **Storage target:** The workflow pushes to a GitHub repo by default. To use R2, S3, or another destination, replace the "Push to backup repository" step.
+- **Retention:** Git history handles deduplication — identical dumps produce no new commit. At current scale (~1.4MB per dump), unlimited history is fine.
+
 ## Subsequent deploys
 
 After the first-time setup, you don't need to repeat the secret and KV steps. Use `deploy.sh` for all future deploys — it handles schema migration, typechecking, unit tests, and deploying all three Workers in the correct order:
