@@ -125,6 +125,18 @@ You don't see any of this happen. You don't interact with the gardener. The next
 
 This is the difference between a note store and a knowledge graph. The gardener turns your accumulation into something you can navigate.
 
+### Exploring clusters
+
+Ask any MCP-connected agent to show your clusters. The agent calls `list_clusters` and gets back a gravity-ordered map of your thinking — recent active topics first, older quiet threads toward the bottom.
+
+The resolution parameter is a zoom control. At 1.0, you see broad themes — making, thinking-about-thinking, tools. At 2.0, those themes split: making separates into plotter-specific work and correspondence/printmaking; your ContemPlace notes separate into product thinking and infrastructure.
+
+What makes this useful is what you *don't* see. You never organized anything. The clusters emerged from the embeddings — notes that talk about similar things end up near each other, and the Louvain algorithm finds the boundaries. Some of those boundaries are obvious (instruments vs. note-taking philosophy). Others surface threads you hadn't noticed running through your fragments.
+
+The unclustered notes matter too. A handful of fragments sitting outside every cluster tells you something — these are genuinely standalone thoughts. If you capture more on the same topic, a cluster will form. Until then, they wait.
+
+**What gravity tells you:** A cluster with high gravity is where your recent attention is. A cluster with low gravity is an old thread — still coherent, still there, just not where you've been lately. This isn't a quality judgment. It's a recency signal. Old clusters with dormant gravity are often the most interesting to revisit.
+
 ---
 
 ## Backups: what protects your data

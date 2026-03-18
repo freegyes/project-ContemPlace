@@ -1170,3 +1170,19 @@ A supplementary mechanism difference: capture-time matching compares raw text ag
 **Why:** A 10-note random sample of `get_related` results showed 100% gardener/capture duplication, which would have led to a false conclusion that the gardener adds no new signal. Full overlap analysis revealed 13 genuinely new connections out of 117 (11.1% novelty rate) — all in the 0.65–0.70 band, invisible at the old 0.70 threshold. The new connections break down by failure mode: 9 from context-window truncation (dense topics where the top-5 candidate window was too narrow), 4 from backward blindness (earlier notes that couldn't evaluate later arrivals). Random sampling under-represents sparse signal — it naturally lands in dense clusters where capture was thorough.
 
 **Source:** #149 qualitative evaluation, 2026-03-18. The `scripts/threshold-analysis.ts` script covers distribution and sweep; the overlap analysis was done ad-hoc via direct DB queries and should be added to the script for future threshold reviews.
+
+## list_clusters: resolution passthrough, not validation (2026-03-18)
+
+**Decision:** The `list_clusters` MCP tool passes the resolution parameter through to the DB query as-is — no validation against available values, no clamping to [1.0, 1.5, 2.0]. If you ask for resolution 0.7, you get back an empty result.
+
+**Why:** The available resolutions are configured via `GARDENER_CLUSTER_RESOLUTIONS` and can change without redeploying the MCP Worker. Hardcoding validation in the tool would create a coupling between gardener config and MCP config. The tool description lists the defaults ("Available: 1.0, 1.5, 2.0") as guidance, and agents follow it. An empty result for a non-existent resolution is a clear enough signal.
+
+**Source:** #157 implementation. Kept simple to match the pattern of other tools that don't validate enum values.
+
+## Tag signal is the highest-value clustering upgrade (2026-03-18)
+
+**Decision:** Tag Jaccard similarity (#151/#147) is the next signal to add to the clustering edge weights, ahead of explicit links or entities.
+
+**Why:** Live exploration of the 186-note corpus revealed that semantically related notes with shared tags but different embedding contexts (e.g., "Lightroom backup" at 0.32 cosine vs. "device loss contingency" at 0.33 cosine vs. "ContemPlace backup" at 0.45 cosine — all sharing the `backup` tag) fall below the cosine floor and remain unclustered. Tag Jaccard would boost these edges above the clustering threshold. The #152 experiment showed only 5.4% of note pairs share any tag, so the signal is sparse but precisely targeted at the gap cosine-only misses. Links reinforce existing structure rather than bridging gaps; entities aren't populated yet (#125).
+
+**Source:** Live cluster exploration during #157 verification. Backup notes (Lightroom, device loss, ContemPlace) as concrete example.

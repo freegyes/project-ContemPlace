@@ -111,6 +111,7 @@ The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth
 | `get_related` | All linked notes in both directions, ordered capture-time first then gardener by confidence |
 | `capture_note` | Full capture pipeline (same logic as Telegram, synchronous) |
 | `remove_note` | Remove a note — permanent delete if recent (< grace window), soft archive if older |
+| `list_clusters` | Thematic clusters from the gardener. Resolution parameter (1.0/1.5/2.0) controls granularity. Gravity-ordered. |
 
 Tool descriptions in `TOOL_DEFINITIONS` (mcp/src/tools.ts) include behavioral guidance for connecting agents — what kind of input to pass, how to interpret results, when to use each tool. The `capture_note` description explicitly instructs agents to pass user's raw words without cleaning up or pre-structuring. These descriptions are the only guidance a connecting agent receives about how to use ContemPlace.
 

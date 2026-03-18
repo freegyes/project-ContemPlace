@@ -21,7 +21,7 @@ npx vitest run tests/parser.test.ts tests/undo.test.ts \
 # Or individually:
 npx vitest run tests/parser.test.ts              # Capture response parsing
 npx vitest run tests/undo.test.ts                # /undo command (grace window, source filter)
-npx vitest run tests/mcp-tools.test.ts           # All 6 MCP tool handlers
+npx vitest run tests/mcp-tools.test.ts           # All 7 MCP tool handlers
 npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch
 npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler
 npx vitest run tests/mcp-index.test.ts           # OAuthProvider + resolveExternalToken
