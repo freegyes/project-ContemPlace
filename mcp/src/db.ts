@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
-import type { CaptureLink, CaptureResult, MatchedNote, NoteRow, LinkWithTitle } from './types';
+import type { CaptureLink, CaptureResult, MatchedNote, NoteRow, LinkWithTitle, ClusterRow, ClusterNote } from './types';
 
 export type SupabaseClientType = SupabaseClient;
 
@@ -267,6 +267,72 @@ export async function searchNotes(
   }
 
   return (data as MatchedNote[]) ?? [];
+}
+
+// ── Cluster functions ─────────────────────────────────────────────────────
+
+export interface ClusterWithNotes {
+  label: string;
+  top_tags: string[];
+  note_count: number;
+  gravity: number;
+  notes: ClusterNote[];
+}
+
+// Fetch clusters at a given resolution, with note titles resolved.
+// Archived notes are silently filtered out at read time.
+export async function fetchClusters(
+  db: SupabaseClient,
+  resolution: number,
+): Promise<{ clusters: ClusterWithNotes[]; computed_at: string | null }> {
+  const { data: clusterRows, error } = await db
+    .from('clusters')
+    .select('label, top_tags, note_ids, gravity, modularity, created_at')
+    .eq('resolution', resolution)
+    .order('gravity', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch clusters: ${error.message}`);
+  }
+
+  const rows = (clusterRows as ClusterRow[] | null) ?? [];
+  if (rows.length === 0) {
+    return { clusters: [], computed_at: null };
+  }
+
+  // Collect all note IDs across all clusters
+  const allNoteIds = [...new Set(rows.flatMap(r => r.note_ids))];
+
+  // Batch-fetch titles (respecting archived_at IS NULL)
+  const { data: noteRows } = await db
+    .from('notes')
+    .select('id, title')
+    .in('id', allNoteIds)
+    .is('archived_at', null);
+
+  const titleMap = new Map<string, string>();
+  if (noteRows) {
+    for (const n of noteRows as Array<{ id: string; title: string }>) {
+      titleMap.set(n.id, n.title);
+    }
+  }
+
+  // Map titles back to clusters, filter out archived notes
+  const clusters: ClusterWithNotes[] = rows.map(row => {
+    const activeNotes: ClusterNote[] = row.note_ids
+      .filter(id => titleMap.has(id))
+      .map(id => ({ id, title: titleMap.get(id)! }));
+
+    return {
+      label: row.label,
+      top_tags: row.top_tags,
+      note_count: activeNotes.length,
+      gravity: row.gravity,
+      notes: activeNotes,
+    };
+  });
+
+  return { clusters, computed_at: rows[0]!.created_at };
 }
 
 // ── Undo functions ────────────────────────────────────────────────────────

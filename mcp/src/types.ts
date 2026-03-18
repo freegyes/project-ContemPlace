@@ -83,6 +83,22 @@ export interface LinkWithTitle {
   direction: 'outbound' | 'inbound';
 }
 
+// ── Cluster types ───────────────────────────────────────────────────────────
+
+export interface ClusterNote {
+  id: string;
+  title: string;
+}
+
+export interface ClusterRow {
+  label: string;
+  top_tags: string[];
+  note_ids: string[];
+  gravity: number;
+  modularity: number | null;
+  created_at: string;
+}
+
 // ── Undo result ─────────────────────────────────────────────────────────────
 // Returned by CaptureService.undoLatest() — safe for structured cloning across Service Bindings.
 

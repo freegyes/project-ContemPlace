@@ -22,6 +22,7 @@ vi.mock('../mcp/src/db', () => ({
   fetchNoteForArchive: vi.fn().mockResolvedValue(null),
   archiveNote: vi.fn().mockResolvedValue(undefined),
   hardDeleteNote: vi.fn().mockResolvedValue(undefined),
+  fetchClusters: vi.fn().mockResolvedValue({ clusters: [], computed_at: null }),
 }));
 
 vi.mock('../mcp/src/embed', () => ({
@@ -50,6 +51,7 @@ import {
   handleGetRelated,
   handleCaptureNote,
   handleRemoveNote,
+  handleListClusters,
 } from '../mcp/src/tools';
 import {
   searchNotes,
@@ -64,6 +66,7 @@ import {
   fetchNoteForArchive,
   archiveNote,
   hardDeleteNote,
+  fetchClusters,
 } from '../mcp/src/db';
 import { embedText } from '../mcp/src/embed';
 import { runCaptureAgent } from '../mcp/src/capture';
@@ -756,6 +759,106 @@ describe('handleRemoveNote', () => {
       const body = JSON.parse(r.content[0]!.text);
       expect(body.deleted).toBe(true);
       expect(vi.mocked(hardDeleteNote)).toHaveBeenCalledOnce();
+    });
+  });
+});
+
+// ── handleListClusters ───────────────────────────────────────────────────────
+
+const MOCK_CLUSTER = {
+  label: 'cooking / italian / pasta',
+  top_tags: ['cooking', 'italian', 'pasta'],
+  note_count: 3,
+  gravity: 2.5,
+  notes: [
+    { id: 'aaaaaaaa-0000-0000-0000-000000000001', title: 'Homemade pasta basics' },
+    { id: 'aaaaaaaa-0000-0000-0000-000000000002', title: 'Italian cooking philosophy' },
+    { id: 'aaaaaaaa-0000-0000-0000-000000000003', title: 'Pasta shapes and sauces' },
+  ],
+};
+
+describe('handleListClusters', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  describe('defaults', () => {
+    it('defaults resolution to 1.0 when not provided', async () => {
+      await handleListClusters({}, mockDb);
+      expect(vi.mocked(fetchClusters)).toHaveBeenCalledWith(mockDb, 1.0);
+    });
+
+    it('passes through a provided resolution', async () => {
+      await handleListClusters({ resolution: 2.0 }, mockDb);
+      expect(vi.mocked(fetchClusters)).toHaveBeenCalledWith(mockDb, 2.0);
+    });
+
+    it('defaults resolution to 1.0 when non-numeric value provided', async () => {
+      await handleListClusters({ resolution: 'bad' }, mockDb);
+      expect(vi.mocked(fetchClusters)).toHaveBeenCalledWith(mockDb, 1.0);
+    });
+  });
+
+  describe('empty state', () => {
+    it('returns empty clusters when gardener has not run', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({ clusters: [], computed_at: null });
+      const r = toolResult(await handleListClusters({}, mockDb));
+      expect(r.isError).toBe(false);
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.cluster_count).toBe(0);
+      expect(body.clusters).toEqual([]);
+      expect(body.computed_at).toBeNull();
+    });
+  });
+
+  describe('happy path', () => {
+    it('returns clusters with correct structure', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [MOCK_CLUSTER],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({}, mockDb));
+      expect(r.isError).toBe(false);
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.cluster_count).toBe(1);
+      expect(body.resolution).toBe(1.0);
+      expect(body.clustered_notes).toBe(3);
+      expect(body.computed_at).toBe('2026-03-18T02:00:00.000Z');
+    });
+
+    it('returns cluster fields correctly', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [MOCK_CLUSTER],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({}, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      const cluster = body.clusters[0];
+      expect(cluster.label).toBe('cooking / italian / pasta');
+      expect(cluster.top_tags).toEqual(['cooking', 'italian', 'pasta']);
+      expect(cluster.note_count).toBe(3);
+      expect(cluster.gravity).toBe(2.5);
+      expect(cluster.notes).toHaveLength(3);
+      expect(cluster.notes[0].title).toBe('Homemade pasta basics');
+    });
+
+    it('sums clustered_notes across multiple clusters', async () => {
+      const cluster2 = { ...MOCK_CLUSTER, label: 'music / jazz', note_count: 5, notes: Array(5).fill(MOCK_CLUSTER.notes[0]) };
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [MOCK_CLUSTER, cluster2],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({}, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.clustered_notes).toBe(8);
+      expect(body.cluster_count).toBe(2);
+    });
+  });
+
+  describe('error handling', () => {
+    it('returns toolError when fetchClusters throws', async () => {
+      vi.mocked(fetchClusters).mockRejectedValueOnce(new Error('DB error'));
+      const r = toolResult(await handleListClusters({}, mockDb));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/Failed to fetch clusters/);
     });
   });
 });
