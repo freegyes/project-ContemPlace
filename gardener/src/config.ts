@@ -11,11 +11,21 @@ export interface Config {
 export function loadConfig(env: Env): Config {
   const supabaseServiceRoleKey = requireSecret(env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY');
   validateServiceRoleKey(supabaseServiceRoleKey);
+  const similarityThreshold = parseThreshold(env.GARDENER_SIMILARITY_THRESHOLD, 0.65, 'GARDENER_SIMILARITY_THRESHOLD');
+  const cosineFloor = parseThreshold(env.GARDENER_COSINE_FLOOR, 0.40, 'GARDENER_COSINE_FLOOR');
+
+  if (cosineFloor > similarityThreshold) {
+    console.warn(
+      `GARDENER_COSINE_FLOOR (${cosineFloor}) > GARDENER_SIMILARITY_THRESHOLD (${similarityThreshold}) — ` +
+      `clustering will miss pairs in the ${cosineFloor}–${similarityThreshold} range`,
+    );
+  }
+
   return {
     supabaseUrl: requireSecret(env.SUPABASE_URL, 'SUPABASE_URL'),
     supabaseServiceRoleKey,
-    similarityThreshold: parseThreshold(env.GARDENER_SIMILARITY_THRESHOLD, 0.65, 'GARDENER_SIMILARITY_THRESHOLD'),
-    cosineFloor: parseThreshold(env.GARDENER_COSINE_FLOOR, 0.40, 'GARDENER_COSINE_FLOOR'),
+    similarityThreshold,
+    cosineFloor,
     clusterResolutions: parseResolutions(env.GARDENER_CLUSTER_RESOLUTIONS),
   };
 }

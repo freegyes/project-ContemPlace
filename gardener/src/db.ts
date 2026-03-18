@@ -99,6 +99,8 @@ export async function insertSimilarityLinks(
 }
 
 // Delete all cluster rows. Clean-slate before inserting fresh results.
+// The .gte filter is a workaround — Supabase JS requires at least one filter on .delete().
+// All rows have created_at >= 1970 (NOT NULL DEFAULT now()), so this matches everything.
 export async function deleteAllClusters(db: SupabaseClient): Promise<number> {
   const { data, error } = await db
     .from('clusters')

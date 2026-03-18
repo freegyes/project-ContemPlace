@@ -27,7 +27,6 @@ export interface GardenerRunResult {
 // ── Similarity linker ─────────────────────────────────────────────────────────
 
 export function runSimilarityLinker(
-  db: ReturnType<typeof createSupabaseClient>,
   notes: NoteForSimilarity[],
   pairs: Array<{ note_a: string; note_b: string; similarity: number }>,
 ): {
@@ -88,7 +87,7 @@ async function runGardener(env: Env): Promise<GardenerRunResult> {
   const linkerPairs = allPairs.filter(p => p.similarity >= config.similarityThreshold);
 
   // 4. Run similarity linker
-  const { links, enrichedNoteIds } = runSimilarityLinker(db, notes, linkerPairs);
+  const { links, enrichedNoteIds } = runSimilarityLinker(notes, linkerPairs);
 
   if (links.length > 0) {
     try {

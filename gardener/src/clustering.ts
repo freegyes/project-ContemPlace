@@ -146,7 +146,7 @@ function computeGravity(
   for (const id of memberIds) {
     const note = noteMap.get(id);
     if (!note) continue;
-    const ageDays = (now - new Date(note.created_at).getTime()) / (1000 * 60 * 60 * 24);
+    const ageDays = Math.max(0, (now - new Date(note.created_at).getTime()) / (1000 * 60 * 60 * 24));
     recencySum += 1 / (1 + ageDays);
     count++;
   }
