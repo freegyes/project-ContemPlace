@@ -87,7 +87,7 @@ The agent receives the top 5 semantically related notes (with their titles and b
 
 | Type | Source | Status |
 |---|---|---|
-| `is-similar-to` | Auto-generated from vector similarity above threshold (0.70) | ✅ Live |
+| `is-similar-to` | Auto-generated from vector similarity above threshold (0.65) | ✅ Live |
 
 `is-similar-to` links include auto-generated context from shared tags, and `confidence` = cosine similarity score. Created by the gardener's similarity linker phase (clean-slate delete + reinsert each run).
 

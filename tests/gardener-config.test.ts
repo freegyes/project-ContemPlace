@@ -14,7 +14,7 @@ const SERVICE_JWT = `${HEADER}.${SERVICE_PAYLOAD}.${FAKE_SIG}`;
 const VALID_ENV: Env = {
   SUPABASE_URL: 'https://example.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-key',
-  GARDENER_SIMILARITY_THRESHOLD: '0.70',
+  GARDENER_SIMILARITY_THRESHOLD: '0.65',
 };
 
 function env(overrides: Partial<Record<keyof Env, string | undefined>> = {}): Env {
@@ -26,7 +26,7 @@ describe('loadConfig', () => {
     const config = loadConfig(VALID_ENV);
     expect(config.supabaseUrl).toBe('https://example.supabase.co');
     expect(config.supabaseServiceRoleKey).toBe('service-key');
-    expect(config.similarityThreshold).toBe(0.70);
+    expect(config.similarityThreshold).toBe(0.65);
   });
 
   it('throws mentioning SUPABASE_URL when missing', () => {
@@ -41,14 +41,14 @@ describe('loadConfig', () => {
     expect(() => loadConfig(env({ SUPABASE_SERVICE_ROLE_KEY: undefined }))).toThrow('SUPABASE_SERVICE_ROLE_KEY');
   });
 
-  it('uses 0.70 as default threshold when GARDENER_SIMILARITY_THRESHOLD is absent', () => {
+  it('uses 0.65 as default threshold when GARDENER_SIMILARITY_THRESHOLD is absent', () => {
     const config = loadConfig(env({ GARDENER_SIMILARITY_THRESHOLD: undefined }));
-    expect(config.similarityThreshold).toBe(0.70);
+    expect(config.similarityThreshold).toBe(0.65);
   });
 
-  it('uses 0.70 as default threshold when GARDENER_SIMILARITY_THRESHOLD is empty', () => {
+  it('uses 0.65 as default threshold when GARDENER_SIMILARITY_THRESHOLD is empty', () => {
     const config = loadConfig(env({ GARDENER_SIMILARITY_THRESHOLD: '' }));
-    expect(config.similarityThreshold).toBe(0.70);
+    expect(config.similarityThreshold).toBe(0.65);
   });
 
   it('parses a valid GARDENER_SIMILARITY_THRESHOLD float', () => {

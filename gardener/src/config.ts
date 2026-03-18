@@ -12,7 +12,7 @@ export function loadConfig(env: Env): Config {
   return {
     supabaseUrl: requireSecret(env.SUPABASE_URL, 'SUPABASE_URL'),
     supabaseServiceRoleKey,
-    similarityThreshold: parseThreshold(env.GARDENER_SIMILARITY_THRESHOLD, 0.70, 'GARDENER_SIMILARITY_THRESHOLD'),
+    similarityThreshold: parseThreshold(env.GARDENER_SIMILARITY_THRESHOLD, 0.65, 'GARDENER_SIMILARITY_THRESHOLD'),
   };
 }
 

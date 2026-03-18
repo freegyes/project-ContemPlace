@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-GARDENER_SIMILARITY_THRESHOLD = "0.70"
+GARDENER_SIMILARITY_THRESHOLD = "0.65"
 
 [triggers]
 # 2am UTC = 3–4am CET/CEST. Chosen as a low-traffic window for a European-timezone user.

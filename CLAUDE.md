@@ -137,10 +137,14 @@ ALLOWED_CHAT_IDS            # comma-separated Telegram chat IDs allowed to use t
 MCP_API_KEY                 # generate with: openssl rand -hex 32
 CONSENT_SECRET              # protects OAuth consent page; generate with: openssl rand -hex 16
 
-# MCP Worker configurable — defaults in mcp/src/config.ts
+# MCP Worker configurable — defaults in mcp/wrangler.toml [vars] or mcp/src/config.ts
+# MATCH_THRESHOLD            # deployed: 0.35 (set in mcp/wrangler.toml [vars]). Code default 0.60
+#                             # is overridden by the toml value. Raw query vs. augmented store.
+#                             # The LLM is the quality gate — the low threshold gives it a generous
+#                             # candidate pool, and it links selectively.
 MCP_SEARCH_THRESHOLD        # default: 0.35 — used only by search_notes. Lower than MATCH_THRESHOLD
                              # because stored embeddings are metadata-augmented; bare query vectors
-                             # score 0.41–0.49 against them, well below the 0.60 capture threshold.
+                             # score 0.41–0.49 against them.
 HARD_DELETE_WINDOW_MINUTES  # default: 11 — grace window for remove_note and /undo. Notes younger
                              # than this are permanently deleted; older notes are soft-archived
                              # (remove_note) or refused (/undo).
@@ -152,8 +156,11 @@ TELEGRAM_ALERT_CHAT_ID        # optional — chat ID to receive failure alerts (
 GARDENER_API_KEY              # optional — enables POST /trigger endpoint (generate with: openssl rand -hex 32)
 
 # Gardener Worker configurable — defaults in gardener/wrangler.toml [vars]
-GARDENER_SIMILARITY_THRESHOLD  # default: 0.70 — augmented-vs-augmented cosine similarity.
-                                # Distinct from MATCH_THRESHOLD (0.60, raw query vs. augmented store)
+GARDENER_SIMILARITY_THRESHOLD  # default: 0.65 — augmented-vs-augmented cosine similarity.
+                                # Lowered from 0.70 (2026-03-18, #149) — 0.70 produced only 38 pairs
+                                # and systematically excluded Telegram fragments. 0.65 triples candidates
+                                # to 117 with quality confirmed by human review.
+                                # Distinct from MATCH_THRESHOLD (0.35, raw query vs. augmented store)
                                 # and MCP_SEARCH_THRESHOLD (0.35, bare NL query vs. augmented store).
 
 # Test-only

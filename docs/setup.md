@@ -183,7 +183,7 @@ Two paths, both permanent:
 |---|---|---|
 | `CAPTURE_MODEL` | `anthropic/claude-haiku-4-5` | LLM for `capture_note` tool |
 | `EMBED_MODEL` | `openai/text-embedding-3-small` | Embedding model |
-| `MATCH_THRESHOLD` | `0.60` | Threshold for related-note lookup inside `capture_note` |
+| `MATCH_THRESHOLD` | `0.35` | Threshold for related-note lookup inside `capture_note` (set in `mcp/wrangler.toml [vars]`; code default 0.60 is overridden) |
 | `MCP_SEARCH_THRESHOLD` | `0.35` | Default threshold for `search_notes` (lower to compensate for embedding space mismatch) |
 | `HARD_DELETE_WINDOW_MINUTES` | `11` | Grace window for `remove_note` — notes younger than this are permanently deleted, older notes are soft-archived |
 
@@ -275,7 +275,7 @@ curl -X POST "https://contemplace-gardener.<YOUR_SUBDOMAIN>.workers.dev/trigger"
 
 | Variable | Default | Description |
 |---|---|---|
-| `GARDENER_SIMILARITY_THRESHOLD` | `0.70` | Cosine similarity floor for `is-similar-to` links (augmented-vs-augmented) |
+| `GARDENER_SIMILARITY_THRESHOLD` | `0.65` | Cosine similarity floor for `is-similar-to` links (augmented-vs-augmented) |
 
 Defaults live in `gardener/src/config.ts`. Override via `gardener/wrangler.toml` `[vars]`.
 
