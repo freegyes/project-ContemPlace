@@ -118,6 +118,24 @@ The search threshold (`MCP_SEARCH_THRESHOLD`, default 0.35) is lower than the ca
 
 ## Gardener pipeline
 
+### Goal
+
+The gardener's job is to **complete the similarity graph that capture-time linking structurally cannot**. Capture-time linking has two blind spots:
+
+1. **Backward blindness.** When a fragment is captured, the pipeline finds the top 5 most similar existing notes and the LLM decides whether to link. But linking only looks backward — Monday's note never evaluates Tuesday's note. If Tuesday is a thematic neighbor, Monday will never initiate a link to it. The gardener compares all pairs regardless of creation order.
+
+2. **Context window truncation.** The capture pipeline presents only the top 5 candidates. In a dense topic, candidates 6–15 might all deserve links but the LLM never sees them. The gardener has no such limit — `find_similar_pairs` returns all pairs above threshold.
+
+A technical nuance: the comparison basis also differs. Capture-time matching compares raw text against augmented stored embeddings (`[Tags: ...] text`). The gardener compares augmented against augmented, so notes that share tags get a cosine boost the capture pipeline doesn't see.
+
+**Success looks like:** Every note that has a genuine thematic neighbor in the corpus is connected to it. A human browsing `get_related` for any note should see all the notes they'd group with it — not just the ones that happened to exist at capture time or fit in the top 5.
+
+**Failure looks like:** Notes about the same topic sit unconnected because one was captured after the other, or because the topic was too dense for the top-5 window. Entire input sources (e.g., short Telegram captures) are systematically excluded from similarity links. Clusters form without the gardener's contribution because its links are too sparse to matter.
+
+**How to test:** Pick 10 notes at random. For each, ask: does `get_related` surface all its thematic neighbors, or are some missing? Are any similarity links spurious — connecting notes a human wouldn't group together? Do short Telegram fragments get similarity links at a comparable rate to longer imports? If the answer to any of these is wrong, the threshold or the mechanism needs adjustment.
+
+### Operation
+
 The Gardener Worker runs similarity linking, with error isolation and best-effort alerting:
 
 ```

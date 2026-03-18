@@ -52,9 +52,14 @@ Scale the review to the size of the change:
 
 All agents receive: the **validated problem statement from Phase 2** (not just the raw issue body), relevant source code, and the project's hard constraints from CLAUDE.md. All return structured findings. All are told to do research only — no code writing.
 
+### Phase 3.5: Persist research findings
+
+For medium and large changes where specialist reviews were run: save the key findings, confirmed decisions, and identified risks to memory. This makes the research available to future sessions if implementation spans multiple conversations. Skip for small changes where no specialist review ran.
+
 ### Phase 4: Synthesize and present the plan
 
 Combine the review findings into a clear plan:
+- **Scope assessment** — If the implementation touches more than one Worker or more than ~8 files, evaluate whether splitting into multiple PRs would improve risk isolation, verification quality, or rollback safety. Look for natural seams (deployment boundaries, read/write splits, schema vs. logic). Present the split recommendation alongside the plan. For smaller changes, skip this — state "single PR, no split needed" and move on.
 - **Priority-ordered list of changes** — what to do first, what depends on what
 - **Design decisions surfaced** — with recommendations, presented as a table
 - **Risks and mitigations** — anything the reviews flagged
