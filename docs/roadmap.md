@@ -167,7 +167,7 @@ Delivered:
 - **Bot command registration** — both `/start` and `/undo` registered via Telegram `setMyCommands` API
 - **9 unit tests** covering grace window, boundary, custom config, error propagation
 
-## Automated backup — delivered (issue #159, PR TBD)
+## Automated backup — delivered (issue #159, PR #163)
 
 GitHub Actions workflow (`.github/workflows/backup.yml`) runs daily at 04:00 UTC, producing three SQL files via `supabase db dump`: roles, schema (DDL + RPC functions + pgvector), and data (COPY format). Dumps are pushed to a configurable private GitHub repository. Git history provides natural retention.
 
