@@ -43,6 +43,7 @@ The MCP server is the primary interface, usable by any MCP-capable agent:
 | `get_note` | Fetch a single note — body, raw_input (source of truth), links, corrections. |
 | `list_recent` | Most recent notes, newest first. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
+| `list_clusters` | See the shape of your thinking. Thematic clusters detected by the gardener — resolution controls zoom level. |
 | `capture_note` | Pass raw words — the server runs the full capture pipeline. Do not pre-structure. |
 | `remove_note` | Remove a note. Recent notes (< grace window) are permanently deleted; older notes are soft-archived and recoverable. |
 

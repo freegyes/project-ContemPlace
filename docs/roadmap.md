@@ -175,7 +175,7 @@ The workflow includes verification checks (non-empty files, pgvector presence, R
 
 Documented in `docs/setup.md` section 8 as a user-configurable feature — any ContemPlace fork enables daily backup by adding three GitHub settings.
 
-## Cluster exploration — implementation in progress
+## Cluster exploration — complete (v1)
 
 The synthesis layer (#120) was designed as MOC generation from fragment clusters. A first-principles design session (2026-03-16) reframed the question: the real use case isn't narrative summarization — it's **undirected browsing**. Seeing the shape of your thinking without knowing what you're looking for. The Obsidian graph view served this; nothing in the current MCP surface does.
 
@@ -193,6 +193,14 @@ Delivered:
 - **Labels** — top-3 most frequent tags, no LLM calls (gardener stays LLM-free)
 
 Live results (186 notes): 9 clusters at res 1.0 (modularity 0.60), 11 at 1.5, 12 at 2.0. Coherent labels: pen-plotting/printmaking/generative-art, laser-cutting/instrument-design, audio-plugin/plugdata/sound-soup, note-taking/knowledge-capture, contemplace/mcp/knowledge-management.
+
+### list_clusters MCP tool — delivered (PR #172, 2026-03-18)
+
+PR 2 of 2: agents can now browse clusters via the `list_clusters` tool. Resolution parameter controls zoom level. Clusters ordered by gravity (recent active topics first). Note titles resolved at read time with archived notes filtered.
+
+Live exploration validated that multi-resolution zoom reveals genuine structure: the pen-plotting cluster splits into plotter-specific vs. correspondence/printmaking at resolution 1.5. The ContemPlace cluster splits into product thinking vs. infrastructure at 2.0. 15/186 notes remain unclustered — genuinely isolated fragments (garden furniture, Lightroom backup, weather observations) that don't connect to any thread yet.
+
+The exploration also surfaced that **tag signal is the highest-value next upgrade**: notes sharing the `backup` tag (Lightroom, device loss, ContemPlace backup) have cosine similarity 0.28–0.45 — below the clustering threshold but clearly related. Tag Jaccard would bridge them.
 
 ### Design decisions
 
@@ -212,12 +220,12 @@ A local experiment script (`scripts/cluster-experiment.ts`) ran weighted graph c
 - **Tags add marginal signal.** Only 5.4% of note pairs share any tag.
 - **Overlap is real.** 134/164 notes change cluster across resolutions. Modularity is low (0.27–0.32).
 
-### Next steps
+### Upgrade path
 1. ~~**#152** — Experiment~~ **Done.**
-2. ~~**#156** — Gardener clustering pipeline (PR 1 of 2)~~ **Done.** (PR #164)
-3. **PR 2 of 2** — `list_clusters` MCP tool (reads pre-computed clusters)
+2. ~~**#156** — Gardener clustering pipeline~~ **Done.** (PR #164)
+3. ~~**#157** — `list_clusters` MCP tool~~ **Done.** (PR #172)
 4. **#149** — Threshold assessment
-5. **#151** — Capture-time tag quality and consistency
+5. **#151** — Capture-time tag quality and consistency — **highest-value clustering upgrade** (bridges backup-type gaps)
 6. **#147** — Gardener-time tag normalization
 7. **#125** — Entity dictionary (fourth clustering signal)
 
