@@ -853,6 +853,59 @@ describe('handleListClusters', () => {
     });
   });
 
+  describe('notes_per_cluster', () => {
+    const bigCluster = {
+      ...MOCK_CLUSTER,
+      note_count: 10,
+      notes: Array.from({ length: 10 }, (_, i) => ({
+        id: `aaaaaaaa-0000-0000-0000-00000000${String(i).padStart(4, '0')}`,
+        title: `Note ${i}`,
+      })),
+    };
+
+    it('defaults to 5 notes per cluster', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [bigCluster],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({}, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.clusters[0].notes).toHaveLength(5);
+      expect(body.clusters[0].note_count).toBe(10);
+    });
+
+    it('respects explicit notes_per_cluster value', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [bigCluster],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({ notes_per_cluster: 2 }, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.clusters[0].notes).toHaveLength(2);
+    });
+
+    it('returns no notes when notes_per_cluster is 0', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [bigCluster],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({ notes_per_cluster: 0 }, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.clusters[0].notes).toHaveLength(0);
+      expect(body.clusters[0].note_count).toBe(10);
+    });
+
+    it('clamps notes_per_cluster to max 50', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [bigCluster],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({ notes_per_cluster: 100 }, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.clusters[0].notes).toHaveLength(10);
+    });
+  });
+
   describe('error handling', () => {
     it('returns toolError when fetchClusters throws', async () => {
       vi.mocked(fetchClusters).mockRejectedValueOnce(new Error('DB error'));

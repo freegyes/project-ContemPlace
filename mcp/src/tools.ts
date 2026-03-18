@@ -95,13 +95,17 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'list_clusters',
-    description: 'List thematic clusters detected by the gardener. Clusters group notes by semantic similarity — call with no parameters to see the landscape of accumulated thinking. Use resolution to control granularity: 1.0 (broad themes), 1.5 (finer distinctions), 2.0 (narrow topics).',
+    description: 'List thematic clusters detected by the gardener. Clusters group notes by semantic similarity — call with no parameters to see the landscape of accumulated thinking. Use resolution to control granularity: 1.0 (broad themes), 1.5 (finer distinctions), 2.0 (narrow topics). Each cluster includes a sample of note titles (default 5) — use search_notes with tag filters or get_note to explore further.',
     inputSchema: {
       type: 'object',
       properties: {
         resolution: {
           type: 'number',
-          description: 'Cluster resolution (default 1.0). Available: 1.0, 1.5, 2.0. Lower = fewer larger clusters.',
+          description: 'Cluster resolution (default 1.0). Lower = fewer larger clusters.',
+        },
+        notes_per_cluster: {
+          type: 'number',
+          description: 'Max note titles to include per cluster (default 5, max 50, 0 = none). Full count is always in note_count.',
         },
       },
       required: [],
@@ -268,6 +272,7 @@ export async function handleListClusters(
   db: SupabaseClient,
 ): Promise<object> {
   const resolution = typeof args['resolution'] === 'number' ? args['resolution'] : 1.0;
+  const notesPerCluster = clamp(args['notes_per_cluster'] as number | undefined, 0, 50, 5);
 
   try {
     const { clusters, computed_at } = await fetchClusters(db, resolution);
@@ -280,7 +285,7 @@ export async function handleListClusters(
         top_tags: c.top_tags,
         note_count: c.note_count,
         gravity: c.gravity,
-        notes: c.notes,
+        notes: c.notes.slice(0, notesPerCluster),
       })),
       resolution,
       cluster_count: clusters.length,
