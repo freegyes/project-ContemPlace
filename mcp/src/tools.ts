@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type OpenAI from 'openai';
 import type { Config } from './config';
 import { embedText } from './embed';
-import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote } from './db';
+import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote, fetchClusters } from './db';
 import { runCapturePipeline } from './pipeline';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -91,6 +91,20 @@ export const TOOL_DEFINITIONS = [
         id: { type: 'string', description: 'UUID of the note to remove' },
       },
       required: ['id'],
+    },
+  },
+  {
+    name: 'list_clusters',
+    description: 'List thematic clusters detected by the gardener. Clusters group notes by semantic similarity — call with no parameters to see the landscape of accumulated thinking. Use resolution to control granularity: 1.0 (broad themes), 1.5 (finer distinctions), 2.0 (narrow topics).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        resolution: {
+          type: 'number',
+          description: 'Cluster resolution (default 1.0). Available: 1.0, 1.5, 2.0. Lower = fewer larger clusters.',
+        },
+      },
+      required: [],
     },
   },
 ];
@@ -246,5 +260,35 @@ export async function handleRemoveNote(
   } catch (err) {
     console.error(JSON.stringify({ event: 'remove_note_error', error: String(err), id }));
     return toolError('Archive operation failed. Try again.');
+  }
+}
+
+export async function handleListClusters(
+  args: Record<string, unknown>,
+  db: SupabaseClient,
+): Promise<object> {
+  const resolution = typeof args['resolution'] === 'number' ? args['resolution'] : 1.0;
+
+  try {
+    const { clusters, computed_at } = await fetchClusters(db, resolution);
+
+    const clusteredNotes = clusters.reduce((sum, c) => sum + c.note_count, 0);
+
+    return toolSuccess({
+      clusters: clusters.map(c => ({
+        label: c.label,
+        top_tags: c.top_tags,
+        note_count: c.note_count,
+        gravity: c.gravity,
+        notes: c.notes,
+      })),
+      resolution,
+      cluster_count: clusters.length,
+      clustered_notes: clusteredNotes,
+      computed_at,
+    });
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'list_clusters_error', error: String(err) }));
+    return toolError('Failed to fetch clusters. Try again.');
   }
 }
