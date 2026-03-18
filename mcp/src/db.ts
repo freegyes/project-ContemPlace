@@ -214,7 +214,14 @@ export async function fetchNoteLinks(
         direction: isOutbound ? 'outbound' : 'inbound',
       } as LinkWithTitle;
     })
-    .filter((l): l is LinkWithTitle => l !== null);
+    .filter((l): l is LinkWithTitle => l !== null)
+    // Capture-time links first (LLM-reasoned), then gardener by confidence descending
+    .sort((a, b) => {
+      if (a.created_by !== b.created_by) {
+        return a.created_by === 'gardener' ? 1 : -1;
+      }
+      return (b.confidence ?? 0) - (a.confidence ?? 0);
+    });
 }
 
 // List recent notes, newest first.

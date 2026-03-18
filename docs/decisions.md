@@ -1101,3 +1101,27 @@ A supplementary mechanism difference: capture-time matching compares raw text ag
 **Why:** Five capture audits (2026-03-15 through 2026-03-18) consistently showed gardener links concentrated in dense obsidian-import clusters and absent from Telegram captures. The gardener produced only 36 `is-similar-to` links across 175 notes — too sparse to contribute to clustering. Articulating the purpose precisely was necessary before empirically tuning thresholds (#149, #158), so success and failure could be tested against a concrete goal rather than a vague sense of "more links."
 
 **Source:** #149 investigation session, 2026-03-18. Goal statement in `docs/architecture.md` → "Gardener pipeline → Goal."
+
+## Gardener threshold lowered from 0.70 to 0.65 (2026-03-18)
+
+**Decision:** Lower `GARDENER_SIMILARITY_THRESHOLD` from 0.70 to 0.65 in `gardener/wrangler.toml`.
+
+**Why:** Threshold analysis (#158) against 186 notes showed 0.70 captures only 38 pairs — mostly near-duplicates concentrated in dense obsidian-import clusters. The 0.65–0.70 band contains 79 clearly-related pairs on human review (audio plugins ↔ Sound Soup, ContemPlace design philosophy pairs, F-tag photography pairs). Telegram fragments are systematically excluded at 0.70 (only 6 within-source pairs) but gain meaningful connections at 0.65 (26 pairs). Triples link candidates from 38 → 117. Fully reversible — the gardener rebuilds all `is-similar-to` links from scratch each run.
+
+**Source:** #149 investigation, #158 threshold analysis script. Specialist review confirmed.
+
+## Capture threshold confirmed at 0.35 (2026-03-18)
+
+**Decision:** Keep `MATCH_THRESHOLD` at 0.35 as deployed. Reconcile documentation that incorrectly stated the default was 0.60.
+
+**Why:** The code default in `mcp/src/config.ts` is 0.60, but `mcp/wrangler.toml` `[vars]` sets `MATCH_THRESHOLD = "0.35"`, which takes precedence. The system has been running at 0.35 throughout its operational life. Capture audits consistently show the LLM links selectively and accurately — the LLM is the quality gate, not the threshold. The lower value gives the LLM a generous candidate pool, which it filters well.
+
+**Source:** #149 investigation. MATCH_THRESHOLD discrepancy discovered during #158 specialist review.
+
+## get_related ordering: capture-time first, then confidence descending (2026-03-18)
+
+**Decision:** Sort links in `fetchNoteLinks` so capture-time links appear before gardener links, with gardener links sorted by confidence (cosine score) descending.
+
+**Why:** Capture-time links are LLM-reasoned and typed (`contradicts`, `related`) — higher signal than gardener links (`is-similar-to`), which are mathematical proximity without reasoning about *why*. The architecture defines gardener links as supplementary: they "complete the similarity graph that capture-time linking structurally cannot." Pure confidence-descending ordering would invert this hierarchy because capture-time links have `confidence: null` (no cosine score stored). Ordering matters more as gardener link volume increases at the lower 0.65 threshold.
+
+**Source:** #149 investigation. Derived from architecture.md § Gardener Goal.

@@ -140,13 +140,13 @@ ALLOWED_CHAT_IDS            # comma-separated Telegram chat IDs allowed to use t
 MCP_API_KEY                 # generate with: openssl rand -hex 32
 CONSENT_SECRET              # protects OAuth consent page; generate with: openssl rand -hex 16
 
-# MCP Worker configurable — defaults in mcp/src/config.ts
-MCP_SEARCH_THRESHOLD        # default: 0.35 — used only by search_notes. Lower than MATCH_THRESHOLD
-                             # because stored embeddings are metadata-augmented; bare query vectors
-                             # score 0.41–0.49 against them, well below the 0.60 capture threshold.
-HARD_DELETE_WINDOW_MINUTES  # default: 11 — grace window for remove_note and /undo. Notes younger
-                             # than this are permanently deleted; older notes are soft-archived
-                             # (remove_note) or refused (/undo).
+# MCP Worker configurable — see mcp/wrangler.toml [vars] for deployed values,
+# mcp/src/config.ts for code defaults. The toml [vars] override code defaults.
+MATCH_THRESHOLD             # raw query vs. augmented store — gates capture-time candidate pool.
+                             # The LLM is the quality gate; this just controls what it sees.
+MCP_SEARCH_THRESHOLD        # bare NL query vs. augmented store — used only by search_notes.
+HARD_DELETE_WINDOW_MINUTES  # grace window for remove_note and /undo. Notes younger than this
+                             # are permanently deleted; older notes are soft-archived or refused.
 
 # Gardener Worker secrets (set via: wrangler secret put <NAME> -c gardener/wrangler.toml)
 # SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are shared with the Telegram Worker above.
@@ -154,10 +154,11 @@ TELEGRAM_BOT_TOKEN            # optional — same as capture Worker; enables fai
 TELEGRAM_ALERT_CHAT_ID        # optional — chat ID to receive failure alerts (same as ALLOWED_CHAT_IDS)
 GARDENER_API_KEY              # optional — enables POST /trigger endpoint (generate with: openssl rand -hex 32)
 
-# Gardener Worker configurable — defaults in gardener/wrangler.toml [vars]
-GARDENER_SIMILARITY_THRESHOLD  # default: 0.70 — augmented-vs-augmented cosine similarity.
-                                # Distinct from MATCH_THRESHOLD (0.60, raw query vs. augmented store)
-                                # and MCP_SEARCH_THRESHOLD (0.35, bare NL query vs. augmented store).
+# Gardener Worker configurable — see gardener/wrangler.toml [vars] for deployed values,
+# gardener/src/config.ts for code defaults.
+GARDENER_SIMILARITY_THRESHOLD  # augmented-vs-augmented cosine similarity for is-similar-to links.
+                                # Distinct comparison basis from MATCH_THRESHOLD (raw vs. augmented)
+                                # and MCP_SEARCH_THRESHOLD (bare NL vs. augmented).
 
 # Test-only
 WORKER_URL                  # deployed Telegram Worker URL, for smoke tests

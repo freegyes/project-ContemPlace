@@ -179,17 +179,17 @@ Two paths, both permanent:
 
 ### Configuration
 
-| Variable | Default | Description |
-|---|---|---|
-| `CAPTURE_MODEL` | `anthropic/claude-haiku-4-5` | LLM for `capture_note` tool |
-| `EMBED_MODEL` | `openai/text-embedding-3-small` | Embedding model |
-| `MATCH_THRESHOLD` | `0.60` | Threshold for related-note lookup inside `capture_note` |
-| `MCP_SEARCH_THRESHOLD` | `0.35` | Default threshold for `search_notes` (lower to compensate for embedding space mismatch) |
-| `HARD_DELETE_WINDOW_MINUTES` | `11` | Grace window for `remove_note` — notes younger than this are permanently deleted, older notes are soft-archived |
+| Variable | Description |
+|---|---|
+| `CAPTURE_MODEL` | LLM for `capture_note` tool |
+| `EMBED_MODEL` | Embedding model |
+| `MATCH_THRESHOLD` | Capture-time related-note lookup threshold (raw query vs. augmented store) |
+| `MCP_SEARCH_THRESHOLD` | Default threshold for `search_notes` (bare NL query vs. augmented store) |
+| `HARD_DELETE_WINDOW_MINUTES` | Grace window for `remove_note` — notes younger than this are permanently deleted, older notes are soft-archived |
 
-Defaults live in `mcp/src/config.ts`. Override via `mcp/wrangler.toml` `[vars]`.
+Deployed values in `mcp/wrangler.toml` `[vars]`. Code defaults in `mcp/src/config.ts`. The toml values take precedence.
 
-**Threshold note:** The default search threshold is 0.35. Stored embeddings are metadata-augmented (`[Tags: ...] text`), while search queries are bare natural language. A lower threshold compensates for this vector space gap. You can override per call. See [decisions.md](decisions.md) for the full analysis.
+**Threshold note:** Stored embeddings are metadata-augmented (`[Tags: ...] text`), while search queries are bare natural language. The search threshold compensates for this vector space gap. You can override per call. See [decisions.md](decisions.md) for the full analysis.
 
 ## 6. Deploy the Telegram capture Worker (optional)
 
@@ -273,11 +273,11 @@ curl -X POST "https://contemplace-gardener.<YOUR_SUBDOMAIN>.workers.dev/trigger"
 
 ### Configuration
 
-| Variable | Default | Description |
-|---|---|---|
-| `GARDENER_SIMILARITY_THRESHOLD` | `0.70` | Cosine similarity floor for `is-similar-to` links (augmented-vs-augmented) |
+| Variable | Description |
+|---|---|
+| `GARDENER_SIMILARITY_THRESHOLD` | Cosine similarity floor for `is-similar-to` links (augmented-vs-augmented) |
 
-Defaults live in `gardener/src/config.ts`. Override via `gardener/wrangler.toml` `[vars]`.
+Deployed value in `gardener/wrangler.toml` `[vars]`. Code default in `gardener/src/config.ts`.
 
 ## 8. Configure automated backups (optional)
 
