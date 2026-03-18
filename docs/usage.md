@@ -117,7 +117,7 @@ You voice-dictate a thought on your phone. The Telegram reply shows the capture 
 
 You capture fragments during the day. At 2am UTC, the gardener wakes up.
 
-It does two things. First, it compares every note against every other note by embedding similarity. When two fragments are close enough in meaning — even if they share no tags and were never linked by the capture agent — the gardener creates an `is-similar-to` link between them with a confidence score. Notes that the capture agent couldn't link (because they didn't exist yet when the earlier note was captured) are now discoverable through the gardener's similarity web.
+It does two things. First, it compares every note against every other note by embedding similarity. When two fragments are close enough in meaning — even if they share no tags and were never linked by the capture agent — the gardener creates an `is-similar-to` link between them with a confidence score. Notes that the capture agent couldn't link — because they didn't exist yet, or because a dense topic had more than 5 candidates and the pair didn't make the cut — are now discoverable through the gardener's similarity web.
 
 Second, it runs cluster detection. Using the same similarity data, the gardener groups fragments into thematic clusters via Louvain community detection — at multiple resolutions, so you can see broad themes and fine-grained sub-topics. Each cluster gets a label from its most common tags and a gravity score that surfaces recent, active clusters. You might discover that your fragments about instrument-making and laser-cutting share a thread you hadn't noticed.
 

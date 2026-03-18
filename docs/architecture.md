@@ -132,7 +132,9 @@ A technical nuance: the comparison basis also differs. Capture-time matching com
 
 **Failure looks like:** Notes about the same topic sit unconnected because one was captured after the other, or because the topic was too dense for the top-5 window. Entire input sources (e.g., short Telegram captures) are systematically excluded from similarity links. Clusters form without the gardener's contribution because its links are too sparse to matter.
 
-**How to test:** Pick 10 notes at random. For each, ask: does `get_related` surface all its thematic neighbors, or are some missing? Are any similarity links spurious — connecting notes a human wouldn't group together? Do short Telegram fragments get similarity links at a comparable rate to longer imports? If the answer to any of these is wrong, the threshold or the mechanism needs adjustment.
+**How to test:** Pick 10 notes at random. For each, ask: does `get_related` surface all its thematic neighbors, or are some missing? Are any similarity links spurious — connecting notes a human wouldn't group together? Do short Telegram fragments get similarity links at a comparable rate to longer imports? If the answer to any of these is wrong, the threshold or the mechanism needs adjustment. Additionally, run full-corpus overlap analysis: compare all gardener link pairs against all capture-time link pairs. The novelty rate (gardener-only pairs / total gardener pairs) measures whether the gardener is adding genuinely new connections or just echoing capture. Random sampling alone under-represents sparse signal.
+
+**Validated (2026-03-18, #149):** At 186 notes, the gardener produces 117 links with 11.1% novelty (13 genuinely new connections capture missed). Zero spurious links on human review. The 13 new connections break down by failure mode: 9 from context-window truncation (later note already linked to 3+ others, this pair didn't make the top-5), 4 from backward blindness (earlier note couldn't evaluate the later one). All 13 sit in the 0.65–0.70 band — invisible at the previous 0.70 threshold.
 
 ### Operation
 
