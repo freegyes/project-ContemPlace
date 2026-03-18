@@ -108,13 +108,13 @@ The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth
 | `search_notes` | Semantic search via `match_notes()` with optional tag filters |
 | `get_note` | Full note retrieval by UUID |
 | `list_recent` | Recent notes, newest first |
-| `get_related` | All linked notes in both directions |
+| `get_related` | All linked notes in both directions, ordered capture-time first then gardener by confidence |
 | `capture_note` | Full capture pipeline (same logic as Telegram, synchronous) |
 | `remove_note` | Remove a note — permanent delete if recent (< grace window), soft archive if older |
 
 Tool descriptions in `TOOL_DEFINITIONS` (mcp/src/tools.ts) include behavioral guidance for connecting agents — what kind of input to pass, how to interpret results, when to use each tool. The `capture_note` description explicitly instructs agents to pass user's raw words without cleaning up or pre-structuring. These descriptions are the only guidance a connecting agent receives about how to use ContemPlace.
 
-The search threshold (`MCP_SEARCH_THRESHOLD`, default 0.35) is the same as the deployed capture threshold (`MATCH_THRESHOLD`, 0.35 via `mcp/wrangler.toml`). Both are low because the LLM and user respectively act as the quality gate — the thresholds provide a generous candidate pool rather than tight precision filtering.
+Both `MCP_SEARCH_THRESHOLD` and `MATCH_THRESHOLD` are intentionally low — the LLM and user respectively act as the quality gate. The thresholds provide a generous candidate pool rather than tight precision filtering. Current values live in `mcp/wrangler.toml` `[vars]`.
 
 ## Gardener pipeline
 

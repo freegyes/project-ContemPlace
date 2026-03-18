@@ -43,7 +43,7 @@ Originally 8 tools, simplified to 5 in v4.0.0 (removed `search_chunks`, `list_un
 - **`get_related`** — notes connected to a given note via the `links` table
 - **`capture_note`** — full capture pipeline (embed → related lookup → LLM → store), same logic as Telegram but synchronous and source-tagged
 
-Auth: single API key (Bearer token). `MCP_SEARCH_THRESHOLD` (default 0.35) is separate from `MATCH_THRESHOLD` (deployed 0.35 via wrangler.toml; code default 0.60 is overridden).
+Auth: single API key (Bearer token). `MCP_SEARCH_THRESHOLD` and `MATCH_THRESHOLD` are separate env vars for search vs. capture — see `mcp/wrangler.toml` for deployed values.
 
 **Tool description enrichment (PR #49)** — All tool descriptions include behavioral guidance for connecting agents. `capture_note` tells agents to pass raw user words without summarizing or pre-structuring. Filter enums include glosses explaining each value's meaning. `get_note` explains the raw_input vs body distinction. `get_related` includes a link type glossary. This enables agent-driven interaction (e.g., Claude Code CLI) without agents having to guess how the system works.
 
@@ -66,7 +66,7 @@ A separate Cloudflare Worker (`contemplace-gardener`) that enriches the note gra
 
 ### Similarity linker — delivered (PR #30, v2.1.0)
 
-Pairwise cosine similarity across all notes via `find_similar_pairs` RPC (self-join). Inserts `is-similar-to` links above `GARDENER_SIMILARITY_THRESHOLD` (0.65, lowered from 0.70 in #149) with `created_by = 'gardener'` and `confidence` = similarity score. Auto-generated context from shared tags via `buildContext()`. Clean-slate delete + reinsert for idempotency.
+Pairwise cosine similarity across all notes via `find_similar_pairs` RPC (self-join). Inserts `is-similar-to` links above `GARDENER_SIMILARITY_THRESHOLD` (see `gardener/wrangler.toml`) with `created_by = 'gardener'` and `confidence` = similarity score. Auto-generated context from shared tags via `buildContext()`. Clean-slate delete + reinsert for idempotency.
 
 ### SKOS tag normalization — delivered (PR #41), removed in v4.0.0
 
