@@ -279,6 +279,15 @@ export interface ClusterWithNotes {
   notes: ClusterNote[];
 }
 
+// Return distinct resolution values present in the clusters table.
+export async function fetchAvailableResolutions(db: SupabaseClient): Promise<number[]> {
+  const { data } = await db
+    .from('clusters')
+    .select('resolution')
+    .order('resolution', { ascending: true });
+  return [...new Set((data ?? []).map((r: { resolution: number }) => r.resolution))];
+}
+
 // Fetch clusters at a given resolution, with note titles resolved.
 // Archived notes are silently filtered out at read time.
 export async function fetchClusters(

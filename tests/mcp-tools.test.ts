@@ -23,6 +23,7 @@ vi.mock('../mcp/src/db', () => ({
   archiveNote: vi.fn().mockResolvedValue(undefined),
   hardDeleteNote: vi.fn().mockResolvedValue(undefined),
   fetchClusters: vi.fn().mockResolvedValue({ clusters: [], computed_at: null }),
+  fetchAvailableResolutions: vi.fn().mockResolvedValue([1.0, 1.5, 2.0]),
 }));
 
 vi.mock('../mcp/src/embed', () => ({
@@ -67,6 +68,7 @@ import {
   archiveNote,
   hardDeleteNote,
   fetchClusters,
+  fetchAvailableResolutions,
 } from '../mcp/src/db';
 import { embedText } from '../mcp/src/embed';
 import { runCaptureAgent } from '../mcp/src/capture';
@@ -822,6 +824,15 @@ describe('handleListClusters', () => {
       expect(body.resolution).toBe(1.0);
       expect(body.clustered_notes).toBe(3);
       expect(body.computed_at).toBe('2026-03-18T02:00:00.000Z');
+      expect(body.available_resolutions).toEqual([1.0, 1.5, 2.0]);
+    });
+
+    it('returns available_resolutions from DB', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({ clusters: [], computed_at: null });
+      vi.mocked(fetchAvailableResolutions).mockResolvedValueOnce([1.0, 2.0]);
+      const r = toolResult(await handleListClusters({}, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.available_resolutions).toEqual([1.0, 2.0]);
     });
 
     it('returns cluster fields correctly', async () => {

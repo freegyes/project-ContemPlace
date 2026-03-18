@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type OpenAI from 'openai';
 import type { Config } from './config';
 import { embedText } from './embed';
-import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote, fetchClusters } from './db';
+import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote, fetchClusters, fetchAvailableResolutions } from './db';
 import { runCapturePipeline } from './pipeline';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -95,13 +95,13 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'list_clusters',
-    description: 'List thematic clusters detected by the gardener. Clusters group notes by semantic similarity — call with no parameters to see the landscape of accumulated thinking. Use resolution to control granularity: 1.0 (broad themes), 1.5 (finer distinctions), 2.0 (narrow topics). Each cluster includes a sample of note titles (default 5) — use search_notes with tag filters or get_note to explore further.',
+    description: 'List thematic clusters detected by the gardener. Clusters group notes by semantic similarity — call with no parameters to see the landscape of accumulated thinking. The response includes available_resolutions so you know which values to request. Each cluster includes a sample of note titles (default 5) — use search_notes with tag filters or get_note to explore further.',
     inputSchema: {
       type: 'object',
       properties: {
         resolution: {
           type: 'number',
-          description: 'Cluster resolution (default 1.0). Lower = fewer larger clusters.',
+          description: 'Cluster resolution (default 1.0). Lower = fewer larger clusters. Check available_resolutions in the response for valid values.',
         },
         notes_per_cluster: {
           type: 'number',
@@ -275,7 +275,10 @@ export async function handleListClusters(
   const notesPerCluster = clamp(args['notes_per_cluster'] as number | undefined, 0, 50, 5);
 
   try {
-    const { clusters, computed_at } = await fetchClusters(db, resolution);
+    const [{ clusters, computed_at }, availableResolutions] = await Promise.all([
+      fetchClusters(db, resolution),
+      fetchAvailableResolutions(db),
+    ]);
 
     const clusteredNotes = clusters.reduce((sum, c) => sum + c.note_count, 0);
 
@@ -288,6 +291,7 @@ export async function handleListClusters(
         notes: c.notes.slice(0, notesPerCluster),
       })),
       resolution,
+      available_resolutions: availableResolutions,
       cluster_count: clusters.length,
       clustered_notes: clusteredNotes,
       computed_at,
