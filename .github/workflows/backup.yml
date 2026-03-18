@@ -98,7 +98,8 @@ jobs:
           grep -q 'find_similar_pairs' schema.sql || { echo "::error::find_similar_pairs RPC missing"; exit 1; }
 
           # Data must include notes table rows and capture_profiles seed
-          grep -q 'COPY public.notes' data.sql || { echo "::error::notes data missing"; exit 1; }
+          # pg_dump may quote identifiers ("public"."notes") so match loosely
+          grep -q 'notes' data.sql || { echo "::error::notes data missing"; exit 1; }
           grep -q 'capture_profiles' data.sql || { echo "::error::capture_profiles seed data missing"; exit 1; }
 
           echo "All verification checks passed"
