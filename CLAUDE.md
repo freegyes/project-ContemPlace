@@ -105,7 +105,9 @@ tests/
   gardener-trigger.test.ts    # Unit tests for /trigger endpoint auth + routing
   gardener-integration.test.ts # Integration test: capture → gardener /trigger → get_related (live stack)
 .claude/
+  settings.json         # Project-level permissions (Edit/Write on working directories — inherited by worktrees)
   commands/
+    orchestrate.md      # Custom command: orchestrator mode — parallel cmux workspaces + git worktrees
     extract-fragments.md  # Custom command: topic-driven Obsidian re-capture sessions — search vault, decompose, re-voice, interactive capture
     harvest-ideas.md      # Custom command: search corpus for actionable product ideas, cross-reference with issues
     audit-captures.md     # Custom command: capture quality audit — body fidelity, title style, linking, retrieval
