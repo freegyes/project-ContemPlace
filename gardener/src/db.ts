@@ -24,13 +24,12 @@ export async function deleteGardenerSimilarityLinks(db: SupabaseClient): Promise
   return (data as Array<{ id: string }> | null)?.length ?? 0;
 }
 
-// Fetch all active notes with embeddings and tags.
-// PostgREST returns pgvector columns as JSON arrays; parse defensively in case the
-// response comes back as a string in some environments.
+// Fetch all active notes with tags and created_at.
+// Embeddings are not fetched — similarity is computed by the find_similar_pairs RPC.
 export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteForSimilarity[]> {
   const { data, error } = await db
     .from('notes')
-    .select('id, tags, embedding')
+    .select('id, tags, created_at')
     .is('archived_at', null)
     .not('embedding', 'is', null);
 
@@ -41,15 +40,13 @@ export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteF
   const rows = (data as Array<{
     id: string;
     tags: string[] | null;
-    embedding: number[] | string;
+    created_at: string;
   }> | null) ?? [];
 
   return rows.map(row => ({
     id: row.id,
     tags: row.tags ?? [],
-    embedding: typeof row.embedding === 'string'
-      ? (JSON.parse(row.embedding) as number[])
-      : row.embedding,
+    created_at: row.created_at,
   }));
 }
 
@@ -59,10 +56,11 @@ export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteF
 export async function findSimilarPairs(
   db: SupabaseClient,
   threshold: number,
+  maxPairs: number = 10000,
 ): Promise<Array<{ note_a: string; note_b: string; similarity: number }>> {
   const { data, error } = await db.rpc('find_similar_pairs', {
     similarity_threshold: threshold,
-    max_pairs: 10000,
+    max_pairs: maxPairs,
   });
 
   if (error) {
@@ -97,6 +95,41 @@ export async function insertSimilarityLinks(
   const { error } = await db.from('links').insert(rows);
   if (error) {
     throw new Error(`Failed to insert similarity links: ${error.message}`);
+  }
+}
+
+// Delete all cluster rows. Clean-slate before inserting fresh results.
+export async function deleteAllClusters(db: SupabaseClient): Promise<number> {
+  const { data, error } = await db
+    .from('clusters')
+    .delete()
+    .gte('created_at', '1970-01-01')
+    .select('id');
+
+  if (error) {
+    throw new Error(`Failed to delete clusters: ${error.message}`);
+  }
+
+  return (data as Array<{ id: string }> | null)?.length ?? 0;
+}
+
+// Insert cluster rows in bulk.
+export async function insertClusters(
+  db: SupabaseClient,
+  clusters: Array<{
+    resolution: number;
+    label: string;
+    note_ids: string[];
+    top_tags: string[];
+    gravity: number;
+    modularity: number | null;
+  }>,
+): Promise<void> {
+  if (clusters.length === 0) return;
+
+  const { error } = await db.from('clusters').insert(clusters);
+  if (error) {
+    throw new Error(`Failed to insert clusters: ${error.message}`);
   }
 }
 

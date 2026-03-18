@@ -15,6 +15,8 @@ const VALID_ENV: Env = {
   SUPABASE_URL: 'https://example.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-key',
   GARDENER_SIMILARITY_THRESHOLD: '0.65',
+  GARDENER_COSINE_FLOOR: '0.40',
+  GARDENER_CLUSTER_RESOLUTIONS: '1.0,1.5,2.0',
 };
 
 function env(overrides: Partial<Record<keyof Env, string | undefined>> = {}): Env {
@@ -27,6 +29,8 @@ describe('loadConfig', () => {
     expect(config.supabaseUrl).toBe('https://example.supabase.co');
     expect(config.supabaseServiceRoleKey).toBe('service-key');
     expect(config.similarityThreshold).toBe(0.65);
+    expect(config.cosineFloor).toBe(0.40);
+    expect(config.clusterResolutions).toEqual([1.0, 1.5, 2.0]);
   });
 
   it('throws mentioning SUPABASE_URL when missing', () => {
@@ -90,5 +94,59 @@ describe('loadConfig', () => {
   it('accepts a non-JWT string for SUPABASE_SERVICE_ROLE_KEY', () => {
     const config = loadConfig(env({ SUPABASE_SERVICE_ROLE_KEY: 'plain-key' }));
     expect(config.supabaseServiceRoleKey).toBe('plain-key');
+  });
+
+  // ── GARDENER_COSINE_FLOOR ───────────────────────────────────────────────────
+
+  it('uses 0.40 as default cosineFloor when GARDENER_COSINE_FLOOR is absent', () => {
+    const config = loadConfig(env({ GARDENER_COSINE_FLOOR: undefined }));
+    expect(config.cosineFloor).toBe(0.40);
+  });
+
+  it('parses a valid GARDENER_COSINE_FLOOR', () => {
+    const config = loadConfig(env({ GARDENER_COSINE_FLOOR: '0.35' }));
+    expect(config.cosineFloor).toBe(0.35);
+  });
+
+  it('throws when GARDENER_COSINE_FLOOR is not a number', () => {
+    expect(() => loadConfig(env({ GARDENER_COSINE_FLOOR: 'bad' }))).toThrow('GARDENER_COSINE_FLOOR');
+  });
+
+  it('throws when GARDENER_COSINE_FLOOR is above 1', () => {
+    expect(() => loadConfig(env({ GARDENER_COSINE_FLOOR: '1.5' }))).toThrow('GARDENER_COSINE_FLOOR');
+  });
+
+  // ── GARDENER_CLUSTER_RESOLUTIONS ────────────────────────────────────────────
+
+  it('uses [1.0, 1.5, 2.0] as default resolutions when absent', () => {
+    const config = loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: undefined }));
+    expect(config.clusterResolutions).toEqual([1.0, 1.5, 2.0]);
+  });
+
+  it('parses comma-separated resolutions', () => {
+    const config = loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: '0.5,1.0' }));
+    expect(config.clusterResolutions).toEqual([0.5, 1.0]);
+  });
+
+  it('handles single resolution value', () => {
+    const config = loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: '2.0' }));
+    expect(config.clusterResolutions).toEqual([2.0]);
+  });
+
+  it('trims whitespace in resolutions', () => {
+    const config = loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: ' 1.0 , 2.0 ' }));
+    expect(config.clusterResolutions).toEqual([1.0, 2.0]);
+  });
+
+  it('throws when resolutions contain non-numeric values', () => {
+    expect(() => loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: '1.0,bad' }))).toThrow('GARDENER_CLUSTER_RESOLUTIONS');
+  });
+
+  it('throws when resolutions contain zero', () => {
+    expect(() => loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: '0' }))).toThrow('GARDENER_CLUSTER_RESOLUTIONS');
+  });
+
+  it('throws when resolutions contain negative values', () => {
+    expect(() => loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: '-1.0' }))).toThrow('GARDENER_CLUSTER_RESOLUTIONS');
   });
 });

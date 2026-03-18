@@ -4,6 +4,10 @@ export interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   GARDENER_SIMILARITY_THRESHOLD: string;
+  // Cosine floor for pair fetching — pairs below this are not fetched at all
+  GARDENER_COSINE_FLOOR?: string;
+  // Comma-separated resolutions for multi-resolution Louvain clustering
+  GARDENER_CLUSTER_RESOLUTIONS?: string;
   // Optional — alerting degrades gracefully if not set
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_ALERT_CHAT_ID?: string;
@@ -13,12 +17,12 @@ export interface Env {
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
-// A note as fetched for similarity processing — includes embedding for RPC calls
-// and tags for context generation.
+// A note as fetched for similarity processing — tags for context generation,
+// created_at for gravity calculation.
 export interface NoteForSimilarity {
   id: string;
   tags: string[];
-  embedding: number[];
+  created_at: string;
 }
 
 // A link to be inserted into the links table.

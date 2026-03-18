@@ -1,9 +1,10 @@
-import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarPairs, insertSimilarityLinks, logEnrichments } from './db';
+import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarPairs, insertSimilarityLinks, logEnrichments, deleteAllClusters, insertClusters } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
+import { runClustering, type ClusteringResult } from './clustering';
 import { sendAlert } from './alert';
 import { validateTriggerAuth } from './auth';
-import type { Env, SimilarityLink } from './types';
+import type { Env, NoteForSimilarity, SimilarityLink } from './types';
 
 export interface GardenerRunResult {
   event: 'gardener_run_complete';
@@ -14,36 +15,27 @@ export interface GardenerRunResult {
     enriched_notes: number;
     errors: string[];
   };
+  clustering: {
+    clusters_created: number;
+    resolutions_run: number;
+    clusters_deleted: number;
+    error: string | null;
+  };
   duration_ms: number;
 }
 
 // ── Similarity linker ─────────────────────────────────────────────────────────
 
-export async function runSimilarityLinker(env: Env): Promise<{
-  notes_processed: number;
-  links_deleted: number;
-  links_created: number;
-  enriched_notes: number;
-  errors: string[];
-}> {
-  const errors: string[] = [];
-  const config = loadConfig(env);
-  const db = createSupabaseClient(config);
-
-  // 1. Clean slate
-  const linksDeleted = await deleteGardenerSimilarityLinks(db);
-
-  // 2. Fetch notes (for tags needed by buildContext) and similar pairs in parallel
-  const [notes, pairs] = await Promise.all([
-    fetchNotesForSimilarity(db),
-    findSimilarPairs(db, config.similarityThreshold),
-  ]);
-
-  // 3. Index notes by ID for fast lookup during context building
+export function runSimilarityLinker(
+  db: ReturnType<typeof createSupabaseClient>,
+  notes: NoteForSimilarity[],
+  pairs: Array<{ note_a: string; note_b: string; similarity: number }>,
+): {
+  links: SimilarityLink[];
+  enrichedNoteIds: Set<string>;
+} {
   const noteMap = new Map(notes.map(n => [n.id, n]));
-
-  // 4. Build all links from pairs
-  const allLinks: SimilarityLink[] = [];
+  const links: SimilarityLink[] = [];
   const enrichedNoteIds = new Set<string>();
 
   for (const pair of pairs) {
@@ -52,7 +44,7 @@ export async function runSimilarityLinker(env: Env): Promise<{
     if (!noteA || !noteB) continue;
 
     const context = buildContext(noteA, noteB, pair.similarity);
-    allLinks.push({
+    links.push({
       fromId: pair.note_a,
       toId: pair.note_b,
       confidence: pair.similarity,
@@ -62,10 +54,45 @@ export async function runSimilarityLinker(env: Env): Promise<{
     enrichedNoteIds.add(pair.note_b);
   }
 
-  // 5. Batch insert all links in one call
-  if (allLinks.length > 0) {
+  return { links, enrichedNoteIds };
+}
+
+// ── Orchestrator ──────────────────────────────────────────────────────────────
+
+const CLUSTER_PAIR_LIMIT = 50000;
+
+async function runGardener(env: Env): Promise<GardenerRunResult> {
+  const startTime = Date.now();
+  const config = loadConfig(env);
+  const db = createSupabaseClient(config);
+  const errors: string[] = [];
+
+  // 1. Clean slate for similarity links
+  const linksDeleted = await deleteGardenerSimilarityLinks(db);
+
+  // 2. Fetch notes and all pairs at cosineFloor (shared data for both phases)
+  const [notes, allPairs] = await Promise.all([
+    fetchNotesForSimilarity(db),
+    findSimilarPairs(db, config.cosineFloor, CLUSTER_PAIR_LIMIT),
+  ]);
+
+  if (allPairs.length === CLUSTER_PAIR_LIMIT) {
+    console.warn(JSON.stringify({
+      event: 'pair_limit_reached',
+      limit: CLUSTER_PAIR_LIMIT,
+      message: 'find_similar_pairs returned exactly the limit — some pairs may be missing',
+    }));
+  }
+
+  // 3. Filter pairs >= similarityThreshold for the linker
+  const linkerPairs = allPairs.filter(p => p.similarity >= config.similarityThreshold);
+
+  // 4. Run similarity linker
+  const { links, enrichedNoteIds } = runSimilarityLinker(db, notes, linkerPairs);
+
+  if (links.length > 0) {
     try {
-      await insertSimilarityLinks(db, allLinks);
+      await insertSimilarityLinks(db, links);
     } catch (err) {
       errors.push(`similarity links insert: ${String(err)}`);
     }
@@ -73,32 +100,50 @@ export async function runSimilarityLinker(env: Env): Promise<{
 
   await logEnrichments(db, [...enrichedNoteIds]);
 
-  return {
-    notes_processed: notes.length,
-    links_deleted: linksDeleted,
-    links_created: allLinks.length,
-    enriched_notes: enrichedNoteIds.size,
-    errors,
+  // 5. Run clustering (failure must not kill the gardener run)
+  let clusteringReport: GardenerRunResult['clustering'] = {
+    clusters_created: 0,
+    resolutions_run: 0,
+    clusters_deleted: 0,
+    error: null,
   };
-}
 
-// ── Orchestrator ──────────────────────────────────────────────────────────────
+  try {
+    const clustersDeleted = await deleteAllClusters(db);
+    const { rows, result: clusterResult } = runClustering(notes, allPairs, config.clusterResolutions);
+    await insertClusters(db, rows);
 
-async function runGardener(env: Env): Promise<GardenerRunResult> {
-  const startTime = Date.now();
-
-  const simResult = await runSimilarityLinker(env);
+    clusteringReport = {
+      ...clusterResult,
+      clusters_deleted: clustersDeleted,
+      error: null,
+    };
+  } catch (err) {
+    const errorMsg = String(err);
+    clusteringReport.error = errorMsg;
+    console.error(JSON.stringify({
+      event: 'clustering_failed',
+      error: errorMsg,
+    }));
+  }
 
   const result: GardenerRunResult = {
     event: 'gardener_run_complete',
-    similarity: simResult,
+    similarity: {
+      notes_processed: notes.length,
+      links_deleted: linksDeleted,
+      links_created: links.length,
+      enriched_notes: enrichedNoteIds.size,
+      errors,
+    },
+    clustering: clusteringReport,
     duration_ms: Date.now() - startTime,
   };
 
   console.log(JSON.stringify(result));
 
-  if (simResult.errors.length > 0) {
-    throw new Error(`Gardener run completed with ${simResult.errors.length} error(s) — see logs above`);
+  if (errors.length > 0) {
+    throw new Error(`Gardener run completed with ${errors.length} error(s) — see logs above`);
   }
 
   return result;

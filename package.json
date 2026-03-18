@@ -11,13 +11,13 @@
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "0.3.0",
     "@supabase/supabase-js": "^2",
+    "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
+    "graphology-types": "^0.24.8",
     "openai": "^4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4",
-    "graphology": "^0.26.0",
-    "graphology-communities-louvain": "^2.0.2",
-    "graphology-types": "^0.24.8",
     "typescript": "^5",
     "vitest": "^3",
     "wrangler": "^4.71.0"

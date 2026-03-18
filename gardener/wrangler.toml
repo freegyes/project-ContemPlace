@@ -5,6 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 GARDENER_SIMILARITY_THRESHOLD = "0.65"
+GARDENER_COSINE_FLOOR = "0.40"
+GARDENER_CLUSTER_RESOLUTIONS = "1.0,1.5,2.0"
 
 [triggers]
 # 2am UTC = 3–4am CET/CEST. Chosen as a low-traffic window for a European-timezone user.
