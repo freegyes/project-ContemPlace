@@ -1162,3 +1162,11 @@ A supplementary mechanism difference: capture-time matching compares raw text ag
 **Why:** The gardener stays LLM-free — all computation is deterministic and mathematical. Tag labels are sufficient for browsing (verified against live clusters: "pen-plotting / printmaking / generative-art" is immediately meaningful). LLM-generated narrative labels are an upgrade path but add cost, latency, and non-determinism to a nightly batch that should be cheap and reliable.
 
 **Source:** #153 design spec. Live verification against 186-note corpus confirmed label quality.
+
+## Threshold evaluation methodology: full overlap, not just sampling (2026-03-18)
+
+**Decision:** When evaluating gardener threshold changes, always run full-corpus overlap analysis (all gardener pairs vs all capture pairs) alongside random-note sampling.
+
+**Why:** A 10-note random sample of `get_related` results showed 100% gardener/capture duplication, which would have led to a false conclusion that the gardener adds no new signal. Full overlap analysis revealed 13 genuinely new connections out of 117 (11.1% novelty rate) — all in the 0.65–0.70 band, invisible at the old 0.70 threshold. The new connections break down by failure mode: 9 from context-window truncation (dense topics where the top-5 candidate window was too narrow), 4 from backward blindness (earlier notes that couldn't evaluate later arrivals). Random sampling under-represents sparse signal — it naturally lands in dense clusters where capture was thorough.
+
+**Source:** #149 qualitative evaluation, 2026-03-18. The `scripts/threshold-analysis.ts` script covers distribution and sweep; the overlap analysis was done ad-hoc via direct DB queries and should be added to the script for future threshold reviews.
