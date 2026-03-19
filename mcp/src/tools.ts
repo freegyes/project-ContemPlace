@@ -300,8 +300,9 @@ export async function handleTriggerGardening(
     const result = await triggerGardenerWorker(config.gardenerUrl, config.gardenerApiKey);
     return toolSuccess(result);
   } catch (err) {
-    console.error(JSON.stringify({ event: 'trigger_gardening_error', error: String(err) }));
-    return toolError('Gardening failed. Check Gardener Worker logs.');
+    const errorMsg = String(err);
+    console.error(JSON.stringify({ event: 'trigger_gardening_error', error: errorMsg }));
+    return toolError(`Gardening failed: ${errorMsg}`);
   }
 }
 

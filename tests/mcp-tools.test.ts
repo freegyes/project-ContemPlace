@@ -1105,7 +1105,7 @@ describe('handleTriggerGardening', () => {
       vi.mocked(triggerGardenerWorker).mockRejectedValueOnce(new Error('Gardener Worker returned 500'));
       const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG));
       expect(r.isError).toBe(true);
-      expect(r.content[0]!.text).toMatch(/gardening failed/i);
+      expect(r.content[0]!.text).toMatch(/Gardening failed/i);
     });
 
     it('returns toolError when fetchLastGardenerRun throws', async () => {
