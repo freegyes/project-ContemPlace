@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type OpenAI from 'openai';
 import type { Config } from './config';
 import { embedText } from './embed';
-import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote, fetchClusters, fetchAvailableResolutions } from './db';
+import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote, fetchClusters, fetchAvailableResolutions, fetchLastGardenerRun, triggerGardenerWorker } from './db';
 import { runCapturePipeline } from './pipeline';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -108,6 +108,15 @@ export const TOOL_DEFINITIONS = [
           description: 'Max note titles to include per cluster (default 5, max 50, 0 = none). Full count is always in note_count.',
         },
       },
+      required: [],
+    },
+  },
+  {
+    name: 'trigger_gardening',
+    description: 'Trigger the gardening pipeline on demand — recomputes similarity links, clusters, and extracts entities from new notes. Takes ~30 seconds at current corpus size. Use after a burst of captures to see updated links and clusters immediately instead of waiting for the nightly cron. Has a 5-minute cooldown between triggers to prevent accidental spam. Returns the full run summary with counts of links created, clusters computed, and entities extracted.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
       required: [],
     },
   },
@@ -264,6 +273,35 @@ export async function handleRemoveNote(
   } catch (err) {
     console.error(JSON.stringify({ event: 'remove_note_error', error: String(err), id }));
     return toolError('Archive operation failed. Try again.');
+  }
+}
+
+export async function handleTriggerGardening(
+  args: Record<string, unknown>,
+  db: SupabaseClient,
+  config: Config,
+): Promise<object> {
+  if (!config.gardenerUrl || !config.gardenerApiKey) {
+    return toolError('Gardener triggering not configured. Set GARDENER_WORKER_URL and GARDENER_API_KEY.');
+  }
+
+  try {
+    const lastRun = await fetchLastGardenerRun(db);
+
+    if (lastRun) {
+      const elapsedMs = Date.now() - new Date(lastRun).getTime();
+      const cooldownMs = config.gardeningCooldownMinutes * 60 * 1000;
+      if (elapsedMs < cooldownMs) {
+        const remainingMinutes = Math.ceil((cooldownMs - elapsedMs) / 60000);
+        return toolError(`Gardening cooldown active. Try again in ~${remainingMinutes} minute(s).`);
+      }
+    }
+
+    const result = await triggerGardenerWorker(config.gardenerUrl, config.gardenerApiKey);
+    return toolSuccess(result);
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'trigger_gardening_error', error: String(err) }));
+    return toolError('Gardening failed. Check Gardener Worker logs.');
   }
 }
 

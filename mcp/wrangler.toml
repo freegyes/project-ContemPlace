@@ -21,3 +21,5 @@ preview_id = "YOUR_KV_PREVIEW_ID"  # create with: wrangler kv namespace create O
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 # OPENROUTER_API_KEY
+# GARDENER_WORKER_URL     (optional — enables trigger_gardening tool; e.g. https://contemplace-gardener.<account>.workers.dev)
+# GARDENER_API_KEY         (optional — shared with Gardener Worker; must match its GARDENER_API_KEY secret)

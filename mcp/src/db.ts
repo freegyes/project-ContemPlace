@@ -407,6 +407,47 @@ export async function fetchClusters(
   return { clusters, computed_at: rows[0]!.created_at };
 }
 
+// ── Gardener trigger functions ─────────────────────────────────────────────
+
+// Returns the timestamp of the most recent gardener run (via clusters table),
+// or null if no clusters exist (gardener has never completed successfully).
+export async function fetchLastGardenerRun(
+  db: SupabaseClient,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from('clusters')
+    .select('created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return (data as { created_at: string }).created_at;
+}
+
+// Calls the Gardener Worker's /trigger endpoint and returns the parsed result.
+// Throws on non-200 responses or network errors.
+export async function triggerGardenerWorker(
+  url: string,
+  apiKey: string,
+): Promise<unknown> {
+  const response = await fetch(`${url}/trigger`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  const body = await response.json();
+
+  if (!response.ok) {
+    const errorMsg = typeof body === 'object' && body !== null && 'error' in body
+      ? (body as { error: string }).error
+      : `HTTP ${response.status}`;
+    throw new Error(`Gardener Worker returned ${response.status}: ${errorMsg}`);
+  }
+
+  return body;
+}
+
 // ── Undo functions ────────────────────────────────────────────────────────
 
 export interface MostRecentNote {

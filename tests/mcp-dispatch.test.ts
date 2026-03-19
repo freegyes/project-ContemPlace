@@ -16,6 +16,8 @@ vi.mock('../mcp/src/tools', () => ({
     { name: 'get_related', description: 'Related', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
     { name: 'capture_note', description: 'Capture', inputSchema: { type: 'object', properties: { raw_input: { type: 'string' } }, required: ['raw_input'] } },
     { name: 'remove_note', description: 'Remove', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+    { name: 'list_clusters', description: 'Clusters', inputSchema: { type: 'object', properties: {} } },
+    { name: 'trigger_gardening', description: 'Trigger', inputSchema: { type: 'object', properties: {} } },
   ],
   handleSearchNotes: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleGetNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
@@ -23,6 +25,8 @@ vi.mock('../mcp/src/tools', () => ({
   handleGetRelated: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleCaptureNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
   handleRemoveNote: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
+  handleListClusters: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
+  handleTriggerGardening: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '{"ok":true}' }], isError: false }),
 }));
 
 vi.mock('cloudflare:workers', () => ({
@@ -49,7 +53,7 @@ vi.mock('../mcp/src/pipeline', () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 import { handleMcpRequest } from '../mcp/src/index';
-import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleRemoveNote } from '../mcp/src/tools';
+import { handleSearchNotes, handleGetNote, handleListRecent, handleGetRelated, handleCaptureNote, handleRemoveNote, handleListClusters, handleTriggerGardening } from '../mcp/src/tools';
 
 const MOCK_TOOL_RESULT = { content: [{ type: 'text', text: '{"ok":true}' }], isError: false };
 
@@ -161,11 +165,11 @@ describe('handleMcpRequest — JSON-RPC dispatch', () => {
       expect(Array.isArray(tools)).toBe(true);
     });
 
-    it('returns exactly 6 tool definitions', async () => {
+    it('returns exactly 8 tool definitions', async () => {
       const res = await dispatch('tools/list');
       const body = await parseRpc(res);
       const tools = (body['result'] as Record<string, unknown>)?.['tools'] as unknown[];
-      expect(tools).toHaveLength(6);
+      expect(tools).toHaveLength(8);
     });
 
     it('each tool definition has name, description, inputSchema', async () => {
@@ -209,6 +213,16 @@ describe('handleMcpRequest — JSON-RPC dispatch', () => {
     it('dispatches to handleRemoveNote for name="remove_note"', async () => {
       await dispatch('tools/call', { name: 'remove_note', arguments: { id: 'aaaaaaaa-0000-0000-0000-000000000001' } });
       expect(vi.mocked(handleRemoveNote)).toHaveBeenCalledOnce();
+    });
+
+    it('dispatches to handleListClusters for name="list_clusters"', async () => {
+      await dispatch('tools/call', { name: 'list_clusters', arguments: {} });
+      expect(vi.mocked(handleListClusters)).toHaveBeenCalledOnce();
+    });
+
+    it('dispatches to handleTriggerGardening for name="trigger_gardening"', async () => {
+      await dispatch('tools/call', { name: 'trigger_gardening', arguments: {} });
+      expect(vi.mocked(handleTriggerGardening)).toHaveBeenCalledOnce();
     });
 
     it('returns -32601 for an unknown tool name', async () => {
