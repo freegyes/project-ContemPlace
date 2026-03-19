@@ -12,6 +12,7 @@ export interface Config {
   hardDeleteWindowMinutes: number;
   recentFragmentsCount: number;
   recentFragmentsWindowMinutes: number;
+  gardeningCooldownMinutes: number;
 }
 
 export function loadConfig(env: Env): Config {
@@ -29,6 +30,7 @@ export function loadConfig(env: Env): Config {
     hardDeleteWindowMinutes: parsePositiveInt(env.HARD_DELETE_WINDOW_MINUTES, 11, 'HARD_DELETE_WINDOW_MINUTES'),
     recentFragmentsCount: parsePositiveInt(env.RECENT_FRAGMENTS_COUNT, 5, 'RECENT_FRAGMENTS_COUNT'),
     recentFragmentsWindowMinutes: parsePositiveInt(env.RECENT_FRAGMENTS_WINDOW_MINUTES, 60, 'RECENT_FRAGMENTS_WINDOW_MINUTES'),
+    gardeningCooldownMinutes: parsePositiveInt(env.GARDENING_COOLDOWN_MINUTES, 5, 'GARDENING_COOLDOWN_MINUTES'),
   };
 }
 

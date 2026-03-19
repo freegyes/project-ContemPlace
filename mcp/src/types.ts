@@ -15,9 +15,41 @@ export interface Env {
   HARD_DELETE_WINDOW_MINUTES: string;
   RECENT_FRAGMENTS_COUNT: string;
   RECENT_FRAGMENTS_WINDOW_MINUTES: string;
+  GARDENING_COOLDOWN_MINUTES?: string;
   OAUTH_KV: KVNamespace;
   /** Injected at runtime by OAuthProvider before calling handlers */
   OAUTH_PROVIDER?: OAuthHelpers;
+  GARDENER_SERVICE?: GardenerServiceStub;
+}
+
+// Stub type for the Gardener Worker's RPC entrypoint via Service Binding.
+// Matches the return type of GardenerService.trigger() in gardener/src/index.ts.
+export interface GardenerServiceStub {
+  trigger(): Promise<GardenerRunResult>;
+}
+
+export interface GardenerRunResult {
+  event: string;
+  similarity: {
+    notes_processed: number;
+    links_deleted: number;
+    links_created: number;
+    enriched_notes: number;
+    errors: string[];
+  };
+  clustering: {
+    clusters_created: number;
+    resolutions_run: number;
+    clusters_deleted: number;
+    error: string | null;
+  };
+  entities: {
+    notes_extracted: number;
+    dictionary_entries: number;
+    notes_updated: number;
+    error: string | null;
+  };
+  duration_ms: number;
 }
 
 // ── Note Types ──────────────────────────────────────────────────────────────

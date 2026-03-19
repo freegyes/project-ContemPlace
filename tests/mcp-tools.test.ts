@@ -25,6 +25,7 @@ vi.mock('../mcp/src/db', () => ({
   fetchClusters: vi.fn().mockResolvedValue({ clusters: [], computed_at: null }),
   fetchAvailableResolutions: vi.fn().mockResolvedValue([1.0, 1.5, 2.0]),
   fetchRecentFragments: vi.fn().mockResolvedValue([]),
+  fetchLastGardenerRun: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../mcp/src/embed', () => ({
@@ -54,6 +55,7 @@ import {
   handleCaptureNote,
   handleRemoveNote,
   handleListClusters,
+  handleTriggerGardening,
 } from '../mcp/src/tools';
 import {
   searchNotes,
@@ -71,7 +73,9 @@ import {
   hardDeleteNote,
   fetchClusters,
   fetchAvailableResolutions,
+  fetchLastGardenerRun,
 } from '../mcp/src/db';
+import type { GardenerServiceStub, GardenerRunResult } from '../mcp/src/types';
 import { embedText } from '../mcp/src/embed';
 import { runCaptureAgent } from '../mcp/src/capture';
 
@@ -89,6 +93,7 @@ const MOCK_CONFIG: Config = {
   hardDeleteWindowMinutes: 11,
   recentFragmentsCount: 5,
   recentFragmentsWindowMinutes: 60,
+  gardeningCooldownMinutes: 5,
 };
 
 const mockDb = {} as unknown as SupabaseClient;
@@ -989,6 +994,114 @@ describe('handleListClusters', () => {
       const r = toolResult(await handleListClusters({}, mockDb));
       expect(r.isError).toBe(true);
       expect(r.content[0]!.text).toMatch(/Failed to fetch clusters/);
+    });
+  });
+});
+
+// ── handleTriggerGardening ──────────────────────────────────────────────────
+
+// Helper: ISO timestamp N minutes ago
+function minutesAgoISO(n: number): string {
+  return new Date(Date.now() - n * 60 * 1000).toISOString();
+}
+
+const MOCK_GARDENER_RESULT: GardenerRunResult = {
+  event: 'gardener_run_complete',
+  similarity: { notes_processed: 10, links_deleted: 5, links_created: 3, enriched_notes: 4, errors: [] },
+  clustering: { clusters_created: 3, resolutions_run: 3, clusters_deleted: 2, error: null },
+  entities: { notes_extracted: 2, dictionary_entries: 5, notes_updated: 2, error: null },
+  duration_ms: 15000,
+};
+
+function mockGardenerService(overrides: Partial<GardenerServiceStub> = {}): GardenerServiceStub {
+  return {
+    trigger: vi.fn().mockResolvedValue(MOCK_GARDENER_RESULT),
+    ...overrides,
+  };
+}
+
+describe('handleTriggerGardening', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  describe('not configured', () => {
+    it('returns toolError when gardenerService is undefined', async () => {
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, undefined));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/not configured/i);
+    });
+  });
+
+  describe('cooldown', () => {
+    it('returns toolError when last run was within cooldown period', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(minutesAgoISO(2));
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, mockGardenerService()));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/cooldown/i);
+    });
+
+    it('includes minutes remaining in cooldown error', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(minutesAgoISO(3));
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, mockGardenerService()));
+      expect(r.isError).toBe(true);
+      // ~2 minutes remaining on 5-minute cooldown
+      expect(r.content[0]!.text).toMatch(/\d/);
+    });
+
+    it('allows trigger when last run was beyond cooldown period', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(minutesAgoISO(6));
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, mockGardenerService()));
+      expect(r.isError).toBe(false);
+    });
+
+    it('allows trigger when no prior run exists (null)', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(null);
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, mockGardenerService()));
+      expect(r.isError).toBe(false);
+    });
+
+    it('allows trigger when last run was exactly at cooldown boundary', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(minutesAgoISO(5));
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, mockGardenerService()));
+      expect(r.isError).toBe(false);
+    });
+  });
+
+  describe('happy path', () => {
+    it('calls gardenerService.trigger()', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(null);
+      const service = mockGardenerService();
+      await handleTriggerGardening({}, mockDb, MOCK_CONFIG, service);
+      expect(service.trigger).toHaveBeenCalledOnce();
+    });
+
+    it('returns the full GardenerRunResult on success', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(null);
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, mockGardenerService()));
+      expect(r.isError).toBe(false);
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.event).toBe('gardener_run_complete');
+      expect(body.similarity.links_created).toBe(3);
+      expect(body.clustering.clusters_created).toBe(3);
+      expect(body.entities.notes_extracted).toBe(2);
+      expect(body.duration_ms).toBe(15000);
+    });
+  });
+
+  describe('error handling', () => {
+    it('returns toolError when gardenerService.trigger() throws', async () => {
+      vi.mocked(fetchLastGardenerRun).mockResolvedValueOnce(null);
+      const failingService = mockGardenerService({
+        trigger: vi.fn().mockRejectedValue(new Error('Gardener run failed')),
+      });
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, failingService));
+      expect(r.isError).toBe(true);
+      expect(r.content[0]!.text).toMatch(/Gardening failed/i);
+    });
+
+    it('returns toolError when fetchLastGardenerRun throws', async () => {
+      vi.mocked(fetchLastGardenerRun).mockRejectedValueOnce(new Error('DB error'));
+      const r = toolResult(await handleTriggerGardening({}, mockDb, MOCK_CONFIG, mockGardenerService()));
+      expect(r.isError).toBe(true);
     });
   });
 });

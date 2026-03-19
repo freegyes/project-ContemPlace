@@ -1,3 +1,4 @@
+import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarPairs, insertSimilarityLinks, logEnrichments, deleteAllClusters, insertClusters, fetchNotesForEntityExtraction, fetchAllRawExtractions, fetchNoteCreatedAts, logEntityExtractions, rebuildEntityDictionary, batchUpdateNoteEntities, fetchEntityDictionary } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
@@ -239,6 +240,15 @@ async function runGardener(env: Env): Promise<GardenerRunResult> {
   }
 
   return result;
+}
+
+// ── GardenerService RPC entrypoint (for Service Binding from MCP Worker) ─────
+// Named export — coexists with the default export (cron + HTTP trigger).
+
+export class GardenerService extends WorkerEntrypoint<Env> {
+  async trigger(): Promise<GardenerRunResult> {
+    return runGardener(this.env);
+  }
 }
 
 export default {
