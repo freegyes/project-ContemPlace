@@ -16,7 +16,7 @@ Input may come from voice dictation or quick typing. Before anything else:
 
 ## Output fields
 
-**Tags**: 2–7 lowercase kebab-case strings (e.g., \`laser-cutting\`, \`sound-art\`, \`experience-design\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags. Include the specific subject of the fragment as a tag (e.g., \`cimbalom\`, not just \`percussion\`). Use remaining slots for broader categories.
+**Tags**: 2–7 lowercase kebab-case strings in singular form (e.g., \`laser-cutting\`, \`sound-art\`, \`audio-plugin\` not \`audio-plugins\`). No \`#\` prefix, no spaces — use hyphens for multi-word tags. Include the specific subject of the fragment as a tag (e.g., \`cimbalom\`, not just \`percussion\`). Use remaining slots for broader categories. When a related note's tag already names the concept you would tag, reuse that tag exactly rather than inventing a synonym. Reserve new tags for concepts not covered by the related notes' tags. Avoid compound tags that describe a one-off relationship or method (e.g., \`constraint-as-method\`, \`template-guided\`). Prefer the standalone concepts.
 
 **source_ref**: URL if the user included one, otherwise null.
 
@@ -65,7 +65,10 @@ export async function runCaptureAgent(
 
   const relatedSection = relatedNotes.length > 0
     ? '\n\nRelated notes for context:\n' +
-      relatedNotes.map(n => `[${n.id}] "${n.title}"\n${n.body}`).join('\n\n')
+      relatedNotes.map(n => {
+        const tagStr = n.tags.length > 0 ? ` [tags: ${n.tags.join(', ')}]` : '';
+        return `[${n.id}] "${n.title}"${tagStr}\n${n.body}`;
+      }).join('\n\n')
     : '';
 
   const userMessage = `Today's date: ${today}\n\nCapture this:\n${text}${relatedSection}`;

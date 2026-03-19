@@ -12,7 +12,7 @@ The capture agent is an LLM that turns raw user input into a structured fragment
 |---|---|
 | **title** | A claim or question — never a topic label. States the fragment's point so you can scan a list without opening each one. |
 | **body** | Faithful to your words, as long as needed — no compression. Typically 1–4 sentences. |
-| **tags** | Free-form, derived from the input |
+| **tags** | 2–7 kebab-case labels, anchored to existing tags from related notes when applicable |
 | **links** | Edges to related notes (`contradicts` or `related`) |
 | **corrections** | Voice dictation fixes, applied silently and reported |
 | **source_ref** | URL if one was included |
