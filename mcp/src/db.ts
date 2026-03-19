@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
-import type { CaptureLink, CaptureResult, MatchedNote, NoteRow, LinkWithTitle, ClusterRow, ClusterNote } from './types';
+import type { CaptureLink, CaptureResult, MatchedNote, NoteRow, RecentFragment, LinkWithTitle, ClusterRow, ClusterNote } from './types';
 
 export type SupabaseClientType = SupabaseClient;
 
@@ -222,6 +222,27 @@ export async function fetchNoteLinks(
       }
       return (b.confidence ?? 0) - (a.confidence ?? 0);
     });
+}
+
+// Fetch recent fragments for capture-time temporal context.
+// Lighter than listRecentNotes — only selects fields the capture LLM needs.
+export async function fetchRecentFragments(
+  db: SupabaseClient,
+  limit: number,
+): Promise<RecentFragment[]> {
+  const { data, error } = await db
+    .from('notes')
+    .select('id, title, tags, created_at')
+    .is('archived_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error(JSON.stringify({ event: 'fetch_recent_fragments_error', error: error.message }));
+    return [];
+  }
+
+  return (data as RecentFragment[]) ?? [];
 }
 
 // List recent notes, newest first.

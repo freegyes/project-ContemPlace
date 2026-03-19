@@ -146,4 +146,27 @@ describe('loadConfig', () => {
   it('throws when HARD_DELETE_WINDOW_MINUTES is not a number', () => {
     expect(() => loadConfig(env({ HARD_DELETE_WINDOW_MINUTES: 'bad' }))).toThrow('HARD_DELETE_WINDOW_MINUTES');
   });
+
+  it('uses 5 as default recentFragmentsCount when RECENT_FRAGMENTS_COUNT is absent', () => {
+    const config = loadConfig(env({ RECENT_FRAGMENTS_COUNT: undefined }));
+    expect(config.recentFragmentsCount).toBe(5);
+  });
+
+  it('parses a valid RECENT_FRAGMENTS_COUNT integer', () => {
+    const config = loadConfig(env({ RECENT_FRAGMENTS_COUNT: '3' }));
+    expect(config.recentFragmentsCount).toBe(3);
+  });
+
+  it('accepts 0 as a valid RECENT_FRAGMENTS_COUNT (feature disabled)', () => {
+    const config = loadConfig(env({ RECENT_FRAGMENTS_COUNT: '0' }));
+    expect(config.recentFragmentsCount).toBe(0);
+  });
+
+  it('throws when RECENT_FRAGMENTS_COUNT is negative', () => {
+    expect(() => loadConfig(env({ RECENT_FRAGMENTS_COUNT: '-1' }))).toThrow('RECENT_FRAGMENTS_COUNT');
+  });
+
+  it('throws when RECENT_FRAGMENTS_COUNT is not a number', () => {
+    expect(() => loadConfig(env({ RECENT_FRAGMENTS_COUNT: 'bad' }))).toThrow('RECENT_FRAGMENTS_COUNT');
+  });
 });

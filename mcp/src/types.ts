@@ -13,6 +13,7 @@ export interface Env {
   MATCH_THRESHOLD: string;
   MCP_SEARCH_THRESHOLD: string;
   HARD_DELETE_WINDOW_MINUTES: string;
+  RECENT_FRAGMENTS_COUNT: string;
   OAUTH_KV: KVNamespace;
   /** Injected at runtime by OAuthProvider before calling handlers */
   OAUTH_PROVIDER?: OAuthHelpers;
@@ -56,6 +57,15 @@ export interface MatchedNote {
   entities: unknown;
   created_at: string;
   similarity: number;
+}
+
+// Lightweight type for recent fragments used as capture-time temporal context.
+// Only includes fields the LLM needs for tag vocabulary consistency and voice correction.
+export interface RecentFragment {
+  id: string;
+  title: string;
+  tags: string[];
+  created_at: string;
 }
 
 // ── MCP-specific types ───────────────────────────────────────────────────────

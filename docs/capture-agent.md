@@ -70,6 +70,17 @@ These heuristics help the capture LLM assess how to structure its output. The im
 
 For the original research basis, see [#108](https://github.com/freegyes/project-ContemPlace/issues/108).
 
+## Temporal context
+
+The capture agent receives the user's most recent fragments (titles and tags only, no bodies) as temporal context alongside the semantic matches. This helps with:
+
+- **Tag vocabulary consistency** — if a recent fragment uses `pen-plotting`, the agent reuses that tag phrasing instead of inventing `plotter-art`
+- **Voice correction** — domain terms appearing in recent fragments are likely to recur in the current input
+
+Recent fragments are presented separately from related notes and are explicitly not linking targets. The agent only creates links to recent fragments when the semantic connection is independently clear — temporal proximity alone is not sufficient.
+
+The count is configurable via `RECENT_FRAGMENTS_COUNT` (default 5, set to 0 to disable). Recent fragments that also appear in the semantic matches are deduplicated — each note appears in at most one context section.
+
 ## Linking
 
 The agent receives the top 5 semantically related notes (with their titles and bodies) and can create typed links to them.

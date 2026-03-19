@@ -4,7 +4,7 @@ import type { Config } from './config';
 import type { ServiceCaptureResult } from './types';
 import { embedText, buildEmbeddingInput } from './embed';
 import { runCaptureAgent } from './capture';
-import { getCaptureVoice, findRelatedNotes, insertNote, insertLinks, logEnrichments } from './db';
+import { getCaptureVoice, findRelatedNotes, fetchRecentFragments, insertNote, insertLinks, logEnrichments } from './db';
 
 /**
  * Run the full capture pipeline: embed → find related → LLM → re-embed → insert → log.
@@ -17,17 +17,24 @@ export async function runCapturePipeline(
   openai: OpenAI,
   config: Config,
 ): Promise<ServiceCaptureResult> {
-  // Step 1: embed raw text + fetch capture voice in parallel
-  const [rawEmbedding, captureVoice] = await Promise.all([
+  // Step 1: embed raw text + fetch capture voice + fetch recent fragments in parallel
+  const [rawEmbedding, captureVoice, recentFragments] = await Promise.all([
     embedText(openai, config, rawInput),
     getCaptureVoice(db),
+    config.recentFragmentsCount > 0
+      ? fetchRecentFragments(db, config.recentFragmentsCount)
+      : Promise.resolve([]),
   ]);
 
   // Step 2: find related notes using raw embedding
   const relatedNotes = await findRelatedNotes(db, rawEmbedding, config.matchThreshold);
 
+  // Step 2.5: deduplicate recent fragments against related notes
+  const relatedIds = new Set(relatedNotes.map(n => n.id));
+  const dedupedRecent = recentFragments.filter(r => !relatedIds.has(r.id));
+
   // Step 3: run capture LLM
-  const capture = await runCaptureAgent(openai, config, rawInput, relatedNotes, captureVoice);
+  const capture = await runCaptureAgent(openai, config, rawInput, relatedNotes, captureVoice, dedupedRecent);
 
   // Step 4: augmented embedding (fallback to raw on failure)
   let finalEmbedding = rawEmbedding;

@@ -7,6 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 CAPTURE_MODEL = "anthropic/claude-haiku-4-5"
 EMBED_MODEL = "openai/text-embedding-3-small"
 MATCH_THRESHOLD = "0.35"
+RECENT_FRAGMENTS_COUNT = "5"
 
 [[kv_namespaces]]
 binding = "OAUTH_KV"

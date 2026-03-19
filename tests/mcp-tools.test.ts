@@ -24,6 +24,7 @@ vi.mock('../mcp/src/db', () => ({
   hardDeleteNote: vi.fn().mockResolvedValue(undefined),
   fetchClusters: vi.fn().mockResolvedValue({ clusters: [], computed_at: null }),
   fetchAvailableResolutions: vi.fn().mockResolvedValue([1.0, 1.5, 2.0]),
+  fetchRecentFragments: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../mcp/src/embed', () => ({
@@ -61,6 +62,7 @@ import {
   listRecentNotes,
   getCaptureVoice,
   findRelatedNotes,
+  fetchRecentFragments,
   insertNote,
   insertLinks,
   logEnrichments,
@@ -85,6 +87,7 @@ const MOCK_CONFIG: Config = {
   matchThreshold: 0.60,
   searchThreshold: 0.35,
   hardDeleteWindowMinutes: 11,
+  recentFragmentsCount: 5,
 };
 
 const mockDb = {} as unknown as SupabaseClient;
@@ -480,11 +483,11 @@ describe('handleCaptureNote', () => {
       expect(vi.mocked(findRelatedNotes)).toHaveBeenCalledWith(mockDb, [0.1, 0.2], MOCK_CONFIG.matchThreshold);
     });
 
-    it('calls runCaptureAgent with text and related notes and capture voice', async () => {
+    it('calls runCaptureAgent with text, related notes, capture voice, and recent fragments', async () => {
       vi.mocked(getCaptureVoice).mockResolvedValueOnce('## Voice rules');
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(runCaptureAgent)).toHaveBeenCalledWith(
-        mockOpenAI, MOCK_CONFIG, 'hello', [], '## Voice rules',
+        mockOpenAI, MOCK_CONFIG, 'hello', [], '## Voice rules', [],
       );
     });
 
@@ -522,6 +525,40 @@ describe('handleCaptureNote', () => {
       expect(body.title).toBe('Mock Note');
       expect(body.source).toBe('obsidian');
       expect(body.links_created).toBe(0);
+    });
+  });
+
+  describe('recent fragments', () => {
+    it('fetches recent fragments with config count', async () => {
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      expect(vi.mocked(fetchRecentFragments)).toHaveBeenCalledWith(mockDb, 5);
+    });
+
+    it('deduplicates recent fragments against related notes', async () => {
+      const sharedId = 'bbbbbbbb-0000-0000-0000-000000000002';
+      vi.mocked(findRelatedNotes).mockResolvedValueOnce([{
+        id: sharedId, title: 'Shared', body: 'body', raw_input: 'raw',
+        tags: ['t'], source_ref: null, source: 'mcp', entities: null,
+        created_at: '2026-03-19', similarity: 0.8,
+      }]);
+      vi.mocked(fetchRecentFragments).mockResolvedValueOnce([
+        { id: sharedId, title: 'Shared', tags: ['t'], created_at: '2026-03-19' },
+        { id: 'cccccccc-0000-0000-0000-000000000003', title: 'Unique', tags: ['u'], created_at: '2026-03-19' },
+      ]);
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
+      // runCaptureAgent should receive only the unique fragment
+      const recentArg = vi.mocked(runCaptureAgent).mock.calls[0]![5];
+      expect(recentArg).toHaveLength(1);
+      expect(recentArg![0]!.id).toBe('cccccccc-0000-0000-0000-000000000003');
+    });
+
+    it('skips fetch when recentFragmentsCount is 0', async () => {
+      const zeroConfig = { ...MOCK_CONFIG, recentFragmentsCount: 0 };
+      await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, zeroConfig);
+      expect(vi.mocked(fetchRecentFragments)).not.toHaveBeenCalled();
+      expect(vi.mocked(runCaptureAgent)).toHaveBeenCalledWith(
+        mockOpenAI, zeroConfig, 'hello', [], expect.any(String), [],
+      );
     });
   });
 
