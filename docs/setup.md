@@ -69,7 +69,7 @@ The migrations create 7 tables, RLS policies, RPC functions (`match_notes`, `fin
 
 ## 5. Deploy the MCP Worker
 
-The MCP Worker is the core — it hosts the capture pipeline, search tools, and auth. Deploy this first. The Telegram Worker depends on it via a Cloudflare Service Binding.
+The MCP Worker is the core — it hosts the capture pipeline, search tools, and auth. The Telegram Worker depends on it via a Service Binding (capture), and it depends on the Gardener Worker via a second Service Binding (on-demand gardening). Deploy order: Gardener → MCP → Telegram.
 
 ### Create the KV namespace
 

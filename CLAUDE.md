@@ -27,6 +27,8 @@ The capture flow is **async**: the Worker returns 200 to Telegram immediately, t
 
 **Single capture path:** The Telegram Worker delegates capture to the MCP Worker via a Cloudflare Service Binding (in-process RPC, no HTTP hop). The capture pipeline lives in `mcp/src/pipeline.ts` — one source of truth for all gateways.
 
+**On-demand gardening:** The MCP Worker triggers the Gardener via a second Service Binding (`env.GARDENER_SERVICE.trigger()`) — in-process RPC, same pattern as capture. CF Workers on the same zone cannot call each other via HTTP (error 1042), so Service Bindings are the only option for Worker-to-Worker communication.
+
 **System frame / capture voice split:** The system prompt is split into two parts:
 - **System frame** (`SYSTEM_FRAME` constant in `mcp/src/capture.ts`) — structural contract: JSON schema, field enums, link rules, voice correction instructions. Lives in code.
 - **Capture voice** (stored in `capture_profiles` DB table, fetched at runtime) — title style, body rules, traceability, tone, examples. User-editable without code deployment.

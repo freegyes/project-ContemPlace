@@ -1231,3 +1231,15 @@ The hybrid approach fetches the last N fragments that fall within a configurable
 **Subrequest constraint:** CF Workers has a 50-subrequest-per-invocation limit. The entity phase uses `GARDENER_ENTITY_BATCH_SIZE` (default 15) to stay within budget: 9 fixed DB calls + 2×N (LLM + note update) = 39 subrequests at N=15.
 
 **Source:** #125. Specialist review 2026-03-19. PR #193.
+
+## MCP → Gardener communication uses Service Binding, not HTTP (2026-03-19)
+
+**Decision:** The `trigger_gardening` MCP tool calls the Gardener Worker via a Service Binding (`GardenerService.trigger()` RPC), not via HTTP fetch to the `/trigger` endpoint.
+
+**Why:** Cloudflare Workers on the same zone (including `*.workers.dev` subdomains) cannot call each other via HTTP — the platform returns error 1042. The original design (issue #100 comment) proposed HTTP since it was infrequent and user-initiated. Live deployment revealed the error. Service Binding is the only option for Worker-to-Worker communication on the same account.
+
+**Why this is better than HTTP anyway:** No API key needed on the MCP Worker side (in-process RPC is trusted by default). No JSON parsing of the response (structured return type). No network hop. Follows the existing pattern: Telegram → MCP uses `CaptureService` the same way.
+
+**Trade-off:** The two Workers are now deployment-coupled — the Gardener Worker must exist before the MCP Worker can deploy, because the `[[services]]` binding references it. This is acceptable since both Workers are always deployed together.
+
+**Source:** #100. PR #207. Error 1042 discovered during live deployment.
