@@ -425,29 +425,6 @@ export async function fetchLastGardenerRun(
   return (data as { created_at: string }).created_at;
 }
 
-// Calls the Gardener Worker's /trigger endpoint and returns the parsed result.
-// Throws on non-200 responses or network errors.
-export async function triggerGardenerWorker(
-  url: string,
-  apiKey: string,
-): Promise<unknown> {
-  const response = await fetch(`${url}/trigger`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-
-  const body = await response.json();
-
-  if (!response.ok) {
-    const errorMsg = typeof body === 'object' && body !== null && 'error' in body
-      ? (body as { error: string }).error
-      : `HTTP ${response.status}`;
-    throw new Error(`Gardener Worker returned ${response.status}: ${errorMsg}`);
-  }
-
-  return body;
-}
-
 // ── Undo functions ────────────────────────────────────────────────────────
 
 export interface MostRecentNote {

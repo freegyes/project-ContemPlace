@@ -15,11 +15,16 @@ binding = "OAUTH_KV"
 id = "YOUR_KV_NAMESPACE_ID"        # create with: wrangler kv namespace create OAUTH_KV -c mcp/wrangler.toml
 preview_id = "YOUR_KV_PREVIEW_ID"  # create with: wrangler kv namespace create OAUTH_KV --preview -c mcp/wrangler.toml
 
+# Service Binding to Gardener Worker — enables trigger_gardening MCP tool.
+# In-process RPC, no HTTP hop. The Gardener Worker must be deployed first.
+[[services]]
+binding = "GARDENER_SERVICE"
+service = "contemplace-gardener"
+entrypoint = "GardenerService"
+
 # Secrets (set via: wrangler secret put <NAME> -c mcp/wrangler.toml):
 # MCP_API_KEY
 # CONSENT_SECRET          — protects the OAuth consent page; generate with: openssl rand -hex 16
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 # OPENROUTER_API_KEY
-# GARDENER_WORKER_URL     (optional — enables trigger_gardening tool; e.g. https://contemplace-gardener.<account>.workers.dev)
-# GARDENER_API_KEY         (optional — shared with Gardener Worker; must match its GARDENER_API_KEY secret)

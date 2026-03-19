@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('cloudflare:workers', () => ({
+  WorkerEntrypoint: class WorkerEntrypoint { env: unknown; constructor() { this.env = {}; } },
+}));
+
 import { validateTriggerAuth } from '../gardener/src/auth';
 import type { Env } from '../gardener/src/types';
 

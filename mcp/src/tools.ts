@@ -2,7 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type OpenAI from 'openai';
 import type { Config } from './config';
 import { embedText } from './embed';
-import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote, fetchClusters, fetchAvailableResolutions, fetchLastGardenerRun, triggerGardenerWorker } from './db';
+import { fetchNote, fetchNoteLinks, listRecentNotes, searchNotes, fetchNoteForArchive, archiveNote, hardDeleteNote, fetchClusters, fetchAvailableResolutions, fetchLastGardenerRun } from './db';
+import type { GardenerServiceStub } from './types';
 import { runCapturePipeline } from './pipeline';
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -280,9 +281,10 @@ export async function handleTriggerGardening(
   args: Record<string, unknown>,
   db: SupabaseClient,
   config: Config,
+  gardenerService?: GardenerServiceStub,
 ): Promise<object> {
-  if (!config.gardenerUrl || !config.gardenerApiKey) {
-    return toolError('Gardener triggering not configured. Set GARDENER_WORKER_URL and GARDENER_API_KEY.');
+  if (!gardenerService) {
+    return toolError('Gardener triggering not configured. Add GARDENER_SERVICE binding in mcp/wrangler.toml.');
   }
 
   try {
@@ -297,7 +299,7 @@ export async function handleTriggerGardening(
       }
     }
 
-    const result = await triggerGardenerWorker(config.gardenerUrl, config.gardenerApiKey);
+    const result = await gardenerService.trigger();
     return toolSuccess(result);
   } catch (err) {
     const errorMsg = String(err);

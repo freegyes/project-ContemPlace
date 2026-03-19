@@ -109,7 +109,7 @@ export async function handleMcpRequest(request: Request, env: Env): Promise<Resp
         result = await handleListClusters(args, db);
         break;
       case 'trigger_gardening':
-        result = await handleTriggerGardening(args, db, config);
+        result = await handleTriggerGardening(args, db, config, env.GARDENER_SERVICE);
         break;
       default:
         return jsonRpcError(id, -32601, `Unknown tool: ${toolName}`);
