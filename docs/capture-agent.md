@@ -79,7 +79,7 @@ The capture agent receives the user's most recent fragments (titles and tags onl
 
 Recent fragments are presented separately from related notes and are explicitly not linking targets. The agent only creates links to recent fragments when the semantic connection is independently clear — temporal proximity alone is not sufficient.
 
-The count is configurable via `RECENT_FRAGMENTS_COUNT` (default 5, set to 0 to disable). Recent fragments that also appear in the semantic matches are deduplicated — each note appears in at most one context section.
+The feature uses a hybrid approach: last N fragments within a time window. `RECENT_FRAGMENTS_COUNT` (default 5) controls the maximum count, `RECENT_FRAGMENTS_WINDOW_MINUTES` (default 60) controls the time cutoff. Outside the window, the section is empty — "no recent context" is better than stale context. Set either to 0 to disable. Recent fragments that also appear in the semantic matches are deduplicated — each note appears in at most one context section.
 
 ## Linking
 

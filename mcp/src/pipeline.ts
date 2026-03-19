@@ -22,7 +22,7 @@ export async function runCapturePipeline(
     embedText(openai, config, rawInput),
     getCaptureVoice(db),
     config.recentFragmentsCount > 0
-      ? fetchRecentFragments(db, config.recentFragmentsCount)
+      ? fetchRecentFragments(db, config.recentFragmentsCount, config.recentFragmentsWindowMinutes)
       : Promise.resolve([]),
   ]);
 

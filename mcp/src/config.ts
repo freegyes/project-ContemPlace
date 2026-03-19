@@ -11,6 +11,7 @@ export interface Config {
   searchThreshold: number;
   hardDeleteWindowMinutes: number;
   recentFragmentsCount: number;
+  recentFragmentsWindowMinutes: number;
 }
 
 export function loadConfig(env: Env): Config {
@@ -27,6 +28,7 @@ export function loadConfig(env: Env): Config {
     searchThreshold: parseAndValidateThreshold(env.MCP_SEARCH_THRESHOLD, 0.35, 'MCP_SEARCH_THRESHOLD'),
     hardDeleteWindowMinutes: parsePositiveInt(env.HARD_DELETE_WINDOW_MINUTES, 11, 'HARD_DELETE_WINDOW_MINUTES'),
     recentFragmentsCount: parsePositiveInt(env.RECENT_FRAGMENTS_COUNT, 5, 'RECENT_FRAGMENTS_COUNT'),
+    recentFragmentsWindowMinutes: parsePositiveInt(env.RECENT_FRAGMENTS_WINDOW_MINUTES, 60, 'RECENT_FRAGMENTS_WINDOW_MINUTES'),
   };
 }
 

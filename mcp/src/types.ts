@@ -14,6 +14,7 @@ export interface Env {
   MCP_SEARCH_THRESHOLD: string;
   HARD_DELETE_WINDOW_MINUTES: string;
   RECENT_FRAGMENTS_COUNT: string;
+  RECENT_FRAGMENTS_WINDOW_MINUTES: string;
   OAUTH_KV: KVNamespace;
   /** Injected at runtime by OAuthProvider before calling handlers */
   OAUTH_PROVIDER?: OAuthHelpers;

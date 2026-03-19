@@ -33,6 +33,7 @@ const MOCK_CONFIG: Config = {
   searchThreshold: 0.35,
   hardDeleteWindowMinutes: 11,
   recentFragmentsCount: 5,
+  recentFragmentsWindowMinutes: 60,
 };
 
 const VALID_UUID = 'aaaaaaaa-0000-0000-0000-000000000001';

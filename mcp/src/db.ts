@@ -226,14 +226,24 @@ export async function fetchNoteLinks(
 
 // Fetch recent fragments for capture-time temporal context.
 // Lighter than listRecentNotes — only selects fields the capture LLM needs.
+// Uses a hybrid approach: last N fragments within a time window.
+// When windowMinutes is 0, no time filter is applied (pure count-based).
 export async function fetchRecentFragments(
   db: SupabaseClient,
   limit: number,
+  windowMinutes: number,
 ): Promise<RecentFragment[]> {
-  const { data, error } = await db
+  let query = db
     .from('notes')
     .select('id, title, tags, created_at')
-    .is('archived_at', null)
+    .is('archived_at', null);
+
+  if (windowMinutes > 0) {
+    const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+    query = query.gte('created_at', cutoff);
+  }
+
+  const { data, error } = await query
     .order('created_at', { ascending: false })
     .limit(limit);
 

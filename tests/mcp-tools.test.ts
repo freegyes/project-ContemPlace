@@ -88,6 +88,7 @@ const MOCK_CONFIG: Config = {
   searchThreshold: 0.35,
   hardDeleteWindowMinutes: 11,
   recentFragmentsCount: 5,
+  recentFragmentsWindowMinutes: 60,
 };
 
 const mockDb = {} as unknown as SupabaseClient;
@@ -529,9 +530,9 @@ describe('handleCaptureNote', () => {
   });
 
   describe('recent fragments', () => {
-    it('fetches recent fragments with config count', async () => {
+    it('fetches recent fragments with config count and window', async () => {
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
-      expect(vi.mocked(fetchRecentFragments)).toHaveBeenCalledWith(mockDb, 5);
+      expect(vi.mocked(fetchRecentFragments)).toHaveBeenCalledWith(mockDb, 5, 60);
     });
 
     it('deduplicates recent fragments against related notes', async () => {

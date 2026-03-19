@@ -1205,4 +1205,4 @@ The hybrid approach fetches the last N fragments that fall within a configurable
 
 **Tradeoff:** Slightly more complex query and configuration (count + window vs. just count). But the alternative — pure count — is simpler at the cost of being wrong in the common case where sessions are separated by hours or days.
 
-**Source:** PR #191 review. The initial implementation used pure count; rework pending.
+**Source:** PR #191 review. The initial implementation used pure count; reworked to hybrid approach with `RECENT_FRAGMENTS_WINDOW_MINUTES` (default 60).
