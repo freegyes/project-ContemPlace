@@ -95,7 +95,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'list_clusters',
-    description: 'List thematic clusters detected by the gardener. Clusters group notes by semantic similarity — call with no parameters to see the landscape of accumulated thinking. Results are ordered by gravity (size × recency) — high-gravity clusters are where recent attention is concentrated. Try comparing resolutions (e.g., default 1.0 then 1.5) to see which clusters split, revealing internal conceptual structure. The response includes available_resolutions so you know which values to request. Each cluster includes a sample of note titles (default 5) — use search_notes with tag filters or get_note to explore further.',
+    description: 'List thematic clusters detected by the gardener. Clusters group notes by semantic similarity — call with no parameters to see the landscape of accumulated thinking. Results are ordered by gravity (size × recency) — high-gravity clusters are where recent attention is concentrated. Try comparing resolutions (e.g., default 1.0 then 1.5) to see which clusters split, revealing internal conceptual structure. The response includes available_resolutions so you know which values to request. Each cluster includes a sample of note titles (default 5) and hub_notes — the 1–2 notes with the most intra-cluster links, which act as conceptual anchors. Start depth dives with get_related on a hub note.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -289,6 +289,7 @@ export async function handleListClusters(
         note_count: c.note_count,
         gravity: c.gravity,
         notes: c.notes.slice(0, notesPerCluster),
+        hub_notes: c.hub_notes,
       })),
       resolution,
       available_resolutions: availableResolutions,

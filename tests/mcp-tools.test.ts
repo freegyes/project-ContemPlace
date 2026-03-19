@@ -815,6 +815,9 @@ const MOCK_CLUSTER = {
     { id: 'aaaaaaaa-0000-0000-0000-000000000002', title: 'Italian cooking philosophy' },
     { id: 'aaaaaaaa-0000-0000-0000-000000000003', title: 'Pasta shapes and sauces' },
   ],
+  hub_notes: [
+    { id: 'aaaaaaaa-0000-0000-0000-000000000001', title: 'Homemade pasta basics', link_count: 4 },
+  ],
 };
 
 describe('handleListClusters', () => {
@@ -889,8 +892,32 @@ describe('handleListClusters', () => {
       expect(cluster.notes[0].title).toBe('Homemade pasta basics');
     });
 
+    it('includes hub_notes in cluster response', async () => {
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [MOCK_CLUSTER],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({}, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      const cluster = body.clusters[0];
+      expect(cluster.hub_notes).toHaveLength(1);
+      expect(cluster.hub_notes[0].title).toBe('Homemade pasta basics');
+      expect(cluster.hub_notes[0].link_count).toBe(4);
+    });
+
+    it('returns empty hub_notes when no notes have links', async () => {
+      const noHubCluster = { ...MOCK_CLUSTER, hub_notes: [] };
+      vi.mocked(fetchClusters).mockResolvedValueOnce({
+        clusters: [noHubCluster],
+        computed_at: '2026-03-18T02:00:00.000Z',
+      });
+      const r = toolResult(await handleListClusters({}, mockDb));
+      const body = JSON.parse(r.content[0]!.text);
+      expect(body.clusters[0].hub_notes).toEqual([]);
+    });
+
     it('sums clustered_notes across multiple clusters', async () => {
-      const cluster2 = { ...MOCK_CLUSTER, label: 'music / jazz', note_count: 5, notes: Array(5).fill(MOCK_CLUSTER.notes[0]) };
+      const cluster2 = { ...MOCK_CLUSTER, label: 'music / jazz', note_count: 5, notes: Array(5).fill(MOCK_CLUSTER.notes[0]), hub_notes: [] };
       vi.mocked(fetchClusters).mockResolvedValueOnce({
         clusters: [MOCK_CLUSTER, cluster2],
         computed_at: '2026-03-18T02:00:00.000Z',
@@ -910,6 +937,7 @@ describe('handleListClusters', () => {
         id: `aaaaaaaa-0000-0000-0000-00000000${String(i).padStart(4, '0')}`,
         title: `Note ${i}`,
       })),
+      hub_notes: [{ id: 'aaaaaaaa-0000-0000-0000-000000000000', title: 'Note 0', link_count: 3 }],
     };
 
     it('defaults to 5 notes per cluster', async () => {
