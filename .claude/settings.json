@@ -23,8 +23,14 @@
       "Bash(npm:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
+      "Bash(cp:*)",
+      "Bash(curl:*)",
+      "Bash(export:*)",
+      "Bash(node_modules/.bin/tsc:*)",
       "Bash(wrangler:*)",
-      "Bash(supabase:*)"
+      "Bash(supabase:*)",
+      "mcp__contemplace__*",
+      "mcp__claude_ai_ContemPlace__*"
     ]
   }
 }

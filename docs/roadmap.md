@@ -225,9 +225,11 @@ A local experiment script (`scripts/cluster-experiment.ts`) ran weighted graph c
 2. ~~**#156** — Gardener clustering pipeline~~ **Done.** (PR #164)
 3. ~~**#157** — `list_clusters` MCP tool~~ **Done.** (PR #172)
 4. **#149** — Threshold assessment
-5. **#151** — Capture-time tag quality and consistency — **highest-value clustering upgrade** (bridges backup-type gaps)
-6. **#147** — Gardener-time tag normalization
-7. **#125** — Entity dictionary — **Gardener extraction phase shipped** (PR #193). Dictionary table + incremental LLM extraction + per-note population live. Capture-time correction context and entity search MCP tool are follow-up PRs.
+5. ~~**#151** — Capture-time tag quality and consistency~~ **Done.** (PR #192) — SYSTEM_FRAME anchors tags to related notes' vocabulary, singular form rule, anti-compound guidance. Deployed and live-verified.
+6. **#123** — Recent fragments as capture context — **Done.** (PR #191) — Hybrid time-bounded fetch (60min window, configurable), temporal context labeled distinctly from semantic matches in SYSTEM_FRAME.
+7. **#147** — Gardener-time tag normalization — **next priority**
+8. **#125** — Entity dictionary — **Gardener extraction phase shipped** (PR #193). Dictionary table + incremental LLM extraction + per-note population live. Capture-time correction context and entity search MCP tool are follow-up PRs (#195-#198).
+9. **#199** — One-time corpus re-tag — deferred until #123 rework verifies tag consistency improvement
 
 **Related:** #120 (synthesis — may be unnecessary if cluster exploration suffices), #101 (visual dashboard — cluster data is primary input)
 

@@ -94,12 +94,12 @@ tests/               # See docs/development.md for the full test file breakdown
 .claude/
   settings.json         # Project-level permissions (Edit/Write/Bash on working directories — inherited by worktrees)
   commands/
-    orchestrate.md      # Custom command: orchestrator mode — triage, parallel cmux workspaces + git worktrees
+    orchestrate.md      # Custom command: orchestrator mode — triage, parallel cmux workspaces + git worktrees, decision checkpoint protocol
     analyze.md            # Custom command: extract project insights from user-provided input
     extract-fragments.md  # Custom command: topic-driven Obsidian re-capture sessions
     harvest-ideas.md      # Custom command: search corpus for actionable product ideas
     audit-captures.md     # Custom command: capture quality audit
-    work-on-issue.md      # Custom command: full issue workflow — gather → review → plan → implement → verify → ship
+    work-on-issue.md      # Custom command: full issue workflow — gather → hypothesis → review → plan → implement → verify → ship
     reflect.md            # Custom command: session-closing ritual — review pushbacks, improve commands/docs/memory
 docs/                # Detailed documentation (architecture, capture agent, schema, decisions, roadmap, setup, development, philosophy, usage)
 .github/

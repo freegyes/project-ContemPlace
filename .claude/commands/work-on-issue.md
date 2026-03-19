@@ -33,6 +33,18 @@ This doesn't need to be heavy. For a clear bug fix, it's one line: "The problem 
 
 **Post findings to the issue.** After completing the hypothesis check, post a summary comment on the GitHub issue with the validated problem statement and any reframing. This creates a written trail — useful for the user, for future sessions, and for anyone reading the issue later.
 
+### Phase 2.5: State the hypothesis
+
+Before proceeding to specialist review or implementation, explicitly state:
+
+1. **Hypothesis:** What do we believe this change will achieve? (e.g., "Recent temporal context in the capture pipeline improves tag consistency across burst captures")
+2. **Expected outcome:** What does success look like? Be specific enough to measure.
+3. **Verification plan:** How will we know if it worked? Options: before/after metric, experiment design, follow-up audit, calculation. If verification can't happen immediately (e.g., needs real-world usage data), create a follow-up issue for it.
+
+This doesn't need to be heavy — for a clear bug fix, the hypothesis is "this fixes the bug" and verification is "the bug no longer reproduces." For features or design changes, the hypothesis prevents building infrastructure that can't be evaluated.
+
+**If verification requires real-world data**, create a GitHub issue (label: `test`) that defines the baseline measurement and the post-deployment comparison. The implementation can proceed while measurement runs independently — but the issue must exist so the hypothesis isn't forgotten.
+
 ### Phase 3: Specialist review
 
 Scale the review to the size of the change:
