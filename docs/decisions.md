@@ -1194,3 +1194,16 @@ A supplementary mechanism difference: capture-time matching compares raw text ag
 **Why:** Lived experience across multiple agent sessions showed that every agent connecting to ContemPlace starts blind — they do not read tool descriptions unprompted. They must be explicitly told to read them. This rules out the hope that well-written tool descriptions could serve as a lightweight training mechanism, and confirms that #107's explicit `get_training` tool (or equivalent) is necessary. A secondary proposal — storing orientation instructions as regular notes retrievable via search ("check my notes on how to use ContemPlace") — provides a fallback path that works without a dedicated tool.
 
 **Source:** Captured fragment f88c7fcc (2026-03-19, Telegram). Analysis and design implications documented in #107 comment.
+
+## Anchor tags to related notes' vocabulary at capture time (2026-03-19)
+
+**Decision:** The SYSTEM_FRAME tag instruction now tells the capture LLM to reuse existing tags from related notes when they match the concept, use singular form, and avoid over-specific compound tags. Related notes in the prompt now include their tags alongside titles and bodies.
+
+**Why:** Tag quality analysis revealed 550 unique tags across 187 notes with 79% singletons and 95% of note pairs sharing zero tags. Root cause: the LLM saw related notes but not their tags, so each capture invented tags independently. Tag co-occurrence was useless as a clustering signal. The fix is a prompt change — zero infrastructure cost — that anchors the LLM to existing vocabulary while still allowing new tags for genuinely new concepts.
+
+**Tradeoffs:**
+- The instruction uses a qualified directive ("when a related note's tag already names the concept") rather than an absolute rule. Too strong = monotonous tags; too weak = Haiku ignores it.
+- Existing corpus retains fragmented tags. New captures create a virtuous cycle as better-tagged notes enter the related-notes pool. Garden-time normalization (#147) addresses historical tags.
+- If #123 (recent fragments as context) is implemented, temporally proximate but topically unrelated fragments could introduce irrelevant tags into the related-notes pool. The tag reuse instruction assumes related notes are topically relevant — that assumption must be preserved or the instruction qualified per context source.
+
+**Source:** #151 analysis, PR #192. Baseline metrics and analysis script at `scripts/tag-quality-analysis.ts`.
