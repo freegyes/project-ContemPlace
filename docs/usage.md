@@ -147,13 +147,15 @@ A clustering session follows a natural funnel — each step narrows focus based 
 
 2. **Resolution comparison.** Call `list_clusters` again at a different resolution (e.g., 1.5). The agent narrates what split, what held, and what newly surfaced. This is a high-value single move — low effort, often the most structurally informative step. A cluster that splits reveals internal conceptual diversity; one that holds at higher resolution is genuinely coherent.
 
-3. **Title scan.** For an interesting cluster, increase `notes_per_cluster` to see all its titles. The agent reads titles for philosophical anchors, conceptual junctions, and surprising members.
+3. **Hub notes.** Each cluster includes `hub_notes` — the 1–2 notes with the most intra-cluster links. These are conceptual anchors: notes that connect multiple threads within the cluster. Start a depth dive with `get_related` on a hub note instead of scanning all titles.
 
-4. **Graph walk.** From a well-connected or philosophically anchored note, call `get_related` to explore the link topology. `get_related` is a second-stage tool — most useful once you've identified a specific note to anchor from, not as a starting point.
+4. **Title scan.** For an interesting cluster, increase `notes_per_cluster` to see all its titles. The agent reads titles for philosophical anchors, surprising members, and notes the hub notes don't reach.
 
-5. **Boundary search.** For any cluster, the agent can ask "what would this cluster contain if the orientation were different?" and search for those terms at low threshold. Finding nothing is informative — it reveals the framing and assumptions behind the cluster. The absence of expected concepts often says more about the user's orientation than the presence of captured ones.
+5. **Graph walk.** From a hub note or any well-connected note, call `get_related` to explore the link topology. `get_related` is a second-stage tool — most useful once you've identified a specific note to anchor from, not as a starting point.
 
-Not every session goes through all five steps. Landscape orientation alone is often enough for a check-in. The funnel is there when you want to go deeper.
+6. **Boundary search.** For any cluster, the agent can ask "what would this cluster contain if the orientation were different?" and search for those terms at low threshold. Finding nothing is informative — it reveals the framing and assumptions behind the cluster. The absence of expected concepts often says more about the user's orientation than the presence of captured ones.
+
+Not every session goes through all six steps. Landscape orientation alone is often enough for a check-in. The funnel is there when you want to go deeper.
 
 ---
 
