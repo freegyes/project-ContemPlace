@@ -1,10 +1,12 @@
-import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarPairs, insertSimilarityLinks, logEnrichments, deleteAllClusters, insertClusters } from './db';
+import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimilarity, findSimilarPairs, insertSimilarityLinks, logEnrichments, deleteAllClusters, insertClusters, fetchNotesForEntityExtraction, fetchAllRawExtractions, fetchNoteCreatedAts, logEntityExtractions, rebuildEntityDictionary, batchUpdateNoteEntities, fetchEntityDictionary } from './db';
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
 import { runClustering, type ClusteringResult } from './clustering';
+import { extractEntitiesFromNote, resolveEntities, mapNotesToCanonicalEntities } from './entities';
+import { createOpenAIClient } from './ai';
 import { sendAlert } from './alert';
 import { validateTriggerAuth } from './auth';
-import type { Env, NoteForSimilarity, SimilarityLink } from './types';
+import type { Env, NoteForSimilarity, SimilarityLink, RawExtraction } from './types';
 
 export interface GardenerRunResult {
   event: 'gardener_run_complete';
@@ -19,6 +21,12 @@ export interface GardenerRunResult {
     clusters_created: number;
     resolutions_run: number;
     clusters_deleted: number;
+    error: string | null;
+  };
+  entities: {
+    notes_extracted: number;
+    dictionary_entries: number;
+    notes_updated: number;
     error: string | null;
   };
   duration_ms: number;
@@ -126,6 +134,89 @@ async function runGardener(env: Env): Promise<GardenerRunResult> {
     }));
   }
 
+  // 6. Entity extraction (failure must not kill the gardener run)
+  let entitiesReport: GardenerRunResult['entities'] = {
+    notes_extracted: 0,
+    dictionary_entries: 0,
+    notes_updated: 0,
+    error: null,
+  };
+
+  if (config.entityConfig) {
+    try {
+      const entityConfig = config.entityConfig;
+      const aiClient = createOpenAIClient(entityConfig);
+
+      // 6a. Fetch notes needing extraction (incremental)
+      const notesToExtract = await fetchNotesForEntityExtraction(db, entityConfig.entityBatchSize);
+
+      // 6b. Extract entities from new notes
+      const newExtractions: RawExtraction[] = [];
+      if (notesToExtract.length > 0) {
+        // Fetch existing dictionary for type consistency in extraction prompt
+        const existingEntities = await fetchEntityDictionary(db);
+
+        for (const note of notesToExtract) {
+          try {
+            const entities = await extractEntitiesFromNote(aiClient, entityConfig, note, existingEntities);
+            newExtractions.push({ noteId: note.id, entities });
+          } catch (extractErr) {
+            console.warn(JSON.stringify({
+              event: 'entity_extraction_note_error',
+              noteId: note.id,
+              error: String(extractErr),
+            }));
+            // Skip this note — it will be retried next run
+          }
+        }
+
+        // 6c. Log raw extractions to enrichment_log
+        if (newExtractions.length > 0) {
+          await logEntityExtractions(db, newExtractions, entityConfig.entityModel);
+        }
+      }
+
+      // 6d. Fetch ALL raw extractions (including from previous runs)
+      const allExtractions = await fetchAllRawExtractions(db);
+
+      if (allExtractions.length > 0) {
+        // 6e. Resolve into dictionary entries
+        const noteCreatedAts = await fetchNoteCreatedAts(db);
+        const dictionary = resolveEntities(allExtractions, noteCreatedAts);
+
+        // 6f. Clean-slate rebuild dictionary
+        const { inserted } = await rebuildEntityDictionary(db, dictionary);
+
+        // 6g. Map notes to canonical entities and update notes.entities
+        const noteEntityMap = mapNotesToCanonicalEntities(allExtractions, dictionary);
+        const notesUpdated = await batchUpdateNoteEntities(db, noteEntityMap);
+
+        entitiesReport = {
+          notes_extracted: newExtractions.length,
+          dictionary_entries: inserted,
+          notes_updated: notesUpdated,
+          error: null,
+        };
+      } else {
+        entitiesReport.notes_extracted = newExtractions.length;
+      }
+
+      console.log(JSON.stringify({
+        event: 'entity_extraction_complete',
+        notes_extracted: entitiesReport.notes_extracted,
+        dictionary_entries: entitiesReport.dictionary_entries,
+        notes_updated: entitiesReport.notes_updated,
+      }));
+    } catch (err) {
+      const errorMsg = String(err);
+      entitiesReport.error = errorMsg;
+      console.error(JSON.stringify({
+        event: 'entity_extraction_failed',
+        error: errorMsg,
+      }));
+    }
+  }
+
   const result: GardenerRunResult = {
     event: 'gardener_run_complete',
     similarity: {
@@ -136,6 +227,7 @@ async function runGardener(env: Env): Promise<GardenerRunResult> {
       errors,
     },
     clustering: clusteringReport,
+    entities: entitiesReport,
     duration_ms: Date.now() - startTime,
   };
 

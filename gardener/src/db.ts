@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
-import type { NoteForSimilarity, SimilarityLink } from './types';
+import type { NoteForSimilarity, SimilarityLink, NoteForEntityExtraction, DictionaryEntry, RawExtraction, ExtractedEntity } from './types';
 
 export function createSupabaseClient(config: Config): SupabaseClient {
   return createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -157,4 +157,239 @@ export async function logEnrichments(
       noteCount: noteIds.length,
     }));
   }
+}
+
+// ── Entity extraction DB functions ────────────────────────────────────────────
+
+// Fetch active notes that have NOT been entity-extracted yet.
+// Uses a left join on enrichment_log to find notes without 'entity_extraction' entries.
+// Limited by batchSize (0 = unlimited).
+export async function fetchNotesForEntityExtraction(
+  db: SupabaseClient,
+  batchSize: number,
+): Promise<NoteForEntityExtraction[]> {
+  // Fetch all active notes
+  let query = db
+    .from('notes')
+    .select('id, title, body, tags, created_at')
+    .is('archived_at', null)
+    .order('created_at', { ascending: true });
+
+  const { data: allNotes, error: notesErr } = await query;
+  if (notesErr) {
+    throw new Error(`Failed to fetch notes for entity extraction: ${notesErr.message}`);
+  }
+  if (!allNotes || allNotes.length === 0) return [];
+
+  // Fetch note IDs that already have entity_extraction in enrichment_log
+  const { data: extractedRows, error: logErr } = await db
+    .from('enrichment_log')
+    .select('note_id')
+    .eq('enrichment_type', 'entity_extraction');
+
+  if (logErr) {
+    throw new Error(`Failed to fetch enrichment_log: ${logErr.message}`);
+  }
+
+  const extractedIds = new Set(
+    (extractedRows as Array<{ note_id: string }> | null)?.map(r => r.note_id) ?? [],
+  );
+
+  // Filter to unprocessed notes
+  const unprocessed = (allNotes as Array<{
+    id: string;
+    title: string;
+    body: string;
+    tags: string[] | null;
+    created_at: string;
+  }>)
+    .filter(n => !extractedIds.has(n.id))
+    .map(n => ({
+      id: n.id,
+      title: n.title,
+      body: n.body,
+      tags: n.tags ?? [],
+      created_at: n.created_at,
+    }));
+
+  if (batchSize > 0) {
+    return unprocessed.slice(0, batchSize);
+  }
+  return unprocessed;
+}
+
+// Fetch all raw extractions from enrichment_log for active notes.
+// Returns the per-note entity lists stored in metadata during previous runs.
+export async function fetchAllRawExtractions(
+  db: SupabaseClient,
+): Promise<RawExtraction[]> {
+  // Get all entity_extraction enrichment entries
+  const { data: logRows, error: logErr } = await db
+    .from('enrichment_log')
+    .select('note_id, metadata')
+    .eq('enrichment_type', 'entity_extraction');
+
+  if (logErr) {
+    throw new Error(`Failed to fetch entity extraction log: ${logErr.message}`);
+  }
+  if (!logRows || logRows.length === 0) return [];
+
+  // Get active note IDs to filter out archived notes
+  const { data: activeRows, error: activeErr } = await db
+    .from('notes')
+    .select('id')
+    .is('archived_at', null);
+
+  if (activeErr) {
+    throw new Error(`Failed to fetch active notes: ${activeErr.message}`);
+  }
+
+  const activeIds = new Set(
+    (activeRows as Array<{ id: string }> | null)?.map(r => r.id) ?? [],
+  );
+
+  const extractions: RawExtraction[] = [];
+  for (const row of logRows as Array<{ note_id: string; metadata: unknown }>) {
+    if (!activeIds.has(row.note_id)) continue;
+    const metadata = row.metadata as { entities?: unknown } | null;
+    if (!metadata || !Array.isArray(metadata.entities)) continue;
+
+    const entities = (metadata.entities as unknown[]).filter(
+      (e): e is ExtractedEntity =>
+        typeof e === 'object' &&
+        e !== null &&
+        typeof (e as Record<string, unknown>)['name'] === 'string' &&
+        typeof (e as Record<string, unknown>)['type'] === 'string',
+    );
+
+    if (entities.length > 0) {
+      extractions.push({ noteId: row.note_id, entities });
+    }
+  }
+
+  return extractions;
+}
+
+// Fetch all active note created_at timestamps — needed for first_seen/last_seen.
+export async function fetchNoteCreatedAts(
+  db: SupabaseClient,
+): Promise<Map<string, string>> {
+  const { data, error } = await db
+    .from('notes')
+    .select('id, created_at')
+    .is('archived_at', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch note timestamps: ${error.message}`);
+  }
+
+  const map = new Map<string, string>();
+  for (const row of (data as Array<{ id: string; created_at: string }>) ?? []) {
+    map.set(row.id, row.created_at);
+  }
+  return map;
+}
+
+// Log entity extraction results in enrichment_log with raw entities in metadata.
+export async function logEntityExtractions(
+  db: SupabaseClient,
+  extractions: RawExtraction[],
+  modelUsed: string,
+): Promise<void> {
+  if (extractions.length === 0) return;
+
+  const rows = extractions.map(e => ({
+    note_id: e.noteId,
+    enrichment_type: 'entity_extraction',
+    model_used: modelUsed,
+    metadata: { entities: e.entities },
+  }));
+
+  const { error } = await db.from('enrichment_log').insert(rows);
+  if (error) {
+    throw new Error(`Failed to log entity extractions: ${error.message}`);
+  }
+}
+
+// Clean-slate delete + insert for the entity dictionary.
+export async function rebuildEntityDictionary(
+  db: SupabaseClient,
+  entries: DictionaryEntry[],
+): Promise<{ deleted: number; inserted: number }> {
+  // Delete all existing entries
+  const { data: deletedRows, error: delErr } = await db
+    .from('entity_dictionary')
+    .delete()
+    .gte('created_at', '1970-01-01')
+    .select('id');
+
+  if (delErr) {
+    throw new Error(`Failed to delete entity dictionary: ${delErr.message}`);
+  }
+  const deleted = (deletedRows as Array<{ id: string }> | null)?.length ?? 0;
+
+  if (entries.length === 0) return { deleted, inserted: 0 };
+
+  // Insert new entries
+  const rows = entries.map(e => ({
+    name: e.name,
+    type: e.type,
+    aliases: e.aliases,
+    note_count: e.note_count,
+    note_ids: e.note_ids,
+    first_seen: e.first_seen,
+    last_seen: e.last_seen,
+  }));
+
+  const { error: insErr } = await db.from('entity_dictionary').insert(rows);
+  if (insErr) {
+    throw new Error(`Failed to insert entity dictionary: ${insErr.message}`);
+  }
+
+  return { deleted, inserted: entries.length };
+}
+
+// Batch update notes.entities for multiple notes.
+export async function batchUpdateNoteEntities(
+  db: SupabaseClient,
+  updates: Map<string, ExtractedEntity[]>,
+): Promise<number> {
+  let updated = 0;
+  for (const [noteId, entities] of updates) {
+    const { error } = await db
+      .from('notes')
+      .update({ entities })
+      .eq('id', noteId);
+
+    if (error) {
+      console.error(JSON.stringify({
+        event: 'note_entities_update_error',
+        noteId,
+        error: error.message,
+      }));
+    } else {
+      updated++;
+    }
+  }
+  return updated;
+}
+
+// Fetch the current entity dictionary (for passing to extraction prompt).
+export async function fetchEntityDictionary(
+  db: SupabaseClient,
+): Promise<Array<{ name: string; type: string }>> {
+  const { data, error } = await db
+    .from('entity_dictionary')
+    .select('name, type')
+    .order('note_count', { ascending: false });
+
+  if (error) {
+    console.warn(JSON.stringify({
+      event: 'entity_dictionary_fetch_error',
+      error: error.message,
+    }));
+    return [];
+  }
+
+  return (data as Array<{ name: string; type: string }>) ?? [];
 }

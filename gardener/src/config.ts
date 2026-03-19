@@ -6,6 +6,14 @@ export interface Config {
   similarityThreshold: number;
   cosineFloor: number;
   clusterResolutions: number[];
+  // Entity extraction — null when OPENROUTER_API_KEY is not set (feature disabled)
+  entityConfig: EntityConfig | null;
+}
+
+export interface EntityConfig {
+  openrouterApiKey: string;
+  entityModel: string;
+  entityBatchSize: number;
 }
 
 export function loadConfig(env: Env): Config {
@@ -21,12 +29,22 @@ export function loadConfig(env: Env): Config {
     );
   }
 
+  // Entity extraction is optional — only enabled when OPENROUTER_API_KEY is set
+  const entityConfig = env.OPENROUTER_API_KEY
+    ? {
+        openrouterApiKey: env.OPENROUTER_API_KEY,
+        entityModel: env.GARDENER_ENTITY_MODEL?.trim() || 'anthropic/claude-haiku-4-5',
+        entityBatchSize: parseBatchSize(env.GARDENER_ENTITY_BATCH_SIZE),
+      }
+    : null;
+
   return {
     supabaseUrl: requireSecret(env.SUPABASE_URL, 'SUPABASE_URL'),
     supabaseServiceRoleKey,
     similarityThreshold,
     cosineFloor,
     clusterResolutions: parseResolutions(env.GARDENER_CLUSTER_RESOLUTIONS),
+    entityConfig,
   };
 }
 
@@ -77,4 +95,13 @@ function parseThreshold(value: string | undefined, defaultValue: number, varName
     throw new Error(`Invalid ${varName}: "${value}" — must be a float between 0 and 1`);
   }
   return parsed;
+}
+
+function parseBatchSize(value: string | undefined): number {
+  const raw = value?.trim() || '50';
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < 0) {
+    throw new Error(`Invalid GARDENER_ENTITY_BATCH_SIZE: "${value}" — must be a non-negative integer (0 = unlimited)`);
+  }
+  return n;
 }

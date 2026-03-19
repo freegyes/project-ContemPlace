@@ -149,4 +149,57 @@ describe('loadConfig', () => {
   it('throws when resolutions contain negative values', () => {
     expect(() => loadConfig(env({ GARDENER_CLUSTER_RESOLUTIONS: '-1.0' }))).toThrow('GARDENER_CLUSTER_RESOLUTIONS');
   });
+
+  // ── Entity extraction config ────────────────────────────────────────────────
+
+  it('returns null entityConfig when OPENROUTER_API_KEY is absent', () => {
+    const config = loadConfig(VALID_ENV);
+    expect(config.entityConfig).toBeNull();
+  });
+
+  it('returns entityConfig with defaults when OPENROUTER_API_KEY is set', () => {
+    const config = loadConfig(env({ OPENROUTER_API_KEY: 'or-test-key' }));
+    expect(config.entityConfig).not.toBeNull();
+    expect(config.entityConfig!.openrouterApiKey).toBe('or-test-key');
+    expect(config.entityConfig!.entityModel).toBe('anthropic/claude-haiku-4-5');
+    expect(config.entityConfig!.entityBatchSize).toBe(50);
+  });
+
+  it('uses custom entity model when GARDENER_ENTITY_MODEL is set', () => {
+    const config = loadConfig(env({
+      OPENROUTER_API_KEY: 'or-test-key',
+      GARDENER_ENTITY_MODEL: 'openai/gpt-4o-mini',
+    }));
+    expect(config.entityConfig!.entityModel).toBe('openai/gpt-4o-mini');
+  });
+
+  it('uses custom batch size when GARDENER_ENTITY_BATCH_SIZE is set', () => {
+    const config = loadConfig(env({
+      OPENROUTER_API_KEY: 'or-test-key',
+      GARDENER_ENTITY_BATCH_SIZE: '20',
+    }));
+    expect(config.entityConfig!.entityBatchSize).toBe(20);
+  });
+
+  it('accepts 0 as unlimited batch size', () => {
+    const config = loadConfig(env({
+      OPENROUTER_API_KEY: 'or-test-key',
+      GARDENER_ENTITY_BATCH_SIZE: '0',
+    }));
+    expect(config.entityConfig!.entityBatchSize).toBe(0);
+  });
+
+  it('throws when GARDENER_ENTITY_BATCH_SIZE is not a number', () => {
+    expect(() => loadConfig(env({
+      OPENROUTER_API_KEY: 'or-test-key',
+      GARDENER_ENTITY_BATCH_SIZE: 'bad',
+    }))).toThrow('GARDENER_ENTITY_BATCH_SIZE');
+  });
+
+  it('throws when GARDENER_ENTITY_BATCH_SIZE is negative', () => {
+    expect(() => loadConfig(env({
+      OPENROUTER_API_KEY: 'or-test-key',
+      GARDENER_ENTITY_BATCH_SIZE: '-1',
+    }))).toThrow('GARDENER_ENTITY_BATCH_SIZE');
+  });
 });

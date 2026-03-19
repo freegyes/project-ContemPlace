@@ -7,6 +7,9 @@ compatibility_flags = ["nodejs_compat"]
 GARDENER_SIMILARITY_THRESHOLD = "0.65"
 GARDENER_COSINE_FLOOR = "0.40"
 GARDENER_CLUSTER_RESOLUTIONS = "1.0,1.5,2.0"
+# Entity extraction — model and batch size (max notes to extract per run, 0 = unlimited)
+GARDENER_ENTITY_MODEL = "anthropic/claude-haiku-4-5"
+GARDENER_ENTITY_BATCH_SIZE = "50"
 
 [triggers]
 # 2am UTC = 3–4am CET/CEST. Chosen as a low-traffic window for a European-timezone user.
@@ -23,3 +26,4 @@ crons = ["0 2 * * *"]
 # TELEGRAM_BOT_TOKEN         (optional — enables failure alerts to Telegram)
 # TELEGRAM_ALERT_CHAT_ID     (optional — chat ID to receive failure alerts)
 # GARDENER_API_KEY           (optional — enables POST /trigger endpoint for manual runs)
+# OPENROUTER_API_KEY         (optional — enables entity extraction phase)

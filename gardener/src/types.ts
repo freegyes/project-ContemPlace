@@ -13,6 +13,10 @@ export interface Env {
   TELEGRAM_ALERT_CHAT_ID?: string;
   // Optional — enables POST /trigger endpoint for manual runs and smoke tests
   GARDENER_API_KEY?: string;
+  // Entity extraction — optional, enables the entity dictionary phase
+  OPENROUTER_API_KEY?: string;
+  GARDENER_ENTITY_MODEL?: string;
+  GARDENER_ENTITY_BATCH_SIZE?: string;
 }
 
 // ── Domain types ─────────────────────────────────────────────────────────────
@@ -31,4 +35,43 @@ export interface SimilarityLink {
   toId: string;
   confidence: number;
   context: string;
+}
+
+// ── Entity types ──────────────────────────────────────────────────────────────
+
+// Entity types — 4-type taxonomy. 'concept' was dropped because it overlapped
+// with tags and produced inconsistent classifications (#71, #113).
+export type EntityType = 'person' | 'place' | 'tool' | 'project';
+
+export const VALID_ENTITY_TYPES: readonly EntityType[] = ['person', 'place', 'tool', 'project'];
+
+export interface ExtractedEntity {
+  name: string;
+  type: EntityType;
+}
+
+// A note fetched for entity extraction — needs title + body for LLM context.
+export interface NoteForEntityExtraction {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  created_at: string;
+}
+
+// Raw per-note extraction result, stored in enrichment_log.metadata.
+export interface RawExtraction {
+  noteId: string;
+  entities: ExtractedEntity[];
+}
+
+// Resolved dictionary entry ready for DB insertion.
+export interface DictionaryEntry {
+  name: string;
+  type: EntityType;
+  aliases: string[];
+  note_count: number;
+  note_ids: string[];
+  first_seen: string;
+  last_seen: string;
 }
