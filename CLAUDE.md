@@ -87,6 +87,7 @@ scripts/
   deploy.sh          # Automated deploy pipeline (schema → typecheck → unit tests → MCP Worker → Telegram Worker → bot commands → Gardener Worker → smoke tests)
   cluster-experiment.ts  # Clustering experiment — weighted graph + Louvain against live corpus (read-only, run via `npx tsx`)
   threshold-analysis.ts  # Threshold analysis — pairwise distribution, gardener sweep, source stratification (read-only, run via `npx tsx`)
+  measure-tag-consistency.ts  # Tag consistency measurement — burst detection, within-burst reuse rate, synonym introductions, pre/post deployment comparison (read-only, run via `npx tsx`)
 supabase/
   config.toml
   migrations/        # Schema migrations (v3 base + v4 simplification + clusters + entity dictionary)
@@ -146,6 +147,7 @@ npx vitest run tests/gardener-integration.test.ts  # Full cycle
 # Analysis scripts (read-only, no writes)
 npx tsx scripts/cluster-experiment.ts
 npx tsx scripts/threshold-analysis.ts
+npx tsx scripts/measure-tag-consistency.ts
 ```
 
 For the full command reference including secret setup, webhook registration, and gardener triggering, see `docs/development.md` and `docs/setup.md`.
