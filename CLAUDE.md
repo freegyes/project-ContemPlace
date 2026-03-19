@@ -38,7 +38,7 @@ Telegram → Telegram Worker → verify signature → check chat ID whitelist �
                                    typing indicator
                                    → Service Binding RPC to MCP Worker (env.CAPTURE_SERVICE.capture)
                                    → MCP Worker runs pipeline.ts:
-                                       embed raw text + fetch capture voice (parallel)
+                                       embed raw text + fetch capture voice + fetch recent fragments (parallel)
                                        → find related notes → LLM → re-embed → DB insert → log
                                    → format HTML reply with emoji indicators
                                    → send Telegram reply
@@ -73,7 +73,7 @@ gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
   src/
-    index.ts         # scheduled() + fetch() exports — orchestrates similarity linking + clustering + entity extraction
+    index.ts         # scheduled() + fetch() exports — orchestrates similarity linking, clustering, and entity extraction
     clustering.ts    # Louvain community detection via Graphology (multi-resolution, gravity, tag labels)
     entities.ts      # Entity extraction prompt, response parsing, corpus-wide dedup/resolution
     ai.ts            # OpenRouter client for entity extraction (optional — only when OPENROUTER_API_KEY set)
@@ -88,6 +88,8 @@ scripts/
   cluster-experiment.ts  # Clustering experiment — weighted graph + Louvain against live corpus (read-only, run via `npx tsx`)
   threshold-analysis.ts  # Threshold analysis — pairwise distribution, gardener sweep, source stratification (read-only, run via `npx tsx`)
   measure-tag-consistency.ts  # Tag consistency measurement — burst detection, within-burst reuse rate, synonym introductions, pre/post deployment comparison (read-only, run via `npx tsx`)
+  tag-quality-analysis.ts  # Tag quality analysis — tag frequency, reuse patterns, singleton rate (read-only, run via `npx tsx`)
+  retag-corpus.ts  # One-time corpus re-tag — re-runs capture LLM on all notes chronologically, updates tags + embeddings (dry-run default, `--write` to commit, run via `npx tsx`)
 supabase/
   config.toml
   migrations/        # Schema migrations (v3 base + v4 simplification + clusters + entity dictionary)
@@ -130,7 +132,8 @@ bash scripts/deploy.sh              # full deploy
 bash scripts/deploy.sh --skip-smoke # skip smoke tests
 
 # Typecheck
-npx tsc --noEmit                           # Telegram + MCP Workers
+npx tsc --noEmit                           # Telegram Worker
+npx tsc --noEmit -p mcp/tsconfig.json      # MCP Worker
 npx tsc --noEmit -p gardener/tsconfig.json # Gardener Worker
 
 # Unit tests (local, no network)
@@ -148,6 +151,7 @@ npx vitest run tests/gardener-integration.test.ts  # Full cycle
 npx tsx scripts/cluster-experiment.ts
 npx tsx scripts/threshold-analysis.ts
 npx tsx scripts/measure-tag-consistency.ts
+npx tsx scripts/retag-corpus.ts              # dry-run; add --write to commit
 ```
 
 For the full command reference including secret setup, webhook registration, and gardener triggering, see `docs/development.md` and `docs/setup.md`.

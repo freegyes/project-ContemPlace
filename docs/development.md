@@ -26,6 +26,7 @@ npx vitest run tests/mcp-dispatch.test.ts        # JSON-RPC dispatch
 npx vitest run tests/mcp-oauth.test.ts           # Consent page + AuthHandler
 npx vitest run tests/mcp-index.test.ts           # OAuthProvider + resolveExternalToken
 npx vitest run tests/gardener-clustering.test.ts # Louvain clustering (graph build, gravity, labels)
+npx vitest run tests/gardener-entities.test.ts  # Entity extraction + dictionary resolution
 ```
 
 ### Smoke tests (live workers, requires `.dev.vars`)
@@ -109,15 +110,17 @@ mcp/              MCP Worker (JSON-RPC 2.0 over HTTP)
     capture.ts    System frame, LLM call, response parser (parseCaptureResponse)
     types.ts      MCP-specific TypeScript interfaces + ServiceCaptureResult
   wrangler.toml
-gardener/         Gardener Worker (nightly similarity linking + cluster detection)
+gardener/         Gardener Worker (nightly similarity linking + cluster detection + entity extraction)
   src/
-    index.ts      Cron-triggered entry point — orchestrates similarity linking + clustering
+    index.ts      Cron-triggered entry point — orchestrates similarity linking, clustering, and entity extraction
     clustering.ts Louvain community detection via Graphology (multi-resolution, gravity, tag labels)
+    entities.ts   Entity extraction prompt, response parsing, corpus-wide dedup/resolution
+    ai.ts         OpenRouter client for entity extraction (optional — only when OPENROUTER_API_KEY set)
     similarity.ts Link context builder (shared tags)
-    db.ts         Supabase operations (similarity linking + cluster storage)
+    db.ts         Supabase operations (similarity linking + cluster storage + entity dictionary)
     alert.ts      Best-effort Telegram failure notification
     auth.ts       Bearer token auth for /trigger endpoint
-    config.ts     Config loading with threshold + clustering config validation
+    config.ts     Config loading with threshold + clustering + entity config validation
     types.ts      TypeScript interfaces
   wrangler.toml
 .claude/
@@ -133,6 +136,8 @@ scripts/
   cluster-experiment.ts     Clustering experiment — weighted graph + Louvain against live corpus (read-only)
   threshold-analysis.ts     Threshold analysis — pairwise distribution, gardener sweep, source stratification (read-only)
   measure-tag-consistency.ts  Tag consistency measurement — burst detection, reuse rate, synonym introductions, pre/post comparison (read-only)
+  tag-quality-analysis.ts   Tag quality analysis — tag frequency, reuse patterns, singleton rate (read-only)
+  retag-corpus.ts           One-time corpus re-tag — re-runs capture LLM chronologically, updates tags + embeddings (dry-run default, --write to commit)
 supabase/
   migrations/     Schema migrations (v4 is current)
 tests/
@@ -150,6 +155,7 @@ tests/
   gardener-similarity.test.ts  buildContext + UUID dedup
   gardener-config.test.ts      Gardener config loading (thresholds, cosineFloor, resolutions)
   gardener-clustering.test.ts  Louvain clustering (graph build, gravity, labels, singletons)
+  gardener-entities.test.ts    Entity extraction + dictionary resolution
   gardener-alert.test.ts       Telegram failure alerting
   gardener-trigger.test.ts     /trigger endpoint auth + routing
   gardener-integration.test.ts capture → gardener → get_related

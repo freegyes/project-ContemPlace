@@ -33,6 +33,8 @@ This doesn't need to be heavy. For a clear bug fix, it's one line: "The problem 
 
 **Post findings to the issue.** After completing the hypothesis check, post a summary comment on the GitHub issue with the validated problem statement and any reframing. This creates a written trail — useful for the user, for future sessions, and for anyone reading the issue later.
 
+**Privacy:** Issue comments on public repos must contain only aggregate metrics, structural observations, and technical analysis. Never include specific note titles, note bodies, raw_input content, tag names that reveal personal topics, or cluster labels derived from private data. When in doubt, omit.
+
 ### Phase 2.5: State the hypothesis
 
 Before proceeding to specialist review or implementation, explicitly state:
@@ -44,6 +46,8 @@ Before proceeding to specialist review or implementation, explicitly state:
 This doesn't need to be heavy — for a clear bug fix, the hypothesis is "this fixes the bug" and verification is "the bug no longer reproduces." For features or design changes, the hypothesis prevents building infrastructure that can't be evaluated.
 
 **If verification requires real-world data**, create a GitHub issue (label: `test`) that defines the baseline measurement and the post-deployment comparison. The implementation can proceed while measurement runs independently — but the issue must exist so the hypothesis isn't forgotten.
+
+**If verification invalidates the hypothesis:** Do not rationalize. Report the data, state that the mechanism is not understood, and propose investigation steps. Do not write explanations to `docs/decisions.md` until the mechanism is validated through further investigation. An invalidated hypothesis is a signal that the mental model is wrong — that's valuable information, but the correct response is "we don't know why yet," not a plausible story.
 
 ### Phase 3: Specialist review
 
@@ -68,7 +72,7 @@ Scale the review to the size of the change:
 
 All agents receive: the **validated problem statement from Phase 2** (not just the raw issue body), relevant source code, and the project's hard constraints from CLAUDE.md. All return structured findings. All are told to do research only — no code writing.
 
-**Post findings to the issue.** After synthesizing the specialist review, post a summary comment on the GitHub issue with key findings, confirmed decisions, and identified risks. This creates a written trail for the user and for any future session that picks up this issue.
+**Post findings to the issue.** After synthesizing the specialist review, post a summary comment on the GitHub issue with key findings, confirmed decisions, and identified risks. This creates a written trail for the user and for any future session that picks up this issue. Apply the same privacy constraint as Phase 2 — aggregate metrics and structural observations only, no private content.
 
 ### Phase 3.5: Persist research findings
 
@@ -119,7 +123,9 @@ Verification means proving the feature works, not just proving the code compiles
 2. **Merge** (if tests pass and user approves)
 3. **Clean up** — delete the feature branch
 
-### Phase 8: Documentation sweep (automatic, do not ask)
+### Phase 8: Documentation sweep (automatic, do not ask — unless orchestrated)
+
+When running as a dispatched agent in an orchestrated session (via `/orchestrate`), do NOT write to `docs/decisions.md` or close issues. Instead, report what you would write/close back to the orchestrator for user review. The user cannot see your workspace output in real-time and must approve what gets documented.
 
 After merging, do the full housekeeping sweep:
 1. **Start with decisions.** Ask: "What did we decide during this work?" Specialist reviews, implementation trade-offs, and user feedback all produce decisions. The design ADR does not cover implementation decisions — those are separate entries in `docs/decisions.md`.

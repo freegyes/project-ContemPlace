@@ -258,17 +258,13 @@ Authentication: the workflow uses a `SUPABASE_DB_URL` secret (session mode poole
 
 ## Future direction
 
-### Fragment-first capture and synthesis layer
+### Synthesis layer
 
-The system captures idea fragments — whatever the user sends, in their own voice. Focused fragments produce the best immediate structuring, but all fragments are valuable raw material. The capture pipeline structures each fragment (title, body, tags, links) and preserves the user's exact words. See `docs/decisions.md` for the fragment-first ADR (2026-03-14).
+Cluster detection is live — the gardener computes Louvain clusters nightly and the `list_clusters` MCP tool exposes them. Whether narrative MOC-like synthesis (auto-generated summaries from cluster contents) is needed on top of cluster exploration is an open question (#120). Real usage will determine if browsing clusters satisfies the undirected exploration use case or if a synthesis layer adds value.
 
-The planned synthesis layer (#116) will build higher-order structures from accumulated fragments: cluster detection, MOC-like synthesis notes, computed maturity from density and link patterns. This is a design-phase concept — the mechanism, schema implications, and gardener integration are open questions tracked in #116.
+### URL handling
 
-### URL handling and input awareness
-
-Two capture-time enhancements remain in scope (issue #27, narrowed):
-1. **URL detection** — when a URL is present, the pipeline should handle it differently (fetch content, cross-reference existing notes, build a reference note with real context).
-2. **Multi-fragment detection** — surface quality signals when input contains multiple ideas. The fragment is always captured; how and whether to communicate this to the user needs design work (#116).
+URL detection at capture time — fetching content, cross-referencing existing notes, building reference notes with real context — remains a natural extension but has no open issue. It will surface through real-world usage when the need is concrete.
 
 ## Security boundaries
 

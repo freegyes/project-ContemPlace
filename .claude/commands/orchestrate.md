@@ -141,7 +141,13 @@ cmux capture-pane --workspace workspace:<n> --scrollback --lines 80
 
 Look for:
 
-- **Permission prompts** — agents stuck waiting for approval. For standard permission prompts where the default (Yes) is appropriate (e.g., `gh` CLI commands, file operations in the worktree, tool execution confirmations), **approve them yourself** by pressing Enter via `cmux send-key`. You CANNOT navigate multi-option menus (arrow keys don't work in cmux). If the agent needs a non-default choice, or if the permission is for something destructive or unusual, tell the user to approve it directly.
+- **Permission prompts** — agents stuck waiting for approval. Distinguish between routine permissions and decision points:
+
+  **Approve yourself** (routine): file read/write/edit confirmations, `gh` CLI execution, `npm` commands, tool execution within the worktree. These are operational — they don't change what gets decided or published.
+
+  **Surface to the user** (decision points): plan approvals, merge requests, issue closures, any prompt asking "should I proceed?", any content about to be posted to a public GitHub issue or PR. These change the project's public state or lock in decisions. Present what the agent wants to do and wait for the user's call.
+
+  You CANNOT navigate multi-option menus (arrow keys don't work in cmux). For those, tell the user to approve directly.
 - **Errors** — failed commands, stuck loops
 - **Completion** — the agent has finished and is waiting for input
 - **Progress** — what step the agent is on
@@ -165,6 +171,8 @@ When a workspace finishes (before cleanup), verify the work meets quality standa
 | **Issue hygiene** | Were findings posted to the issue during work (not just at the end)? Were related issues commented on or closed if resolved? |
 | **Privacy** | For any public-facing artifacts (issue comments, PR bodies), was private note content kept out? |
 | **Clean state** | Is the branch committed, pushed, and PR'd? Any uncommitted changes? |
+
+**Privacy enforcement is active, not passive.** Do not wait until completion to check — when monitoring shows an agent is about to post to GitHub (composing an issue comment, creating a PR), capture the pane and scan for private content before it goes out. Instructing agents "don't post private content" is unreliable. The orchestrator is the last line of defense. If in doubt, strip to aggregate metrics only (counts, percentages, structural stats). Never let specific tags, note titles, cluster topic names, or note body content reach public GitHub.
 
 **Scaling this check:** For simple tasks (one-line fixes, config changes), a quick glance is enough. For implementation tasks dispatched via `/work-on-issue`, check all five. For analysis tasks, focus on documentation and issue hygiene.
 
@@ -200,6 +208,8 @@ git branch -d <branch-name>                             # delete local branch
 - Write code yourself — delegate to worker agents
 - Force-push, delete remote branches, or take destructive actions without explicit user confirmation
 - Approve non-default permission choices in other workspaces — for those, tell the user to approve directly
+- Merge PRs, close issues, or approve agent plans without explicit user confirmation
+- Allow agents to write to `docs/decisions.md` or post to public GitHub without reviewing the content first
 
 ## Session start
 

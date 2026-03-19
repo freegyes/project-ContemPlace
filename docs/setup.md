@@ -186,6 +186,8 @@ Two paths, both permanent:
 | `MATCH_THRESHOLD` | Capture-time related-note lookup threshold (raw query vs. augmented store) |
 | `MCP_SEARCH_THRESHOLD` | Default threshold for `search_notes` (bare NL query vs. augmented store) |
 | `HARD_DELETE_WINDOW_MINUTES` | Grace window for `remove_note` — notes younger than this are permanently deleted, older notes are soft-archived |
+| `RECENT_FRAGMENTS_COUNT` | Max recent fragments shown to capture LLM as temporal context (default 5, 0 to disable) |
+| `RECENT_FRAGMENTS_WINDOW_MINUTES` | Time window for recent fragments — captures older than this are excluded (default 60, 0 to disable) |
 
 Deployed values in `mcp/wrangler.toml` `[vars]`. Code defaults in `mcp/src/config.ts`. The toml values take precedence.
 

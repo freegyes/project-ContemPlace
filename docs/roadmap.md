@@ -190,7 +190,7 @@ Delivered:
 - **Orchestrator refactoring** — single `find_similar_pairs` call at `GARDENER_COSINE_FLOOR` (0.40), filtered >= `GARDENER_SIMILARITY_THRESHOLD` (0.65) for linker, full set to clustering
 - **Error isolation** — clustering failure logged but never kills the gardener run
 - **Gravity** — `size × avg(1 / (1 + age_days))` — recency-weighted, biases toward active clusters
-- **Labels** — top-3 most frequent tags, no LLM calls (gardener stays LLM-free)
+- **Labels** — top-3 most frequent tags, no LLM calls (labels stay LLM-free; entity extraction added later via #125)
 
 Live results (186 notes): 9 clusters at res 1.0 (modularity 0.60), 11 at 1.5, 12 at 2.0. Coherent labels: pen-plotting/printmaking/generative-art, laser-cutting/instrument-design, audio-plugin/plugdata/sound-soup, note-taking/knowledge-capture, contemplace/mcp/knowledge-management.
 
@@ -224,12 +224,14 @@ A local experiment script (`scripts/cluster-experiment.ts`) ran weighted graph c
 1. ~~**#152** — Experiment~~ **Done.**
 2. ~~**#156** — Gardener clustering pipeline~~ **Done.** (PR #164)
 3. ~~**#157** — `list_clusters` MCP tool~~ **Done.** (PR #172)
-4. **#149** — Threshold assessment
+4. ~~**#149** — Threshold assessment~~ **Done.** (PR #162) — Empirically validated 2026-03-18.
 5. ~~**#151** — Capture-time tag quality and consistency~~ **Done.** (PR #192) — SYSTEM_FRAME anchors tags to related notes' vocabulary, singular form rule, anti-compound guidance. Deployed and live-verified.
-6. **#123** — Recent fragments as capture context — **Done.** (PR #191) — Hybrid time-bounded fetch (60min window, configurable), temporal context labeled distinctly from semantic matches in SYSTEM_FRAME.
-7. **#147** — Gardener-time tag normalization — **next priority**
-8. **#125** — Entity dictionary — **Gardener extraction phase shipped** (PR #193). Dictionary table + incremental LLM extraction + per-note population live. Capture-time correction context and entity search MCP tool are follow-up PRs (#195-#198).
-9. **#199** — One-time corpus re-tag — deferred until #123 rework verifies tag consistency improvement
+6. ~~**#123** — Recent fragments as capture context~~ **Done.** (PR #191) — Hybrid time-bounded fetch (60min window, configurable), temporal context labeled distinctly from semantic matches in SYSTEM_FRAME.
+7. ~~**#147** — Gardener-time tag normalization~~ **Closed.** Investigation found only 6 genuine synonym pairs in 555 tags. Prompt fix (#192) + re-tag (#199) was sufficient.
+8. ~~**#125** — Entity dictionary~~ **Done.** (PR #193). Dictionary table + incremental LLM extraction + per-note population live.
+9. ~~**#199** — One-time corpus re-tag~~ **Done.** (PR #202) — 180/188 notes retagged. Singletons 79%→73.4%, linked pairs sharing tags ~0%→50.2%.
+
+**Status (2026-03-19):** Enrichment work paused. The system captures, searches, links, and clusters. Further enrichment work (tag Jaccard, entity signals, threshold tuning) deferred until real usage reveals what's actually missing.
 
 **Related:** #120 (synthesis — may be unnecessary if cluster exploration suffices), #101 (visual dashboard — cluster data is primary input)
 

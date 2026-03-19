@@ -185,7 +185,7 @@ Returns: `note_a`, `note_b`, `similarity`. Orders pairs with `note_a < note_b` t
 
 ## Row Level Security
 
-All 6 tables have RLS enabled with a single `deny all` policy. This means:
+All 7 tables have RLS enabled with a single `deny all` policy. This means:
 
 - The **anon key** has zero access to any table
 - The **service role key** bypasses RLS entirely (by design)

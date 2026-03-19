@@ -2,7 +2,7 @@
 
 *Architecture Decision Records — timestamped and immutable. When a decision changes, a new entry is added; old entries are never edited. This is the historical record of why things are the way they are.*
 
-Many decisions were refined through specialist reviews during the project bootstrap (see `reviews/` directory).
+Many early decisions were refined through specialist reviews during the project bootstrap (reviews since archived).
 
 ## Cloud-only, no Docker
 
