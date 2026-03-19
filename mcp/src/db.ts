@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
-import type { CaptureLink, CaptureResult, MatchedNote, NoteRow, RecentFragment, LinkWithTitle, ClusterRow, ClusterNote } from './types';
+import type { CaptureLink, CaptureResult, MatchedNote, NoteRow, RecentFragment, LinkWithTitle, ClusterRow, ClusterNote, HubNote } from './types';
 
 export type SupabaseClientType = SupabaseClient;
 
@@ -308,6 +308,7 @@ export interface ClusterWithNotes {
   note_count: number;
   gravity: number;
   notes: ClusterNote[];
+  hub_notes: HubNote[];
 }
 
 // Return distinct resolution values present in the clusters table.
@@ -343,12 +344,16 @@ export async function fetchClusters(
   // Collect all note IDs across all clusters
   const allNoteIds = [...new Set(rows.flatMap(r => r.note_ids))];
 
-  // Batch-fetch titles (respecting archived_at IS NULL)
-  const { data: noteRows } = await db
-    .from('notes')
-    .select('id, title')
-    .in('id', allNoteIds)
-    .is('archived_at', null);
+  // Batch-fetch titles and links in parallel
+  const [{ data: noteRows }, { data: linkRows }] = await Promise.all([
+    db.from('notes')
+      .select('id, title')
+      .in('id', allNoteIds)
+      .is('archived_at', null),
+    db.from('links')
+      .select('from_id, to_id')
+      .or(`from_id.in.(${allNoteIds.join(',')}),to_id.in.(${allNoteIds.join(',')})`),
+  ]);
 
   const titleMap = new Map<string, string>();
   if (noteRows) {
@@ -357,11 +362,37 @@ export async function fetchClusters(
     }
   }
 
-  // Map titles back to clusters, filter out archived notes
+  // Keep raw link pairs for per-cluster hub note computation
+  const activeLinkPairs: Array<{ from_id: string; to_id: string }> = [];
+  const activeIds = new Set(titleMap.keys());
+  if (linkRows) {
+    for (const link of linkRows as Array<{ from_id: string; to_id: string }>) {
+      if (activeIds.has(link.from_id) && activeIds.has(link.to_id)) {
+        activeLinkPairs.push(link);
+      }
+    }
+  }
+
+  // Map titles back to clusters, filter out archived notes, compute hub notes
   const clusters: ClusterWithNotes[] = rows.map(row => {
     const activeNotes: ClusterNote[] = row.note_ids
       .filter(id => titleMap.has(id))
       .map(id => ({ id, title: titleMap.get(id)! }));
+
+    // Hub notes: top 2 by intra-cluster link count
+    const clusterIds = new Set(activeNotes.map(n => n.id));
+    const clusterLinkCounts = new Map<string, number>();
+    for (const link of activeLinkPairs) {
+      if (clusterIds.has(link.from_id) && clusterIds.has(link.to_id)) {
+        clusterLinkCounts.set(link.from_id, (clusterLinkCounts.get(link.from_id) ?? 0) + 1);
+        clusterLinkCounts.set(link.to_id, (clusterLinkCounts.get(link.to_id) ?? 0) + 1);
+      }
+    }
+    const hubNotes: HubNote[] = activeNotes
+      .map(n => ({ id: n.id, title: n.title, link_count: clusterLinkCounts.get(n.id) ?? 0 }))
+      .filter(n => n.link_count > 0)
+      .sort((a, b) => b.link_count - a.link_count)
+      .slice(0, 2);
 
     return {
       label: row.label,
@@ -369,6 +400,7 @@ export async function fetchClusters(
       note_count: activeNotes.length,
       gravity: row.gravity,
       notes: activeNotes,
+      hub_notes: hubNotes,
     };
   });
 

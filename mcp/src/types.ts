@@ -101,6 +101,12 @@ export interface ClusterNote {
   title: string;
 }
 
+export interface HubNote {
+  id: string;
+  title: string;
+  link_count: number;
+}
+
 export interface ClusterRow {
   label: string;
   top_tags: string[];
