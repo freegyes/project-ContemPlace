@@ -34,7 +34,7 @@ Delivered:
 
 ## Phase 2a — MCP server (complete)
 
-Exposes the note database to AI agents via the Model Context Protocol. The primary client is Claude Code (CLI). Deployed as a separate Cloudflare Worker at `mcp-contemplace.adamfreisinger.workers.dev`.
+Exposes the note database to AI agents via the Model Context Protocol. The primary client is Claude Code (CLI). Deployed as a separate Cloudflare Worker (`mcp-contemplace`).
 
 Originally 8 tools, simplified to 5 in v4.0.0 (removed `search_chunks`, `list_unmatched_tags`, `promote_concept`):
 - **`search_notes`** — semantic search via `match_notes()` with optional tag filters
