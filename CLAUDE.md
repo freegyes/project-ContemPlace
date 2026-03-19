@@ -73,10 +73,12 @@ gardener/
   wrangler.toml      # Gardener Worker config (name: contemplace-gardener, cron: 0 2 * * *)
   tsconfig.json
   src/
-    index.ts         # scheduled() + fetch() exports — orchestrates similarity linking + clustering
+    index.ts         # scheduled() + fetch() exports — orchestrates similarity linking + clustering + entity extraction
     clustering.ts    # Louvain community detection via Graphology (multi-resolution, gravity, tag labels)
-    config.ts        # Config loading (thresholds, cosineFloor, clusterResolutions)
-    db.ts            # Similarity + cluster DB ops
+    entities.ts      # Entity extraction prompt, response parsing, corpus-wide dedup/resolution
+    ai.ts            # OpenRouter client for entity extraction (optional — only when OPENROUTER_API_KEY set)
+    config.ts        # Config loading (thresholds, cosineFloor, clusterResolutions, entityConfig)
+    db.ts            # Similarity + cluster + entity dictionary DB ops
     similarity.ts    # buildContext() — auto-generates link context from shared tags
     alert.ts         # sendAlert() — best-effort Telegram failure notification
     auth.ts          # validateTriggerAuth() — Bearer token auth for /trigger endpoint
@@ -87,7 +89,7 @@ scripts/
   threshold-analysis.ts  # Threshold analysis — pairwise distribution, gardener sweep, source stratification (read-only, run via `npx tsx`)
 supabase/
   config.toml
-  migrations/        # Schema migrations (v3 base + v4 simplification + clusters)
+  migrations/        # Schema migrations (v3 base + v4 simplification + clusters + entity dictionary)
 tests/               # See docs/development.md for the full test file breakdown
 .claude/
   settings.json         # Project-level permissions (Edit/Write/Bash on working directories — inherited by worktrees)
@@ -115,7 +117,7 @@ Deployed secrets via `wrangler secret put`. Local dev and tests via `.dev.vars` 
 Three Workers, each with their own secrets scope:
 - **Telegram Worker** — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ALLOWED_CHAT_IDS`
 - **MCP Worker** (set via `-c mcp/wrangler.toml`) — `MCP_API_KEY`, `CONSENT_SECRET`, plus `OPENROUTER_API_KEY`, `SUPABASE_*` keys. Configurable thresholds in `mcp/wrangler.toml [vars]`.
-- **Gardener Worker** (set via `-c gardener/wrangler.toml`) — `SUPABASE_*` keys, optional `TELEGRAM_BOT_TOKEN`, `GARDENER_API_KEY`. Configurable thresholds in `gardener/wrangler.toml [vars]`.
+- **Gardener Worker** (set via `-c gardener/wrangler.toml`) — `SUPABASE_*` keys, optional `TELEGRAM_BOT_TOKEN`, `GARDENER_API_KEY`, `OPENROUTER_API_KEY` (enables entity extraction). Configurable thresholds in `gardener/wrangler.toml [vars]`.
 
 Threshold values and their comparison bases are documented inline in the respective `wrangler.toml` files and `config.ts` modules. Do not hardcode values in docs — always read from config.
 
@@ -133,7 +135,7 @@ npx tsc --noEmit -p gardener/tsconfig.json # Gardener Worker
 # Unit tests (local, no network)
 npx vitest run tests/parser.test.ts tests/undo.test.ts                    # Telegram Worker
 npx vitest run tests/mcp-{auth,config,embed,tools,dispatch,index,oauth}.test.ts  # MCP Worker
-npx vitest run tests/gardener-{similarity,config,clustering,alert,trigger}.test.ts  # Gardener
+npx vitest run tests/gardener-{similarity,config,clustering,alert,trigger,entities}.test.ts  # Gardener
 
 # Live tests (require deployed Workers + secrets in .dev.vars)
 npx vitest run tests/smoke.test.ts              # Telegram Worker
@@ -184,7 +186,7 @@ The LLM returns this JSON and nothing else:
 
 ## Schema (v4)
 
-6 tables: `notes`, `links`, `clusters`, `enrichment_log`, `capture_profiles`, `processed_updates`.
+7 tables: `notes`, `links`, `clusters`, `enrichment_log`, `capture_profiles`, `processed_updates`, `entity_dictionary`.
 RPC functions: `match_notes` (hybrid vector + full-text), `find_similar_pairs` (self-join cosine similarity).
 Full schema reference: `docs/schema.md`.
 

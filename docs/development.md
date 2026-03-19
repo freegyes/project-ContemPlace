@@ -16,7 +16,7 @@ npx vitest run tests/parser.test.ts tests/undo.test.ts \
   tests/mcp-index.test.ts tests/mcp-oauth.test.ts \
   tests/gardener-similarity.test.ts tests/gardener-config.test.ts \
   tests/gardener-alert.test.ts tests/gardener-trigger.test.ts \
-  tests/gardener-clustering.test.ts
+  tests/gardener-clustering.test.ts tests/gardener-entities.test.ts
 
 # Or individually:
 npx vitest run tests/parser.test.ts              # Capture response parsing

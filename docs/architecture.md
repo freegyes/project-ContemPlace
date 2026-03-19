@@ -139,7 +139,7 @@ A technical nuance: the comparison basis also differs. Capture-time matching com
 
 ### Operation
 
-The Gardener Worker runs two phases — similarity linking and cluster detection — with error isolation and best-effort alerting:
+The Gardener Worker runs three phases — similarity linking, cluster detection, and entity extraction — with error isolation and best-effort alerting:
 
 ```
  Cron trigger (02:00 UTC) or POST /trigger
@@ -169,6 +169,18 @@ The Gardener Worker runs two phases — similarity linking and cluster detection
                    │   insert      │
                    └───────────────┘
        │
+       ▼
+ ┌───────────────────────────────────┐
+ │ 4. Entity extraction (try/catch) │
+ │ • Incremental: new notes only    │
+ │ • LLM extraction via Haiku       │
+ │ • Corpus-wide dedup/resolution   │
+ │ • Clean-slate dictionary rebuild │
+ │ • Per-note entities update       │
+ │ (only when OPENROUTER_API_KEY    │
+ │  is set — skipped otherwise)     │
+ └───────────────────────────────────┘
+       │
        ▼  on any error
  ┌─────────────────────────────────┐
  │  Best-effort Telegram alert     │
@@ -176,11 +188,11 @@ The Gardener Worker runs two phases — similarity linking and cluster detection
  └─────────────────────────────────┘
 ```
 
-The orchestrator fetches pairs once at `GARDENER_COSINE_FLOOR` (0.40) and shares them between phases. Pairs >= `GARDENER_SIMILARITY_THRESHOLD` (0.65) go to the linker; all pairs go to clustering. Clustering failure is isolated via try/catch — it never kills the gardener run or affects similarity links.
+The orchestrator fetches pairs once at `GARDENER_COSINE_FLOOR` (0.40) and shares them between the similarity and clustering phases. Pairs >= `GARDENER_SIMILARITY_THRESHOLD` (0.65) go to the linker; all pairs go to clustering. Each phase is error-isolated via try/catch — a failure in clustering or entity extraction never kills the gardener run or affects earlier phases.
 
 Cluster detection uses Louvain community detection via Graphology (pure JS, runs in CF Workers V8). Multi-resolution: runs at each value in `GARDENER_CLUSTER_RESOLUTIONS` (default 1.0, 1.5, 2.0). Higher resolution = more granular clusters. Results stored in the `clusters` table with gravity (recency-weighted size) and top-3 tag labels.
 
-Subrequest budget is minimal and well within CF Workers' 50 free-tier limit, thanks to the `find_similar_pairs` batch RPC function.
+Entity extraction uses Haiku via OpenRouter to extract proper nouns from note title + body + tags, then resolves them corpus-wide into a canonical `entity_dictionary` table. Extraction is incremental (only new notes, tracked via `enrichment_log`), limited by `GARDENER_ENTITY_BATCH_SIZE` (default 15) to stay within the CF Workers 50-subrequest limit. The entity phase is optional — it only runs when `OPENROUTER_API_KEY` is set on the gardener.
 
 ## Two-pass embedding
 

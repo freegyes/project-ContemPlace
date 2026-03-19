@@ -227,7 +227,7 @@ A local experiment script (`scripts/cluster-experiment.ts`) ran weighted graph c
 4. **#149** — Threshold assessment
 5. **#151** — Capture-time tag quality and consistency — **highest-value clustering upgrade** (bridges backup-type gaps)
 6. **#147** — Gardener-time tag normalization
-7. **#125** — Entity dictionary (fourth clustering signal)
+7. **#125** — Entity dictionary — **Gardener extraction phase shipped** (PR #193). Dictionary table + incremental LLM extraction + per-note population live. Capture-time correction context and entity search MCP tool are follow-up PRs.
 
 **Related:** #120 (synthesis — may be unnecessary if cluster exploration suffices), #101 (visual dashboard — cluster data is primary input)
 
