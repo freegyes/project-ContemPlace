@@ -33,6 +33,16 @@ Postgres you can always query and export. The whole stack runs on free tiers. LL
 <em>Telegram capture: voice input from your phone → structured fragment with title, tags, corrections, and links to existing notes.</em>
 </div>
 
+## Visual dashboard
+
+A dark-themed web dashboard lets you see what agents can only describe. Three panels, no framework, loads instantly:
+
+- **Stats bar** — total notes, links, clusters, capture rate, and five health indicators (gardener freshness, orphan ratio, cluster coverage, link density, backup recency) with green/amber/red dots
+- **Cluster grid** — thematic clusters ordered by gravitational weight, with a resolution slider to zoom between coarse and fine-grained views. Click any cluster to expand a force-directed graph showing how its notes connect — hub notes highlighted, capture-time links solid, gardener links dashed
+- **Recent captures** — the last 15 fragments with source badges, tags, and image thumbnails for visual notes
+
+The dashboard is the only place you can see image-bearing notes — MCP clients can't render images inline, but the dashboard loads them directly from R2. Hosted on Cloudflare Pages, authenticated with a single API key per device.
+
 ## MCP tools
 
 The MCP server is the primary interface, usable by any MCP-capable agent:
