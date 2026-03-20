@@ -73,21 +73,25 @@ export async function insertNote(
   embedding: number[],
   rawInput: string,
   source: string,
+  imageUrl?: string,
 ): Promise<string> {
+  const row: Record<string, unknown> = {
+    title: capture.title,
+    body: capture.body,
+    raw_input: rawInput,
+    tags: capture.tags,
+    source_ref: capture.source_ref,
+    source,
+    corrections: capture.corrections,
+    entities: [],
+    embedding,
+    embedded_at: new Date().toISOString(),
+  };
+  if (imageUrl) row['image_url'] = imageUrl;
+
   const { data, error } = await db
     .from('notes')
-    .insert({
-      title: capture.title,
-      body: capture.body,
-      raw_input: rawInput,
-      tags: capture.tags,
-      source_ref: capture.source_ref,
-      source,
-      corrections: capture.corrections,
-      entities: [],
-      embedding,
-      embedded_at: new Date().toISOString(),
-    })
+    .insert(row)
     .select('id')
     .single();
 
@@ -154,7 +158,7 @@ export async function fetchNote(
 ): Promise<NoteRow | null> {
   const { data, error } = await db
     .from('notes')
-    .select('id, title, body, raw_input, tags, entities, corrections, source, source_ref, created_at')
+    .select('id, title, body, raw_input, tags, entities, corrections, source, source_ref, image_url, created_at')
     .eq('id', id)
     .is('archived_at', null)
     .single();
@@ -264,7 +268,7 @@ export async function listRecentNotes(
 ): Promise<NoteRow[]> {
   const { data, error } = await db
     .from('notes')
-    .select('id, title, body, tags, source, source_ref, created_at')
+    .select('id, title, body, tags, source, source_ref, image_url, created_at')
     .is('archived_at', null)
     .order('created_at', { ascending: false })
     .limit(limit);

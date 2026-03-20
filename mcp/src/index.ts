@@ -167,11 +167,11 @@ const oauthProvider = new OAuthProvider<Env>({
 // The Telegram Worker binds to this via [[services]] in wrangler.toml.
 
 export class CaptureService extends WorkerEntrypoint<Env> {
-  async capture(rawInput: string, source: string): Promise<ServiceCaptureResult> {
+  async capture(rawInput: string, source: string, options?: { imageUrl?: string }): Promise<ServiceCaptureResult> {
     const config = loadConfig(this.env);
     const db = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
     const openai = createOpenAIClient(config);
-    return runCapturePipeline(rawInput, source, db, openai, config);
+    return runCapturePipeline(rawInput, source, db, openai, config, options);
   }
 
   async undoLatest(): Promise<UndoResult> {

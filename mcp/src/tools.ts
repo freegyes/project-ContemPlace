@@ -148,6 +148,7 @@ export async function handleSearchNotes(
         title: n.title,
         body: n.body,
         tags: n.tags,
+        image_url: n.image_url,
         score: n.similarity,
         created_at: n.created_at,
       })),

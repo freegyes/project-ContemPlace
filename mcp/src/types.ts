@@ -88,6 +88,7 @@ export interface MatchedNote {
   source_ref: string | null;
   source: string;
   entities: unknown;
+  image_url: string | null;
   created_at: string;
   similarity: number;
 }
@@ -113,6 +114,7 @@ export interface NoteRow {
   corrections: string[] | null;
   source: string;
   source_ref: string | null;
+  image_url: string | null;
   created_at: string;
 }
 
@@ -171,4 +173,5 @@ export interface ServiceCaptureResult {
   entities: Array<{ name: string; type: string }>;
   links: Array<{ to_id: string; to_title: string; link_type: string }>;
   source: string;
+  image_url: string | null;
 }

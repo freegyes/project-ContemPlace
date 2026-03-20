@@ -10,7 +10,7 @@ export interface UndoResult {
 }
 
 export interface CaptureServiceStub {
-  capture(rawInput: string, source: string): Promise<ServiceCaptureResult>;
+  capture(rawInput: string, source: string, options?: { imageUrl?: string }): Promise<ServiceCaptureResult>;
   undoLatest(): Promise<UndoResult>;
 }
 
@@ -21,6 +21,8 @@ export interface Env {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   CAPTURE_SERVICE: CaptureServiceStub;
+  IMAGE_BUCKET: R2Bucket;
+  R2_PUBLIC_URL: string;
 }
 
 // ── Service Binding result ──────────────────────────────────────────────────
@@ -37,6 +39,7 @@ export interface ServiceCaptureResult {
   entities: Array<{ name: string; type: string }>;
   links: Array<{ to_id: string; to_title: string; link_type: string }>;
   source: string;
+  image_url: string | null;
 }
 
 // ── Telegram Types ──────────────────────────────────────────────────────────
@@ -52,6 +55,14 @@ export interface TelegramUser {
   first_name: string;
 }
 
+export interface TelegramPhotoSize {
+  file_id: string;
+  file_unique_id: string;
+  width: number;
+  height: number;
+  file_size?: number;
+}
+
 export interface TelegramMessage {
   message_id: number;
   from?: TelegramUser;
@@ -60,7 +71,7 @@ export interface TelegramMessage {
   text?: string;
   caption?: string;
   sticker?: unknown;
-  photo?: unknown[];
+  photo?: TelegramPhotoSize[];
   audio?: unknown;
   voice?: unknown;
   document?: unknown;

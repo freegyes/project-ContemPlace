@@ -111,6 +111,7 @@ const MOCK_NOTE_ROW = {
   corrections: null,
   source: 'telegram',
   source_ref: null,
+  image_url: null,
   created_at: '2026-03-09T00:00:00.000Z',
 };
 
@@ -215,6 +216,7 @@ describe('handleSearchNotes', () => {
         source_ref: null,
         source: 'telegram',
         entities: null,
+        image_url: null,
         created_at: '2026-01-01',
         similarity: 0.82,
       }]);
@@ -450,28 +452,28 @@ describe('handleCaptureNote', () => {
     it('defaults source to "mcp" when not provided', async () => {
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp', undefined,
       );
     });
 
     it('defaults source to "mcp" when source fails SOURCE_RE pattern', async () => {
       await handleCaptureNote({ raw_input: 'hello', source: 'bad source!' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp', undefined,
       );
     });
 
     it('defaults source to "mcp" when source exceeds 100 characters', async () => {
       await handleCaptureNote({ raw_input: 'hello', source: 'a'.repeat(101) }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp', undefined,
       );
     });
 
     it('uses the provided source when valid', async () => {
       await handleCaptureNote({ raw_input: 'hello', source: 'obsidian' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'obsidian',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'obsidian', undefined,
       );
     });
   });
@@ -506,7 +508,7 @@ describe('handleCaptureNote', () => {
       vi.mocked(embedText).mockResolvedValueOnce([0.1]).mockResolvedValueOnce([0.9]);
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), [0.9], 'hello', 'mcp',
+        mockDb, expect.any(Object), [0.9], 'hello', 'mcp', undefined,
       );
     });
 
@@ -544,7 +546,7 @@ describe('handleCaptureNote', () => {
       const sharedId = 'bbbbbbbb-0000-0000-0000-000000000002';
       vi.mocked(findRelatedNotes).mockResolvedValueOnce([{
         id: sharedId, title: 'Shared', body: 'body', raw_input: 'raw',
-        tags: ['t'], source_ref: null, source: 'mcp', entities: null,
+        tags: ['t'], source_ref: null, source: 'mcp', entities: null, image_url: null,
         created_at: '2026-03-19', similarity: 0.8,
       }]);
       vi.mocked(fetchRecentFragments).mockResolvedValueOnce([
@@ -578,7 +580,7 @@ describe('handleCaptureNote', () => {
       expect(r.isError).toBe(false);
       // insertNote called with raw embedding [0.1, 0.2]
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), [0.1, 0.2], 'hello', 'mcp',
+        mockDb, expect.any(Object), [0.1, 0.2], 'hello', 'mcp', undefined,
       );
     });
 
