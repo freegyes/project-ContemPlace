@@ -7,3 +7,10 @@ compatibility_flags = ["nodejs_compat"]
 binding = "CAPTURE_SERVICE"
 service = "mcp-contemplace"
 entrypoint = "CaptureService"
+
+[[r2_buckets]]
+binding = "IMAGE_BUCKET"
+bucket_name = "contemplace-images"
+
+[vars]
+R2_PUBLIC_URL = "https://pub-f678a3f532a34ba7a9f9213a237a93a3.r2.dev"

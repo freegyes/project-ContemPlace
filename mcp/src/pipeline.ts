@@ -24,6 +24,7 @@ export async function runCapturePipeline(
   db: SupabaseClient,
   openai: OpenAI,
   config: Config,
+  options?: { imageUrl?: string },
 ): Promise<ServiceCaptureResult> {
   // Step 1: embed raw text + fetch capture voice + fetch recent fragments in parallel
   const [rawEmbedding, captureVoice, recentFragments] = await Promise.all([
@@ -55,7 +56,7 @@ export async function runCapturePipeline(
   }
 
   // Step 5: insert note + links
-  const noteId = await insertNote(db, capture, finalEmbedding, rawInput, source);
+  const noteId = await insertNote(db, capture, finalEmbedding, rawInput, source, options?.imageUrl);
   await insertLinks(db, noteId, capture.links);
 
   // Step 6: log enrichments
@@ -84,5 +85,6 @@ export async function runCapturePipeline(
     entities: [],
     links: resolvedLinks,
     source,
+    image_url: options?.imageUrl ?? null,
   };
 }

@@ -1,6 +1,6 @@
-import type { Env, TelegramUpdate, ServiceCaptureResult, UndoResult } from './types';
+import type { Env, TelegramUpdate, TelegramPhotoSize, ServiceCaptureResult, UndoResult } from './types';
 import { loadConfig } from './config';
-import { sendTelegramMessage, sendTypingAction } from './telegram';
+import { sendTelegramMessage, sendTypingAction, getFilePath, downloadTelegramFile } from './telegram';
 import { createSupabaseClient, tryClaimUpdate } from './db';
 
 export default {
@@ -47,9 +47,10 @@ export default {
     // ── 5. Guard non-text messages ───────────────────────────────────────────
     const text = message.text ?? message.caption;
     if (!text) {
-      ctx.waitUntil(
-        sendTelegramMessage(config, chatId, 'I can only process text for now. Send a text message.')
-      );
+      const hint = message.photo
+        ? 'Photos need a caption to be captured. Resend with a description of what you\'re capturing.'
+        : 'I can only process text for now. Send a text message.';
+      ctx.waitUntil(sendTelegramMessage(config, chatId, hint));
       return new Response('ok', { status: 200 });
     }
 
@@ -75,7 +76,7 @@ export default {
     }
 
     // ── 8. Return 200, process in background ─────────────────────────────────
-    ctx.waitUntil(processCapture(env, config, chatId, text));
+    ctx.waitUntil(processCapture(env, config, chatId, text, message.photo));
     return new Response('ok', { status: 200 });
   },
 } satisfies ExportedHandler<Env>;
@@ -85,13 +86,21 @@ async function processCapture(
   config: { telegramBotToken: string; telegramWebhookSecret: string; allowedChatIds: number[]; supabaseUrl: string; supabaseServiceRoleKey: string },
   chatId: number,
   text: string,
+  photos?: TelegramPhotoSize[],
 ): Promise<void> {
   try {
     // Send typing indicator while the pipeline runs
     await sendTypingAction(config, chatId);
 
+    // If a photo is present, download from Telegram and upload to R2
+    let imageUrl: string | undefined;
+    if (photos && photos.length > 0) {
+      imageUrl = await uploadPhoto(env, config, photos);
+    }
+
     // Delegate capture to MCP Worker via Service Binding RPC
-    const result: ServiceCaptureResult = await env.CAPTURE_SERVICE.capture(text, 'telegram');
+    const options = imageUrl ? { imageUrl } : undefined;
+    const result: ServiceCaptureResult = await env.CAPTURE_SERVICE.capture(text, 'telegram', options);
 
     if (result.corrections?.length) {
       console.log(JSON.stringify({ event: 'corrections', corrections: result.corrections, chatId }));
@@ -114,6 +123,48 @@ async function processCapture(
       chatId,
       'Something went wrong capturing that. Check the Worker logs for details.',
     );
+  }
+}
+
+/**
+ * Download the largest photo variant from Telegram, upload to R2, return the public URL.
+ * Returns undefined on any failure — the capture proceeds text-only.
+ */
+async function uploadPhoto(
+  env: Env,
+  config: { telegramBotToken: string; telegramWebhookSecret: string; allowedChatIds: number[]; supabaseUrl: string; supabaseServiceRoleKey: string },
+  photos: TelegramPhotoSize[],
+): Promise<string | undefined> {
+  try {
+    // Pick the largest variant (last element in the array)
+    const largest = photos[photos.length - 1]!;
+
+    // Resolve file_id → file_path
+    const filePath = await getFilePath(config, largest.file_id);
+    if (!filePath) return undefined;
+
+    // Download from Telegram
+    const response = await downloadTelegramFile(config, filePath);
+    if (!response?.body) return undefined;
+
+    // Upload to R2 with a unique key
+    const key = `${crypto.randomUUID()}.jpg`;
+    await env.IMAGE_BUCKET.put(key, response.body, {
+      httpMetadata: { contentType: 'image/jpeg' },
+    });
+
+    // Construct public URL from R2_PUBLIC_URL env var (e.g., "https://pub-<hash>.r2.dev")
+    if (!env.R2_PUBLIC_URL) {
+      console.warn(JSON.stringify({ event: 'r2_public_url_not_set', key }));
+      return undefined;
+    }
+
+    const imageUrl = `${env.R2_PUBLIC_URL}/${key}`;
+    console.log(JSON.stringify({ event: 'image_uploaded', key, fileSize: largest.file_size }));
+    return imageUrl;
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'image_upload_error', error: String(err) }));
+    return undefined;
   }
 }
 
@@ -184,6 +235,10 @@ function formatTelegramReply(result: ServiceCaptureResult): string {
 
   if (result.corrections?.length) {
     lines.push(`<i>✏️ ${result.corrections.map(esc).join(', ')}</i>`);
+  }
+
+  if (result.image_url) {
+    lines.push(`<i>📷 image attached</i>`);
   }
 
   if (result.source_ref) {

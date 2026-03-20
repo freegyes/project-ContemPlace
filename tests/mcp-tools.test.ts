@@ -111,6 +111,7 @@ const MOCK_NOTE_ROW = {
   corrections: null,
   source: 'telegram',
   source_ref: null,
+  image_url: null,
   created_at: '2026-03-09T00:00:00.000Z',
 };
 
@@ -124,8 +125,8 @@ const MOCK_LINK = {
   direction: 'outbound' as const,
 };
 
-function toolResult(result: object): { isError: boolean; content: Array<{ text: string }> } {
-  return result as { isError: boolean; content: Array<{ text: string }> };
+function toolResult(result: object): { isError: boolean; content: Array<{ type: string; text: string; data?: string; mimeType?: string }> } {
+  return result as { isError: boolean; content: Array<{ type: string; text: string; data?: string; mimeType?: string }> };
 }
 
 // ── handleSearchNotes ─────────────────────────────────────────────────────────
@@ -215,6 +216,7 @@ describe('handleSearchNotes', () => {
         source_ref: null,
         source: 'telegram',
         entities: null,
+        image_url: null,
         created_at: '2026-01-01',
         similarity: 0.82,
       }]);
@@ -313,6 +315,100 @@ describe('handleGetNote', () => {
       vi.mocked(fetchNote).mockRejectedValueOnce(new Error('DB error'));
       const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
       expect(r.isError).toBe(true);
+    });
+  });
+
+  describe('inline image', () => {
+    const NOTE_WITH_IMAGE = { ...MOCK_NOTE_ROW, image_url: 'https://pub-test.r2.dev/test.jpg' };
+    const SMALL_JPEG = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]); // 6-byte fake JPEG
+
+    beforeEach(() => {
+      vi.mocked(fetchNoteLinks).mockResolvedValueOnce([]);
+    });
+
+    it('returns image content block when image fetch succeeds', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.resolve(new Response(SMALL_JPEG, { status: 200 }));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(2);
+      expect(r.content[1]!.type).toBe('image');
+      expect(r.content[1]!.mimeType).toBe('image/jpeg');
+      expect(typeof r.content[1]!.data).toBe('string');
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('returns text-only when image fetch fails', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.resolve(new Response(null, { status: 404 }));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1);
+      expect(r.content[0]!.type).toBe('text');
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('returns text-only when image fetch throws', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.reject(new Error('network error'));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1);
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('skips inline image when image exceeds 2MB', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const bigBuffer = new Uint8Array(2 * 1024 * 1024 + 1); // Just over 2MB
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.resolve(new Response(bigBuffer, { status: 200 }));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1); // text only, image skipped
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('does not fetch image when image_url is null', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(MOCK_NOTE_ROW); // image_url: null
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1);
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      fetchSpy.mockRestore();
     });
   });
 });
@@ -450,28 +546,28 @@ describe('handleCaptureNote', () => {
     it('defaults source to "mcp" when not provided', async () => {
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp', undefined,
       );
     });
 
     it('defaults source to "mcp" when source fails SOURCE_RE pattern', async () => {
       await handleCaptureNote({ raw_input: 'hello', source: 'bad source!' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp', undefined,
       );
     });
 
     it('defaults source to "mcp" when source exceeds 100 characters', async () => {
       await handleCaptureNote({ raw_input: 'hello', source: 'a'.repeat(101) }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'mcp', undefined,
       );
     });
 
     it('uses the provided source when valid', async () => {
       await handleCaptureNote({ raw_input: 'hello', source: 'obsidian' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), expect.any(Array), 'hello', 'obsidian',
+        mockDb, expect.any(Object), expect.any(Array), 'hello', 'obsidian', undefined,
       );
     });
   });
@@ -506,7 +602,7 @@ describe('handleCaptureNote', () => {
       vi.mocked(embedText).mockResolvedValueOnce([0.1]).mockResolvedValueOnce([0.9]);
       await handleCaptureNote({ raw_input: 'hello' }, mockDb, mockOpenAI, MOCK_CONFIG);
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), [0.9], 'hello', 'mcp',
+        mockDb, expect.any(Object), [0.9], 'hello', 'mcp', undefined,
       );
     });
 
@@ -544,7 +640,7 @@ describe('handleCaptureNote', () => {
       const sharedId = 'bbbbbbbb-0000-0000-0000-000000000002';
       vi.mocked(findRelatedNotes).mockResolvedValueOnce([{
         id: sharedId, title: 'Shared', body: 'body', raw_input: 'raw',
-        tags: ['t'], source_ref: null, source: 'mcp', entities: null,
+        tags: ['t'], source_ref: null, source: 'mcp', entities: null, image_url: null,
         created_at: '2026-03-19', similarity: 0.8,
       }]);
       vi.mocked(fetchRecentFragments).mockResolvedValueOnce([
@@ -578,7 +674,7 @@ describe('handleCaptureNote', () => {
       expect(r.isError).toBe(false);
       // insertNote called with raw embedding [0.1, 0.2]
       expect(vi.mocked(insertNote)).toHaveBeenCalledWith(
-        mockDb, expect.any(Object), [0.1, 0.2], 'hello', 'mcp',
+        mockDb, expect.any(Object), [0.1, 0.2], 'hello', 'mcp', undefined,
       );
     });
 

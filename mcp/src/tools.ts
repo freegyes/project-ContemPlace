@@ -10,8 +10,12 @@ import { runCapturePipeline } from './pipeline';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SOURCE_RE = /^[a-zA-Z0-9_-]+$/;
 
-function toolSuccess(result: unknown): object {
-  return { content: [{ type: 'text', text: JSON.stringify(result) }], isError: false };
+function toolSuccess(result: unknown, extraContent?: Array<{ type: string; data: string; mimeType: string }>): object {
+  const content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> = [
+    { type: 'text', text: JSON.stringify(result) },
+  ];
+  if (extraContent) content.push(...extraContent);
+  return { content, isError: false };
 }
 function toolError(message: string): object {
   return { content: [{ type: 'text', text: message }], isError: true };
@@ -148,6 +152,7 @@ export async function handleSearchNotes(
         title: n.title,
         body: n.body,
         tags: n.tags,
+        image_url: n.image_url,
         score: n.similarity,
         created_at: n.created_at,
       })),
@@ -170,7 +175,44 @@ export async function handleGetNote(
   try {
     const [note, links] = await Promise.all([fetchNote(db, id), fetchNoteLinks(db, id)]);
     if (!note) return toolError(`Note not found: ${id}`);
-    return toolSuccess({ ...note, links });
+
+    // If the note has an image, fetch it and return as inline MCP image content.
+    // This bypasses CSP restrictions that prevent MCP clients from loading external images.
+    let imageContent: Array<{ type: string; data: string; mimeType: string }> | undefined;
+    if (note.image_url) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        try {
+          const imgResponse = await fetch(note.image_url, { signal: controller.signal });
+          if (imgResponse.ok) {
+            const buffer = await imgResponse.arrayBuffer();
+            if (buffer.byteLength <= 2 * 1024 * 1024) {
+              // Chunked encoding avoids O(n^2) string concatenation for large images.
+              // btoa() is safe here: Uint8Array bytes are 0-255, which map 1:1 to Latin-1 chars.
+              const bytes = new Uint8Array(buffer);
+              const CHUNK = 8192;
+              const parts: string[] = [];
+              for (let i = 0; i < bytes.length; i += CHUNK) {
+                parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+              }
+              const base64 = btoa(parts.join(''));
+              imageContent = [{ type: 'image', data: base64, mimeType: 'image/jpeg' }];
+            } else {
+              console.warn(JSON.stringify({ event: 'image_too_large', bytes: buffer.byteLength, image_url: note.image_url }));
+            }
+          } else {
+            console.warn(JSON.stringify({ event: 'image_fetch_http_error', status: imgResponse.status, image_url: note.image_url }));
+          }
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (imgErr) {
+        console.warn(JSON.stringify({ event: 'image_fetch_error', error: String(imgErr), image_url: note.image_url }));
+      }
+    }
+
+    return toolSuccess({ ...note, links }, imageContent);
   } catch (err) {
     console.error(JSON.stringify({ event: 'get_note_error', error: String(err), id }));
     return toolError('Database error. Try again.');

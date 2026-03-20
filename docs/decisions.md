@@ -1294,3 +1294,31 @@ The capture voice instruction alone solves the display consistency and full-text
 **Source:** #210 experiments (2026-03-20). Three controlled experiments: 12-pair capture comparison, 12-sample embedding analysis script (`scripts/cross-language-experiment.ts`), 12-pair capture voice instruction test. Prior art: #57 (proposed same direction without data). Specialist reviews informed experiment design and thresholds. Full investigation trail with data tables and reasoning chain: [#210 investigation summary](https://github.com/freegyes/project-ContemPlace/issues/210#issuecomment-4098797044).
 
 **Source:** #100. PR #207. Error 1042 discovered during live deployment.
+
+## Image storage: opaque attachment via Cloudflare R2
+
+**Decision:** When a Telegram user sends a photo with a caption, download the image from Telegram's Bot API, upload it to a public Cloudflare R2 bucket, and store the URL in a new `image_url text` column on the `notes` table. The text pipeline is unchanged — the caption drives title, body, tags, links, and embeddings. The image is an opaque attachment, not an input to the LLM.
+
+**Why Scenario B (store only) over vision understanding:** Four scenarios were evaluated, from status quo (A) through full multimodal with CLIP embeddings (D). Scenario B was chosen because it preserves visual context without touching the trust contract. The image is supplementary — retrieval is by URL from the caption-driven fragment, not by visual search. Real usage data from stored images will reveal whether vision understanding (Scenario C) is ever necessary. This aligns with the enrichment pause: extending the capture surface rather than adding AI infrastructure.
+
+**Key design choices:**
+
+- **Storage:** Cloudflare R2, public bucket with `.r2.dev` subdomain. UUID keys make URLs unguessable. 10GB free tier is sufficient for years of personal use.
+- **Schema:** `image_url text` nullable column on `notes`. Follows the `source_ref` pattern. 1:1 relationship — one optional image per note. If multi-attachment is ever needed, a separate `attachments` table can be introduced.
+- **Responsibility split:** Telegram Worker downloads the image and uploads to R2. MCP Worker only receives the URL string via the Service Binding. Keeps Telegram-specific concerns out of the core pipeline.
+- **R2 key:** `{random-uuid}.jpg` generated in the Telegram Worker. Doesn't need to match the note ID — retrieval is by URL, never by key pattern.
+- **CaptureService interface:** Options object — `capture(text, source, { imageUrl? })` — extensible for future metadata without positional parameter creep.
+- **Scope:** `message.photo` only (compressed JPEG from Telegram). No documents, stickers, video, audio. No vision model, no image embeddings.
+- **Pure image without caption:** Rejected with a helpful message. Every note needs text (fragment-first principle).
+- **Failure handling:** If image download or R2 upload fails, proceed with text-only capture. Never lose a note because of image infrastructure.
+- **Cleanup:** R2 orphans accepted on note deletion. Negligible at personal scale.
+- **Backup:** Image bytes in R2 are not covered by the SQL dump. The `image_url` value is. Images are supplementary visual notes — the text is the source of truth.
+
+**Alternatives considered:**
+
+- *Status quo (A):* Caption workaround already works, but visual context is lost and selection bias compounds over time.
+- *Vision description (C):* Vision model converts image to text for the pipeline. Adds trust contract tension (pure images would have AI-generated body), another model dependency, and prompt complexity. Premature without evidence that opaque storage is insufficient.
+- *Full multimodal (D):* CLIP embeddings in a separate vector space. Order of magnitude more complex, marginal benefit at personal scale.
+- *Supabase Storage:* 1GB free tier vs R2's 10GB. R2 is on the same Cloudflare account as the Workers, binding is trivial.
+
+**Source:** #209 (2026-03-20). Two specialist reviews: design concerns + gap analysis. Telegram's Bot API already compresses photos to JPEG and provides multiple resolution variants, eliminating the need for format conversion or resizing.
