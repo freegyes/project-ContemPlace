@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validateAuth, timingSafeEqual } from '../dashboard-api/src/auth';
 import { loadConfig } from '../dashboard-api/src/config';
 import type { Env } from '../dashboard-api/src/types';
@@ -598,6 +598,98 @@ describe('dashboard-api db — fetchClusterDetail', () => {
     expect(result.links[0]!.confidence).toBe(0.85);
     expect(result.links[0]!.link_type).toBe('is-similar-to');
     expect(result.links[0]!.created_by).toBe('gardener');
+  });
+});
+
+// ── dashboard-api github ──────────────────────────────────────────────────────
+
+import { fetchBackupRecency, _resetCache } from '../dashboard-api/src/github';
+
+describe('dashboard-api github', () => {
+  beforeEach(() => {
+    _resetCache();
+    vi.restoreAllMocks();
+  });
+
+  it('returns null when pat is null (no fetch call made)', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const result = await fetchBackupRecency('owner/repo', null);
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns null when backupRepo is empty', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const result = await fetchBackupRecency('', 'ghp_token');
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns ISO date string when GitHub API returns commits', async () => {
+    const mockDate = '2026-03-20T02:00:00Z';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ commit: { committer: { date: mockDate } } }],
+    }));
+    const result = await fetchBackupRecency('owner/repo', 'ghp_token');
+    expect(result).toBe(mockDate);
+  });
+
+  it('returns null on non-200 response', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+    }));
+    const result = await fetchBackupRecency('owner/repo', 'ghp_token');
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  it('caches response for 5 minutes (fetch called only once)', async () => {
+    const mockDate = '2026-03-20T02:00:00Z';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ commit: { committer: { date: mockDate } } }],
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await fetchBackupRecency('owner/repo', 'ghp_token');
+    const second = await fetchBackupRecency('owner/repo', 'ghp_token');
+
+    expect(first).toBe(mockDate);
+    expect(second).toBe(mockDate);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes cache after TTL expires', async () => {
+    vi.useFakeTimers();
+    const mockDate1 = '2026-03-20T02:00:00Z';
+    const mockDate2 = '2026-03-21T02:00:00Z';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ commit: { committer: { date: mockDate1 } } }],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ commit: { committer: { date: mockDate2 } } }],
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await fetchBackupRecency('owner/repo', 'ghp_token');
+    expect(first).toBe(mockDate1);
+
+    // Advance past the 5-minute TTL
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+
+    const second = await fetchBackupRecency('owner/repo', 'ghp_token');
+    expect(second).toBe(mockDate2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 });
 
