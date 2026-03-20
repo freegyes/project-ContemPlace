@@ -6,6 +6,14 @@ import { embedText, buildEmbeddingInput } from './embed';
 import { runCaptureAgent } from './capture';
 import { getCaptureVoice, findRelatedNotes, fetchRecentFragments, insertNote, insertLinks, logEnrichments } from './db';
 
+// Replace typographic double-quote variants with ASCII " (U+0022).
+// Prevents the capture LLM from echoing these characters into JSON output
+// where they break JSON.parse(). Applied to LLM input only — raw_input is stored verbatim.
+const TYPOGRAPHIC_DOUBLE_QUOTES = /[\u201C\u201D\u201E\u201F\uFF02]/g;
+export function normalizeForLLM(text: string): string {
+  return text.replace(TYPOGRAPHIC_DOUBLE_QUOTES, '"');
+}
+
 /**
  * Run the full capture pipeline: embed → find related → LLM → re-embed → insert → log.
  * Single source of truth — called by both the MCP capture_note tool and the CaptureService RPC entrypoint.
@@ -33,8 +41,8 @@ export async function runCapturePipeline(
   const relatedIds = new Set(relatedNotes.map(n => n.id));
   const dedupedRecent = recentFragments.filter(r => !relatedIds.has(r.id));
 
-  // Step 3: run capture LLM
-  const capture = await runCaptureAgent(openai, config, rawInput, relatedNotes, captureVoice, dedupedRecent);
+  // Step 3: run capture LLM (normalize input to prevent typographic quotes breaking JSON output)
+  const capture = await runCaptureAgent(openai, config, normalizeForLLM(rawInput), relatedNotes, captureVoice, dedupedRecent);
 
   // Step 4: augmented embedding (fallback to raw on failure)
   let finalEmbedding = rawEmbedding;

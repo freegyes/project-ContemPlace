@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseCaptureResponse } from '../mcp/src/capture';
+import { normalizeForLLM } from '../mcp/src/pipeline';
 
 const VALID_BASE = {
   title: 'Test title',
@@ -79,5 +80,41 @@ describe('parseCaptureResponse', () => {
 
   it('throws on missing required fields', () => {
     expect(() => parseCaptureResponse(JSON.stringify({ body: 'x' }))).toThrow('missing title');
+  });
+});
+
+describe('normalizeForLLM', () => {
+  it('replaces Hungarian low-high typographic quotes', () => {
+    expect(normalizeForLLM('csinálj egy „most szól\u201D állványt')).toBe('csinálj egy "most szól" állványt');
+  });
+
+  it('replaces left/right double quotation marks', () => {
+    expect(normalizeForLLM('\u201Chello\u201D')).toBe('"hello"');
+  });
+
+  it('replaces double high-reversed-9 quotation mark', () => {
+    expect(normalizeForLLM('\u201Ftest\u201D')).toBe('"test"');
+  });
+
+  it('replaces full-width quotation mark', () => {
+    expect(normalizeForLLM('\uFF02test\uFF02')).toBe('"test"');
+  });
+
+  it('leaves ASCII double quotes unchanged', () => {
+    expect(normalizeForLLM('"already ascii"')).toBe('"already ascii"');
+  });
+
+  it('leaves text without quotes unchanged', () => {
+    const input = 'no quotes here at all';
+    expect(normalizeForLLM(input)).toBe(input);
+  });
+
+  it('handles mixed typographic and ASCII quotes', () => {
+    expect(normalizeForLLM('he said \u201Chello\u201D and "goodbye"')).toBe('he said "hello" and "goodbye"');
+  });
+
+  it('preserves single quotes and apostrophes', () => {
+    const input = "it\u2019s a test with \u2018single\u2019 quotes";
+    expect(normalizeForLLM(input)).toBe(input);
   });
 });
