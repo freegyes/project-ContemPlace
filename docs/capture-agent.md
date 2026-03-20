@@ -78,7 +78,7 @@ The capture agent accepts input in any language. The capture voice instructs the
 
 The stored embedding uses the English body (not raw_input), keeping the embedding space monolingual. This ensures gardening, clustering, and retrieval all operate in a single language space. The capture-time related-note lookup still embeds raw_input (any language) against stored English embeddings — the lower match threshold (0.35) compensates for the cross-language penalty.
 
-Search queries must be in the system language (English by default). This is a transparent cost — the system language is a user choice at setup time.
+Search queries must be in English (the system language). The system language is currently English, encoded in the capture voice — not yet a configurable setting.
 
 For the full experiment data and design rationale, see ADR "Multilingual capture" in `decisions.md` and [#210](https://github.com/freegyes/project-ContemPlace/issues/210).
 
