@@ -14,6 +14,8 @@ export function createSupabaseClient(config: Config): SupabaseClient {
 // title/body rules, ensuring uniform note style regardless of entry point.
 const DEFAULT_CAPTURE_VOICE = `## Your capture style
 
+**Language**: Always produce English output (title, body, tags) regardless of input language. If the input is not in English, translate faithfully — preserve meaning, tone, and specificity. Do not mention the translation in the body. Log the language conversion in the corrections field (e.g., \`"hu → en"\`).
+
 **Title**: A claim or insight when one is present. If the input doesn't contain a claim, use a descriptive phrase.
 
 **Body**: Use the user's own words. Every sentence must be traceable to the input. 1–3 sentences for short inputs. For longer inputs, use as many sentences as needed to preserve all actionable content — up to 8. Shorter is still better than padded.`;

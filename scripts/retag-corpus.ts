@@ -46,6 +46,7 @@ function loadEnv(): Record<string, string> {
 interface NoteForRetag {
   id: string;
   title: string;
+  body: string;
   tags: string[];
   raw_input: string;
   source: string;
@@ -104,7 +105,7 @@ async function main() {
   // Fetch all active notes chronologically
   const { data: notes, error: notesErr } = await db
     .from('notes')
-    .select('id, title, tags, raw_input, source, created_at')
+    .select('id, title, body, tags, raw_input, source, created_at')
     .is('archived_at', null)
     .order('created_at', { ascending: true });
 
@@ -172,7 +173,7 @@ async function main() {
 
       if (WRITE_MODE) {
         // Step 5: re-embed with new tags
-        const augmentedInput = buildEmbeddingInput(note.raw_input, capture);
+        const augmentedInput = buildEmbeddingInput(note.body, capture);
         const newEmbedding = await embedText(openai, config, augmentedInput);
 
         // Step 6: update note (tags + embedding only — title/body/links untouched)

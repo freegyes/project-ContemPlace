@@ -70,6 +70,18 @@ These heuristics help the capture LLM assess how to structure its output. The im
 
 For the original research basis, see [#108](https://github.com/freegyes/project-ContemPlace/issues/108).
 
+## Multilingual capture
+
+The capture agent accepts input in any language. The capture voice instructs the LLM to always produce English output (title, body, tags) regardless of input language. Translation is faithful — meaning, tone, and specificity are preserved. The language conversion is logged in the `corrections` field (e.g., `"hu → en"`).
+
+`raw_input` always preserves the user's original words in their original language, untouched. Translation is structural interpretation — the same category as titling and tagging.
+
+The stored embedding uses the English body (not raw_input), keeping the embedding space monolingual. This ensures gardening, clustering, and retrieval all operate in a single language space. The capture-time related-note lookup still embeds raw_input (any language) against stored English embeddings — the lower match threshold (0.35) compensates for the cross-language penalty.
+
+Search queries must be in the system language (English by default). This is a transparent cost — the system language is a user choice at setup time.
+
+For the full experiment data and design rationale, see ADR "Multilingual capture" in `decisions.md` and [#210](https://github.com/freegyes/project-ContemPlace/issues/210).
+
 ## Temporal context
 
 The capture agent receives the user's most recent fragments (titles and tags only, no bodies) as temporal context alongside the semantic matches. This helps with:

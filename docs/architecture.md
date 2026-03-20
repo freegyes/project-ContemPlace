@@ -207,7 +207,7 @@ Every note gets embedded twice:
 
 1. **Raw embedding** — the user's exact input text, embedded before the LLM runs. Used to find related notes via `match_notes()`. This is the lookup embedding.
 
-2. **Augmented embedding** — after the LLM structures the note, `buildEmbeddingInput()` prepends tags: `[Tags: cooking, project] The actual text...`. This is stored in the `notes.embedding` column.
+2. **Augmented embedding** — after the LLM structures the note, `buildEmbeddingInput()` prepends tags to the LLM-generated body: `[Tags: cooking, project] The body text...`. This is stored in the `notes.embedding` column. The body is used instead of raw_input because the body is reliably English (enforced by the capture voice), keeping the stored embedding space monolingual regardless of input language.
 
 The augmented embedding bakes organizational context into the vector space. Two notes that share tags will be slightly closer in vector space than they would be from raw text alone. If the augmented embedding fails (API error, timeout), the system falls back to the raw embedding and logs an `augmented_embed_fallback` enrichment entry. The note is never lost.
 

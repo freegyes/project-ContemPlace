@@ -40,7 +40,7 @@ export async function runCapturePipeline(
   let finalEmbedding = rawEmbedding;
   let embeddingType: 'augmented' | 'raw_fallback' = 'augmented';
   try {
-    finalEmbedding = await embedText(openai, config, buildEmbeddingInput(rawInput, capture));
+    finalEmbedding = await embedText(openai, config, buildEmbeddingInput(capture.body, capture));
   } catch (embedErr) {
     console.warn(JSON.stringify({ event: 'augmented_embed_fallback', error: String(embedErr) }));
     embeddingType = 'raw_fallback';
