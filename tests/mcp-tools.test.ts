@@ -125,8 +125,8 @@ const MOCK_LINK = {
   direction: 'outbound' as const,
 };
 
-function toolResult(result: object): { isError: boolean; content: Array<{ text: string }> } {
-  return result as { isError: boolean; content: Array<{ text: string }> };
+function toolResult(result: object): { isError: boolean; content: Array<{ type: string; text: string; data?: string; mimeType?: string }> } {
+  return result as { isError: boolean; content: Array<{ type: string; text: string; data?: string; mimeType?: string }> };
 }
 
 // ── handleSearchNotes ─────────────────────────────────────────────────────────
@@ -315,6 +315,100 @@ describe('handleGetNote', () => {
       vi.mocked(fetchNote).mockRejectedValueOnce(new Error('DB error'));
       const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
       expect(r.isError).toBe(true);
+    });
+  });
+
+  describe('inline image', () => {
+    const NOTE_WITH_IMAGE = { ...MOCK_NOTE_ROW, image_url: 'https://pub-test.r2.dev/test.jpg' };
+    const SMALL_JPEG = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]); // 6-byte fake JPEG
+
+    beforeEach(() => {
+      vi.mocked(fetchNoteLinks).mockResolvedValueOnce([]);
+    });
+
+    it('returns image content block when image fetch succeeds', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.resolve(new Response(SMALL_JPEG, { status: 200 }));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(2);
+      expect(r.content[1]!.type).toBe('image');
+      expect(r.content[1]!.mimeType).toBe('image/jpeg');
+      expect(typeof r.content[1]!.data).toBe('string');
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('returns text-only when image fetch fails', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.resolve(new Response(null, { status: 404 }));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1);
+      expect(r.content[0]!.type).toBe('text');
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('returns text-only when image fetch throws', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.reject(new Error('network error'));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1);
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('skips inline image when image exceeds 2MB', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(NOTE_WITH_IMAGE);
+      const bigBuffer = new Uint8Array(2 * 1024 * 1024 + 1); // Just over 2MB
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url === NOTE_WITH_IMAGE.image_url) {
+          return Promise.resolve(new Response(bigBuffer, { status: 200 }));
+        }
+        return originalFetch(url);
+      });
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1); // text only, image skipped
+
+      globalThis.fetch = originalFetch;
+    });
+
+    it('does not fetch image when image_url is null', async () => {
+      vi.mocked(fetchNote).mockResolvedValueOnce(MOCK_NOTE_ROW); // image_url: null
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      const r = toolResult(await handleGetNote({ id: VALID_UUID }, mockDb));
+      expect(r.isError).toBe(false);
+      expect(r.content).toHaveLength(1);
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      fetchSpy.mockRestore();
     });
   });
 });

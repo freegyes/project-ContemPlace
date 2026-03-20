@@ -176,18 +176,36 @@ export async function handleGetNote(
     const [note, links] = await Promise.all([fetchNote(db, id), fetchNoteLinks(db, id)]);
     if (!note) return toolError(`Note not found: ${id}`);
 
-    // If the note has an image, fetch it and return as inline MCP image content
+    // If the note has an image, fetch it and return as inline MCP image content.
+    // This bypasses CSP restrictions that prevent MCP clients from loading external images.
     let imageContent: Array<{ type: string; data: string; mimeType: string }> | undefined;
     if (note.image_url) {
       try {
-        const imgResponse = await fetch(note.image_url);
-        if (imgResponse.ok) {
-          const buffer = await imgResponse.arrayBuffer();
-          const bytes = new Uint8Array(buffer);
-          let binary = '';
-          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-          const base64 = btoa(binary);
-          imageContent = [{ type: 'image', data: base64, mimeType: 'image/jpeg' }];
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        try {
+          const imgResponse = await fetch(note.image_url, { signal: controller.signal });
+          if (imgResponse.ok) {
+            const buffer = await imgResponse.arrayBuffer();
+            if (buffer.byteLength <= 2 * 1024 * 1024) {
+              // Chunked encoding avoids O(n^2) string concatenation for large images.
+              // btoa() is safe here: Uint8Array bytes are 0-255, which map 1:1 to Latin-1 chars.
+              const bytes = new Uint8Array(buffer);
+              const CHUNK = 8192;
+              const parts: string[] = [];
+              for (let i = 0; i < bytes.length; i += CHUNK) {
+                parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+              }
+              const base64 = btoa(parts.join(''));
+              imageContent = [{ type: 'image', data: base64, mimeType: 'image/jpeg' }];
+            } else {
+              console.warn(JSON.stringify({ event: 'image_too_large', bytes: buffer.byteLength, image_url: note.image_url }));
+            }
+          } else {
+            console.warn(JSON.stringify({ event: 'image_fetch_http_error', status: imgResponse.status, image_url: note.image_url }));
+          }
+        } finally {
+          clearTimeout(timeout);
         }
       } catch (imgErr) {
         console.warn(JSON.stringify({ event: 'image_fetch_error', error: String(imgErr), image_url: note.image_url }));
