@@ -145,6 +145,12 @@ The agent may clean up grammar, remove filler, and lightly restructure — but i
 
 This rule exists because the capture LLM (Haiku) tends to add a summarizing conclusion that restates what the user's words already showed. The traceability rule explicitly prohibits this. The user's raw input is the source of truth; the structured note is a cleaned-up presentation of it, not an interpretation.
 
+## Input normalization
+
+Before the raw text reaches the capture LLM, `normalizeForLLM()` replaces typographic double-quote variants (U+201C–201F, U+FF02) with ASCII `"`. This prevents the LLM from echoing them as JSON delimiters, which breaks `JSON.parse()`. The normalization only affects the LLM input — `raw_input` is stored verbatim with the original characters.
+
+This is especially relevant for Hungarian input, which commonly uses `„"` (low-high) quotation marks, but covers all Unicode double-quote variants including full-width `＂` from CJK input.
+
 ## Parser and fallbacks
 
 `parseCaptureResponse()` validates fields from the LLM's JSON output. When a field is missing or invalid, the parser applies a default and logs the event as structured JSON:
