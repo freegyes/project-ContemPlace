@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 CORS_ORIGIN = "https://contemplace-dashboard.pages.dev"
-BACKUP_REPO = "freegyes/contemplace-backup"
+BACKUP_REPO = "freegyes/contemplace-backups"
 
 # Secrets (set via: wrangler secret put <NAME> -c dashboard-api/wrangler.toml):
 # SUPABASE_URL
