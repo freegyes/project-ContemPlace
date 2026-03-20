@@ -1,0 +1,14 @@
+name = "contemplace-dashboard-api"
+main = "src/index.ts"
+compatibility_date = "2024-04-03"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+CORS_ORIGIN = "https://contemplace-dashboard.pages.dev"
+BACKUP_REPO = "freegyes/contemplace-backup"
+
+# Secrets (set via: wrangler secret put <NAME> -c dashboard-api/wrangler.toml):
+# SUPABASE_URL
+# SUPABASE_SERVICE_ROLE_KEY
+# DASHBOARD_API_KEY
+# GITHUB_BACKUP_PAT        (optional — enables backup freshness metric)
