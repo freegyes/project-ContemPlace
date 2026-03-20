@@ -4,7 +4,7 @@
 
 ContemPlace's irreducible core is the **database + MCP surface + gardening pipeline**. The database (Supabase with pgvector) stores notes, embeddings, and links. The MCP server exposes this to any agent — input via `capture_note`, retrieval via `search_notes`/`get_related`/`get_note`/`list_recent`. The gardener surfaces connections that make the graph useful. Everything else — input channels like Telegram, import tools, a dashboard — is optional.
 
-The current implementation runs as three Cloudflare Workers: a **Telegram capture Worker** (a convenient input channel), an **MCP Worker** (the core interface), and a **Gardener Worker** (the enrichment layer). Supabase provides the database — Postgres with pgvector for semantic search. There are no Edge Functions, no queues, no background job runners.
+The current implementation runs as four Cloudflare Workers: a **Telegram capture Worker** (a convenient input channel), an **MCP Worker** (the core interface), a **Gardener Worker** (the enrichment layer), and a **Dashboard API Worker** (the visual surface). Supabase provides the database — Postgres with pgvector for semantic search. There are no Edge Functions, no queues, no background job runners.
 
 > **Architectural update (2026-03-12):** The Telegram Worker now delegates capture to the MCP Worker via a Cloudflare Service Binding (PR #90). There is one capture pipeline (`mcp/src/pipeline.ts`), and the Telegram Worker is a thin webhook adapter. This resolved issue #46 and eliminated ~650 lines of duplicated code.
 
@@ -16,15 +16,18 @@ Supabase was chosen over a self-managed Postgres instance because it bundles pgv
 
 OpenRouter sits between the Workers and all AI models. This adds a hop but means the system can switch between models (or providers) by changing an environment variable. No code change, no redeployment needed. The `openai` npm package talks to OpenRouter via a `baseURL` override — the same SDK works for embeddings and chat completions.
 
-## Three Workers
+## Four Workers
 
 | Worker | Name | Purpose | Trigger |
 |---|---|---|---|
 | **Telegram capture** | `contemplace` | Receives Telegram webhooks, delegates capture to MCP Worker via Service Binding, formats HTML reply | Telegram webhook POST |
 | **MCP server** | `mcp-contemplace` | MCP tools via JSON-RPC 2.0 over HTTP. Hosts `CaptureService` entrypoint for Service Binding RPC (`capture()` + `undoLatest()`). | HTTP POST /mcp, Service Binding RPC |
 | **Gardener** | `contemplace-gardener` | Enrichment: similarity linking + cluster detection + entity extraction. Hosts `GardenerService` entrypoint for on-demand triggering via Service Binding RPC. | Cron (02:00 UTC), POST /trigger, Service Binding RPC |
+| **Dashboard API** | `contemplace-dashboard-api` | Read-only JSON API for the dashboard SPA. Serves `/stats`, `/clusters`, `/clusters/detail`, and `/recent`. No Service Bindings — standalone Worker with Bearer token auth. | HTTP GET |
 
 Each Worker is independently deployed with its own `wrangler.toml` and secrets. They share the same Supabase database and use the same `openai` SDK pattern for OpenRouter calls.
+
+The Dashboard API Worker is the backend for the `contemplace-dashboard` Cloudflare Pages SPA — a three-panel visual interface showing corpus statistics, thematic clusters with force-directed Cytoscape.js graphs, and recent captures. It is purely read-only: no writes, no Service Bindings. Auth uses a Bearer token (`DASHBOARD_API_KEY`) stored in localStorage — paste once per device. The CORS origin is pinned to the Pages deployment URL in `wrangler.toml [vars]`.
 
 The capture pipeline lives in one place (`mcp/src/pipeline.ts`). The Telegram Worker calls it via a Cloudflare Service Binding — zero-overhead in-process RPC, no HTTP hop, no auth overhead.
 
@@ -276,5 +279,6 @@ URL detection at capture time — fetching content, cross-referencing existing n
   - **Static Bearer token** — `MCP_API_KEY` for API/SDK callers. Handled via `resolveExternalToken` callback with constant-time `timingSafeEqual`. The hex key has no colons, so the library skips KV lookup entirely — no latency penalty.
   - Both paths reach the same `handleMcpRequest` dispatch function. Unauthenticated requests get 401 with `WWW-Authenticate` header pointing to RFC 9728 resource metadata.
 - **Gardener trigger auth:** Optional Bearer token (`GARDENER_API_KEY`) for the `/trigger` endpoint.
+- **Dashboard API auth:** Static Bearer token (`DASHBOARD_API_KEY`) required on all routes. Constant-time comparison. No write surface — all routes are GET-only. CORS restricted to the configured Pages origin.
 - **Service role key:** All Supabase access uses the service role key, bypassing RLS. The anon key is never used. RLS is enabled on all tables with a `deny all` policy as defense in depth — if the anon key were ever exposed, it would have zero access.
 - **No raw SQL interpolation:** JSONB columns (`entities`, `metadata`) contain LLM-generated content and are never interpolated into SQL strings. All queries use parameterized Supabase client calls.
