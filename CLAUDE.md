@@ -168,7 +168,7 @@ For the full command reference including secret setup, webhook registration, and
 6. **Model strings and behavioral thresholds are env vars**, read via config modules. Never hardcode a model string or threshold at a call site.
 7. **Return 200 to Telegram immediately**, process capture in `ctx.waitUntil()`.
 8. **Always store the user's raw input** in `notes.raw_input` alongside the LLM-generated title and body.
-9. **Two-pass embedding**: first embed uses raw text (for finding related notes); second embed uses `buildEmbeddingInput()` with metadata augmentation (for storage). If the second embed fails, fall back to the raw embedding — never lose the note.
+9. **Two-pass embedding**: first embed uses raw text (for finding related notes); second embed uses `buildEmbeddingInput()` with the LLM-generated body + tags for storage (not raw_input — body is reliably English, keeping the embedding space monolingual). If the second embed fails, fall back to the raw embedding — never lose the note.
 10. **RPC functions must be in the `public` schema** with `set search_path = 'public, extensions'`. Use explicit `public.table_name` references and `OPERATOR(extensions.<=>)` for pgvector operators.
 11. **Stylistic prompt rules must come from `capture_profiles` table**, never hardcoded in source.
 12. **JSONB columns contain LLM-generated content** — never interpolate their values into raw SQL strings.
