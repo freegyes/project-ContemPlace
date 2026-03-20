@@ -112,7 +112,7 @@ The MCP Worker implements JSON-RPC 2.0 over HTTP with dual authentication: OAuth
 | Tool | Operation |
 |---|---|
 | `search_notes` | Semantic search via `match_notes()` with optional tag filters |
-| `get_note` | Full note retrieval by UUID |
+| `get_note` | Full note retrieval by UUID. Image-bearing notes include an inline base64 image content block for model vision. |
 | `list_recent` | Recent notes, newest first |
 | `get_related` | All linked notes in both directions, ordered capture-time first then gardener by confidence |
 | `capture_note` | Full capture pipeline (same logic as Telegram, synchronous) |

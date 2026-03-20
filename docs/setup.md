@@ -446,6 +446,7 @@ TELEGRAM_WEBHOOK_SECRET     # openssl rand -hex 32
 SUPABASE_URL                # from Supabase dashboard → Project Settings → API (for dedup only)
 SUPABASE_SERVICE_ROLE_KEY   # from Supabase dashboard → Project Settings → API (for dedup only)
 ALLOWED_CHAT_IDS            # comma-separated Telegram chat IDs
+R2_PUBLIC_URL               # public URL of the R2 bucket (e.g., https://pub-<hash>.r2.dev) — set in wrangler.toml [vars]
 
 # MCP Worker secrets — required
 OPENROUTER_API_KEY          # from openrouter.ai

@@ -22,7 +22,7 @@ Postgres you can always query and export. The whole stack runs on free tiers. LL
 
 ## How it works
 
-1. You send a thought — raw text, voice transcription, a link, whatever — in any language
+1. You send a thought — raw text, voice transcription, a photo with a caption, whatever — in any language
 2. The [capture agent](docs/capture-agent.md) translates to English if needed, titles it, corrects voice errors, tags it, and links it to related notes — your exact words are always preserved in the original language
 3. A nightly gardener finds connections you didn't make explicitly and detects thematic clusters across your fragments
 4. Any MCP-capable agent can search, browse, and build on your accumulated knowledge
@@ -40,7 +40,7 @@ The MCP server is the primary interface, usable by any MCP-capable agent:
 | Tool | What it does |
 |---|---|
 | `search_notes` | Search notes by meaning. Ranked results with body text. Optional tag filter. |
-| `get_note` | Fetch a single note — body, raw_input (source of truth), links, corrections. |
+| `get_note` | Fetch a single note — body, raw_input (source of truth), links, corrections. Image-bearing notes include an inline image for model vision. |
 | `list_recent` | Most recent notes, newest first. |
 | `get_related` | All linked notes in both directions with link types and confidence. |
 | `list_clusters` | See the shape of your thinking. Thematic clusters detected by the gardener — resolution controls zoom level, hub notes surface conceptual anchors. |
@@ -59,6 +59,7 @@ The MCP server is the primary interface, usable by any MCP-capable agent:
 | AI gateway | OpenRouter (OpenAI-compatible SDK) |
 | Embeddings | `openai/text-embedding-3-small` (1536 dimensions) |
 | Capture LLM | `anthropic/claude-haiku-4-5` |
+| Object storage | Cloudflare R2 (photo attachments from Telegram) |
 | Capture interface | Telegram bot (webhook-based) |
 | Agent interface | MCP server (JSON-RPC 2.0 over HTTP) |
 

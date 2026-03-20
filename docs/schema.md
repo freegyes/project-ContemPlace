@@ -23,6 +23,7 @@ The core table. Each row is a captured note with both the user's raw input and t
 | `source` | text | system | Always set. Currently `telegram`, `mcp`, or `semantic-test`. |
 | `corrections` | text[] | LLM | Voice dictation fixes |
 | `entities` | jsonb | gardener | `[{name, type}]` — proper nouns extracted by the gardener's entity extraction phase (#125). Types: `person`, `place`, `tool`, `project`. New notes start with `[]` and are populated incrementally by the nightly gardener run. Canonical names come from the `entity_dictionary` table. |
+| `image_url` | text | system | Public URL of an attached image in Cloudflare R2. Set by the Telegram Worker when a photo is sent with a caption. Null for text-only notes. |
 | `summary` | text | — | **Dead weight.** Unpopulated, no implementation planned. Candidate for removal (#130). |
 | `categories` | text[] | — | **Dead weight.** Unpopulated, no implementation planned. Candidate for removal (#130). |
 | `metadata` | jsonb | — | **Dead weight.** Unpopulated, no implementation planned. Candidate for removal (#130). |
@@ -164,7 +165,7 @@ match_notes(
 )
 ```
 
-Returns: `id`, `title`, `body`, `raw_input`, `tags`, `source_ref`, `source`, `entities`, `created_at`, `similarity`.
+Returns: `id`, `title`, `body`, `raw_input`, `tags`, `source_ref`, `source`, `entities`, `image_url`, `created_at`, `similarity`.
 
 Filters are composable — any combination of source, tags, and full-text search can be applied. All filters are optional; passing NULL skips the filter.
 
