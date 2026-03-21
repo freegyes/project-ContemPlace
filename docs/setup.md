@@ -1,22 +1,90 @@
 # Setup guide
 
-*Everything you need to go from zero to a running ContemPlace instance. If you're deploying for the first time, start here.*
+## What you're getting into
 
-The system has four Workers — the MCP Worker and Gardener are the core, the Telegram bot adds mobile capture, and the Dashboard API Worker serves the visual dashboard SPA.
+ContemPlace is a personal knowledge management system. You capture idea fragments (from Telegram, Claude, or any MCP client), and the system structures, embeds, and links them into a searchable knowledge graph.
+
+Here's the honest summary before you start:
+
+- **What you'll deploy:** A Postgres database, one or more Cloudflare Workers, and an AI gateway. The core gives you capture and search via any MCP client. Optional modules add Telegram capture, nightly enrichment, a visual dashboard, and automated backups.
+- **Time:** 20 minutes for the core. 45-60 minutes for the full stack.
+- **Cost:** All infrastructure runs on free tiers. The only cost is OpenRouter LLM calls — roughly $2-3/month with active daily use.
+- **Skills needed:** Copy-paste terminal commands, navigate web dashboards, edit one config file.
+- **Maintenance:** Near zero. The gardener runs nightly on a cron. Backups run automatically if enabled. No servers to manage.
 
 Run all commands from the repository root unless stated otherwise.
 
+## Architecture: what you're deploying
+
+The system is modular. The core is required. Everything else is opt-in.
+
+### Core (required)
+
+The minimum viable system. Gives you capture, search, and retrieval via any MCP client (Claude Code, Claude.ai, Cursor, etc.).
+
+- **Supabase database** — Postgres 16 with pgvector for semantic search
+- **MCP Worker** — the brain. Runs the capture pipeline, embedding, search, and all 8 MCP tools. Deployed on Cloudflare Workers.
+- **OpenRouter account** — AI gateway for LLM calls (capture) and embeddings
+
+### Module: Telegram Bot
+
+Mobile capture via Telegram. Send a text or photo to your bot, get a structured knowledge fragment back.
+
+- **Telegram Worker** — thin webhook adapter. Delegates all capture logic to the MCP Worker via a Cloudflare Service Binding.
+- **R2 bucket** — stores photo attachments. Optional even within this module (text capture works without it).
+- Requires: Core deployed first. The Telegram Worker binds to the MCP Worker at deploy time.
+
+### Module: Gardener
+
+Overnight enrichment. Finds similarity connections between your notes and detects thematic clusters.
+
+- **Gardener Worker** — runs similarity linking, Louvain community detection, and optional entity extraction.
+- Runs on cron (2:00 AM UTC) or on-demand via the `trigger_gardening` MCP tool.
+- Requires: Core deployed. The MCP Worker handles the Gardener's absence gracefully — capture and search work fine without it.
+
+### Module: Visual Dashboard
+
+Browse your knowledge base in a web UI. Stats, cluster graphs, recent captures with image thumbnails.
+
+- **Dashboard API Worker** — read-only JSON API, standalone (no Service Bindings).
+- **Dashboard Pages** — static SPA on Cloudflare Pages. Cytoscape.js force-directed cluster graphs.
+- Requires: Core deployed. Cluster panels will be empty without the Gardener, but everything else works.
+
+### Module: Automated Backup
+
+Daily database dump to a private GitHub repository. Git history provides natural retention.
+
+- **GitHub Actions workflow** — connects to Supabase directly. No Cloudflare dependency.
+- Requires: GitHub account, Supabase connection string.
+
 ## Prerequisites
 
-- [Cloudflare account](https://cloudflare.com) with Workers enabled (free tier is fine)
-- [Supabase project](https://supabase.com) (free tier works; pgvector enabled by default)
-- [OpenRouter account](https://openrouter.ai) with API key and credits (typical usage: $2–3/month)
-- Node.js 18+
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) — `npm install -g wrangler`
-- [Supabase CLI](https://supabase.com/docs/guides/cli) — `brew install supabase/tap/supabase` (macOS) or [other methods](https://supabase.com/docs/guides/cli/getting-started#installing-the-supabase-cli)
-- Telegram bot token from [@BotFather](https://t.me/BotFather) (only if deploying the Telegram Worker)
+Sign up for these before starting. All have free tiers.
 
-## 1. Clone and install
+1. **Cloudflare account** — [cloudflare.com](https://cloudflare.com). Workers, KV, R2, and Pages are all free tier.
+
+2. **Supabase account** — [supabase.com](https://supabase.com). Create a new project. Save the database password — you'll need it once for linking.
+
+3. **OpenRouter account** — [openrouter.ai](https://openrouter.ai). Sign up, add $5 credit, generate an API key.
+
+4. **Node.js 18+** — [nodejs.org](https://nodejs.org). Check with `node --version`.
+
+5. **Wrangler CLI** (Cloudflare's deploy tool):
+   ```bash
+   npm install -g wrangler
+   ```
+
+6. **Supabase CLI:**
+   ```bash
+   brew install supabase/tap/supabase    # macOS
+   ```
+   Other platforms: [supabase.com/docs/guides/cli](https://supabase.com/docs/guides/cli/getting-started#installing-the-supabase-cli)
+
+7. **(If Telegram module)** A Telegram account. Create a bot via [@BotFather](https://t.me/BotFather) — send `/newbot`, follow the prompts, save the token.
+
+8. **(If Backup module)** A GitHub account. You'll create a private repository for backup storage.
+
+## Step 1: Clone and install
 
 ```bash
 git clone https://github.com/freegyes/project-ContemPlace.git
@@ -24,108 +92,269 @@ cd project-ContemPlace
 npm install
 ```
 
-## 2. Authenticate CLIs
+## Step 2: Authenticate CLIs
 
 ```bash
-wrangler login          # opens browser → authorize with your Cloudflare account
-supabase login          # opens browser → authorize with your Supabase account
+wrangler login          # opens browser — authorize with your Cloudflare account
+supabase login          # opens browser — authorize with your Supabase account
 ```
 
-## 3. Configure secrets
+**What you should see:** Both commands open a browser tab and print a success message after you authorize.
 
-Two places store secrets, for different purposes:
-
-| Where | What it's for | How values get there |
-|---|---|---|
-| **`.dev.vars`** | Local development, tests, and the `deploy.sh` script | You edit the file |
-| **`wrangler secret put`** | Production — Cloudflare's encrypted store | Interactive prompt (paste the value when asked) |
-
-You need both. Every secret goes in `.dev.vars` *and* gets pushed via `wrangler secret put`. Start by creating `.dev.vars`:
-
-```bash
-cp .dev.vars.example .dev.vars
-```
-
-Fill in the values as you go through the steps below. The `.dev.vars.example` file lists every variable with placeholder values and comments explaining where each one comes from.
-
-**Note on `wrangler secret put`:** Each command is interactive — it prints `Enter a secret value:` and waits for you to paste. It does not accept the value as a command-line argument. Each Worker has its own secret scope: use `-c mcp/wrangler.toml` for the MCP Worker, `-c gardener/wrangler.toml` for the Gardener. No flag = the Telegram Worker.
-
-## 4. Database setup
+## Step 3: Set up the database
 
 Find these in the Supabase dashboard:
-- **Project ref** — Project Settings → General (it's the string in your project URL: `https://<project-ref>.supabase.co`)
-- **Database password** — the one you set when creating the Supabase project
-- **`SUPABASE_URL`** — Project Settings → API → Project URL
-- **`SUPABASE_SERVICE_ROLE_KEY`** — same page → `service_role` key (not the `anon` key)
 
-Save `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.dev.vars` now — every Worker needs them.
+- **Project ref** — Project Settings → General. It's the string in your project URL: `https://<project-ref>.supabase.co`.
+- **Database password** — the one you chose when creating the project.
+
+Link and push:
 
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF -p YOUR_DB_PASSWORD
 supabase db push --linked --yes
 ```
 
-The migrations create 7 tables, RLS policies, RPC functions (`match_notes`, `find_similar_pairs`), HNSW vector indexes, and seed the default capture voice profile.
+**What you should see:** The migration output lists tables being created. When it finishes, you have 7 tables (`notes`, `links`, `clusters`, `enrichment_log`, `capture_profiles`, `processed_updates`, `entity_dictionary`), 2 RPC functions (`match_notes`, `find_similar_pairs`), vector indexes, and a seeded capture voice profile.
 
-## 5. Deploy the MCP Worker
+**If the migration fails** with a vector-related error: enable pgvector in the Supabase dashboard (Database → Extensions → search "vector" → enable it). Then run `supabase db push --linked --yes` again.
 
-The MCP Worker is the core — it hosts the capture pipeline, search tools, and auth. The Telegram Worker depends on it via a Service Binding (capture), and it depends on the Gardener Worker via a second Service Binding (on-demand gardening). Deploy order: Gardener → MCP → Telegram.
+## Step 4: Create your secrets file
 
-### Create the KV namespace
+```bash
+cp .dev.vars.example .dev.vars
+```
 
-The MCP Worker uses Cloudflare KV (a key-value store) for OAuth token storage. Create it:
+Open `.dev.vars` in your editor. You'll fill it in as you go through the steps below. This file serves two purposes: local development/testing, and feeding values to the deploy script. It is gitignored and never committed.
+
+### Supabase keys
+
+Find both at Project Settings → API in the Supabase dashboard:
+
+| Variable | Where to find it |
+|---|---|
+| `SUPABASE_URL` | Project Settings → API → Project URL. Looks like `https://abcdefg.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Same page → `service_role` → click **Reveal**. Starts with `eyJ...` |
+
+**Use the `service_role` key, not the `anon` key.** Both start with `eyJ` but the anon key has no write access. All four Workers validate the key at startup and will show a clear error if you use the wrong one.
+
+### OpenRouter key
+
+| Variable | Where to find it |
+|---|---|
+| `OPENROUTER_API_KEY` | [openrouter.ai/keys](https://openrouter.ai/keys) → Create Key. Starts with `sk-or-v1-...` |
+
+### Self-generated keys
+
+Generate these yourself. Each one is a random secret — never share them.
+
+```bash
+openssl rand -hex 32    # → MCP_API_KEY (static Bearer token for MCP API access)
+openssl rand -hex 16    # → CONSENT_SECRET (passphrase for the OAuth consent page)
+openssl rand -hex 32    # → GARDENER_API_KEY (if deploying Gardener module)
+openssl rand -hex 32    # → TELEGRAM_WEBHOOK_SECRET (if deploying Telegram module)
+openssl rand -hex 32    # → DASHBOARD_API_KEY (if deploying Dashboard module)
+```
+
+Run each command, copy the output, paste it as the value in `.dev.vars`.
+
+### Telegram variables (if deploying Telegram module)
+
+| Variable | Where to find it |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | The token BotFather gave you when you created the bot |
+| `ALLOWED_CHAT_IDS` | Your Telegram chat ID — see below |
+
+**Finding your chat ID:** Send any message to your bot. Then open this URL in a browser (replace the token):
+
+```
+https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+```
+
+Look for `"chat":{"id":123456789}`. That number is your chat ID. Multiple IDs are comma-separated: `123456789,987654321`.
+
+### Dashboard variables (if deploying Dashboard module)
+
+| Variable | Value |
+|---|---|
+| `DASHBOARD_API_KEY` | The key you generated above |
+| `DASHBOARD_API_URL` | You'll fill this in after deploying the Dashboard API Worker (step 6) |
+| `DASHBOARD_WORKER_URL` | Same URL — used by smoke tests |
+
+### Test-only variables
+
+These are only needed for running smoke tests after deploy. Fill them in after you know the deployed URLs:
+
+| Variable | What it is |
+|---|---|
+| `WORKER_URL` | Deployed Telegram Worker URL |
+| `TELEGRAM_CHAT_ID` | Your Telegram chat ID (same as in `ALLOWED_CHAT_IDS`) |
+| `MCP_WORKER_URL` | Deployed MCP Worker URL |
+| `GARDENER_WORKER_URL` | Deployed Gardener Worker URL |
+| `DASHBOARD_WORKER_URL` | Deployed Dashboard API Worker URL |
+
+## Step 5: Configure Cloudflare resources
+
+### KV namespace (required for MCP Worker)
+
+The MCP Worker uses Cloudflare KV for OAuth token storage. Create it:
 
 ```bash
 wrangler kv namespace create OAUTH_KV -c mcp/wrangler.toml
 ```
 
-Output looks like:
+**What you should see:**
 
 ```
-🌀 Creating namespace with title "mcp-contemplace-OAUTH_KV"
-✨ Success!
+Creating namespace with title "mcp-contemplace-OAUTH_KV"
+Success!
 Add the following to your configuration file in your kv_namespaces array:
 { binding = "OAUTH_KV", id = "abc123def456..." }
 ```
 
-Copy the `id` value. Open `mcp/wrangler.toml` and replace `YOUR_KV_NAMESPACE_ID` with it. Then create the preview namespace:
+Copy the `id` value. Now create the preview namespace:
 
 ```bash
 wrangler kv namespace create OAUTH_KV --preview -c mcp/wrangler.toml
 ```
 
-Same thing — copy the `id` from the output and replace `YOUR_KV_PREVIEW_ID` in `mcp/wrangler.toml`.
+Same output — copy that `id` too.
 
-Since these IDs are account-specific, your edit will show as a git diff. To suppress it: `git update-index --skip-worktree mcp/wrangler.toml`
+Open `mcp/wrangler.toml` and replace the existing KV namespace IDs with yours:
 
-### Generate and save secrets
-
-Generate two secrets and save them in `.dev.vars`:
-
-```bash
-openssl rand -hex 32   # → save as MCP_API_KEY in .dev.vars (your static Bearer token for API access)
-openssl rand -hex 16   # → save as CONSENT_SECRET in .dev.vars (passphrase for the OAuth consent page)
+```toml
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "your-production-kv-id-here"
+preview_id = "your-preview-kv-id-here"
 ```
 
-Also save your `OPENROUTER_API_KEY` in `.dev.vars` if you haven't already.
+**Important:** The committed file contains KV IDs from the repo owner's Cloudflare account. They will not work for you. Replace them with your own IDs from the commands above.
 
-### Push secrets to Cloudflare and deploy
+Since these IDs are account-specific, your edit will show as a git diff. Suppress it:
 
 ```bash
+git update-index --skip-worktree mcp/wrangler.toml
+```
+
+### R2 bucket (if deploying Telegram module with photo support)
+
+Create the bucket:
+
+```bash
+wrangler r2 bucket create contemplace-images
+```
+
+Enable public access in the Cloudflare dashboard: R2 → `contemplace-images` → Settings → Public access → Allow access.
+
+**What you should see:** A public URL like `https://pub-<hash>.r2.dev`.
+
+Open `wrangler.toml` (root — the Telegram Worker's config) and update the `R2_PUBLIC_URL`:
+
+```toml
+[vars]
+R2_PUBLIC_URL = "https://pub-<your-hash>.r2.dev"
+```
+
+### Dashboard API config (if deploying Dashboard module)
+
+Open `dashboard-api/wrangler.toml` and update two values:
+
+```toml
+[vars]
+CORS_ORIGIN = "https://contemplace-dashboard.pages.dev"   # ← your Pages URL (update after first deploy if different)
+BACKUP_REPO = "yourname/contemplace-backups"               # ← your backup repo, or leave empty if not using backups
+```
+
+The `CORS_ORIGIN` must exactly match the URL where your dashboard Pages app is hosted. After your first Pages deploy, Cloudflare will tell you the URL. Come back and update this if it differs.
+
+## Step 6: Push secrets and deploy
+
+Every secret goes to Cloudflare's encrypted store via `wrangler secret put`. Each command is interactive — it prints `Enter a secret value:` and waits for you to paste. Press Enter after pasting.
+
+Each Worker has its own secret scope. The `-c` flag tells Wrangler which Worker to target:
+
+| Worker | Flag |
+|---|---|
+| Telegram Worker | (no flag — uses root `wrangler.toml`) |
+| MCP Worker | `-c mcp/wrangler.toml` |
+| Gardener Worker | `-c gardener/wrangler.toml` |
+| Dashboard API Worker | `-c dashboard-api/wrangler.toml` |
+
+### Option A: Deploy everything with the script
+
+The deploy script handles schema migration, typechecking, unit tests, and deploying all Workers + Pages in the correct order. It reads secrets from `.dev.vars`.
+
+But you still need to push secrets to Cloudflare first. The script deploys code — it does not push secrets.
+
+Push all secrets (run each line, paste the value when prompted):
+
+```bash
+# MCP Worker (deploy this first — other Workers depend on it)
 wrangler secret put MCP_API_KEY -c mcp/wrangler.toml
 wrangler secret put CONSENT_SECRET -c mcp/wrangler.toml
+wrangler secret put OPENROUTER_API_KEY -c mcp/wrangler.toml
 wrangler secret put SUPABASE_URL -c mcp/wrangler.toml
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c mcp/wrangler.toml
-wrangler secret put OPENROUTER_API_KEY -c mcp/wrangler.toml
 
+# Telegram Worker
+wrangler secret put TELEGRAM_BOT_TOKEN
+wrangler secret put TELEGRAM_WEBHOOK_SECRET
+wrangler secret put SUPABASE_URL
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+wrangler secret put ALLOWED_CHAT_IDS
+
+# Gardener Worker
+wrangler secret put SUPABASE_URL -c gardener/wrangler.toml
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c gardener/wrangler.toml
+wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml
+# Optional — entity extraction:
+wrangler secret put OPENROUTER_API_KEY -c gardener/wrangler.toml
+# Optional — Telegram failure alerts:
+wrangler secret put TELEGRAM_BOT_TOKEN -c gardener/wrangler.toml
+wrangler secret put TELEGRAM_ALERT_CHAT_ID -c gardener/wrangler.toml
+
+# Dashboard API Worker
+wrangler secret put DASHBOARD_API_KEY -c dashboard-api/wrangler.toml
+wrangler secret put SUPABASE_URL -c dashboard-api/wrangler.toml
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c dashboard-api/wrangler.toml
+# Optional — backup freshness metric:
+wrangler secret put GITHUB_BACKUP_PAT -c dashboard-api/wrangler.toml
+```
+
+Skip the sections for modules you're not deploying. Then run:
+
+```bash
+bash scripts/deploy.sh
+```
+
+The script deploys in this order: schema migration → typecheck → unit tests → MCP Worker → Telegram Worker → Gardener Worker → Dashboard API Worker → Dashboard Pages → smoke tests.
+
+Add `--skip-smoke` to skip the end-to-end smoke tests:
+
+```bash
+bash scripts/deploy.sh --skip-smoke
+```
+
+**What you should see:** Each step prints a checkmark. The script exits with "Deploy complete."
+
+After the script finishes, note the deployed URLs from the output. Fill them into `.dev.vars` for the test-only variables.
+
+### Option B: Deploy step by step
+
+If you want to understand each piece, or only deploy some modules.
+
+#### Deploy the MCP Worker (core — do this first)
+
+Push secrets (same as Option A, MCP section above), then:
+
+```bash
 wrangler deploy -c mcp/wrangler.toml
 ```
 
-Wrangler prints the deployed URL after a successful deploy — something like `https://mcp-contemplace.your-subdomain.workers.dev`. Note it down; you'll need it for verification and client configuration.
+**What you should see:** Wrangler prints the deployed URL — something like `https://mcp-contemplace.your-subdomain.workers.dev`.
 
-### Verify the deploy
-
-The MCP Worker requires authentication — opening the URL in a browser will return an error. That's expected. Verify with curl using your `MCP_API_KEY`:
+Verify:
 
 ```bash
 curl -s https://mcp-contemplace.YOUR_SUBDOMAIN.workers.dev/mcp \
@@ -134,98 +363,23 @@ curl -s https://mcp-contemplace.YOUR_SUBDOMAIN.workers.dev/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
 ```
 
-Replace `YOUR_SUBDOMAIN` with your Cloudflare subdomain (from the deploy output) and `YOUR_MCP_API_KEY` with the key you generated.
-
-A successful response looks like:
+**What you should see:**
 
 ```json
 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"contemplace-mcp","version":"1.0.0"},"capabilities":{"tools":{}}}}
 ```
 
-If you see `"Unauthorized"` or `"Forbidden"`: the `MCP_API_KEY` you pushed via `wrangler secret put` doesn't match the token in the curl command. Regenerate, push again, and retry.
+If you see `"Unauthorized"`: the `MCP_API_KEY` you pushed doesn't match the one in the curl command.
 
-### Connect from Claude.ai web
+#### Deploy the Telegram Worker
 
-Add a remote MCP server in Claude.ai settings → Integrations. Enter the URL — OAuth handles the rest automatically:
-
-```
-https://mcp-contemplace.<subdomain>.workers.dev/mcp
-```
-
-### Connect from Claude Code CLI
-
-Add to your MCP config (`~/.claude/settings.json` or project-level `.claude/settings.json`):
-
-```json
-{
-  "mcpServers": {
-    "contemplace": {
-      "type": "http",
-      "url": "https://mcp-contemplace.<subdomain>.workers.dev/mcp",
-      "headers": {
-        "Authorization": "Bearer <your-MCP_API_KEY>"
-      }
-    }
-  }
-}
-```
-
-### Auth
-
-Two paths, both permanent:
-
-- **OAuth 2.1** — Authorization Code + PKCE for browser-based clients (Claude.ai web, ChatGPT, Cursor). Dynamic Client Registration — no manual credentials needed. The consent page asks for a passphrase — this is your `CONSENT_SECRET`.
-- **Static Bearer token** — the `MCP_API_KEY` you generated earlier. Send it as `Authorization: Bearer <MCP_API_KEY>` for API/SDK callers (Claude Code CLI, Anthropic API, OpenAI Responses API). It never expires.
-
-### Configuration
-
-| Variable | Description |
-|---|---|
-| `CAPTURE_MODEL` | LLM for `capture_note` tool |
-| `EMBED_MODEL` | Embedding model |
-| `MATCH_THRESHOLD` | Capture-time related-note lookup threshold (raw query vs. augmented store) |
-| `MCP_SEARCH_THRESHOLD` | Default threshold for `search_notes` (bare NL query vs. augmented store) |
-| `HARD_DELETE_WINDOW_MINUTES` | Grace window for `remove_note` — notes younger than this are permanently deleted, older notes are soft-archived |
-| `RECENT_FRAGMENTS_COUNT` | Max recent fragments shown to capture LLM as temporal context (default 5, 0 to disable) |
-| `RECENT_FRAGMENTS_WINDOW_MINUTES` | Time window for recent fragments — captures older than this are excluded (default 60, 0 to disable) |
-
-Deployed values in `mcp/wrangler.toml` `[vars]`. Code defaults in `mcp/src/config.ts`. The toml values take precedence.
-
-**Threshold note:** Stored embeddings are metadata-augmented (`[Tags: ...] text`), while search queries are bare natural language. The search threshold compensates for this vector space gap. You can override per call. See [decisions.md](decisions.md) for the full analysis.
-
-## 6. Deploy the Telegram capture Worker (optional)
-
-The Telegram Worker is a thin webhook adapter — it delegates capture to the MCP Worker via a Service Binding. It only needs Telegram and Supabase (for dedup) secrets. AI model config lives on the MCP Worker.
-
-**Important:** The MCP Worker (step 5) must be deployed first. The Telegram Worker binds to it at deploy time.
-
-### Generate secrets
+Push secrets (same as Option A, Telegram section above), then:
 
 ```bash
-openssl rand -hex 32   # → save as TELEGRAM_WEBHOOK_SECRET in .dev.vars
-```
-
-Get your Telegram bot token from [@BotFather](https://t.me/BotFather) and save it as `TELEGRAM_BOT_TOKEN` in `.dev.vars`.
-
-### Push secrets to Cloudflare and deploy
-
-```bash
-wrangler secret put TELEGRAM_BOT_TOKEN
-wrangler secret put TELEGRAM_WEBHOOK_SECRET
-wrangler secret put SUPABASE_URL
-wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-wrangler secret put ALLOWED_CHAT_IDS          # comma-separated Telegram chat IDs
-
 wrangler deploy
 ```
 
-**Finding your chat ID:** Send any message to your bot first. Then open `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates` in a browser. Look for `"chat":{"id":123456789}` — that number is your chat ID.
-
-Note the deployed URL from the Wrangler output (e.g. `https://contemplace.your-subdomain.workers.dev`).
-
-### Register the Telegram webhook
-
-The webhook tells Telegram where to send messages. Replace the two values below with your bot token and the URL from the deploy output:
+Register the webhook — replace the three placeholders:
 
 ```bash
 curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
@@ -234,134 +388,130 @@ curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
   -d 'allowed_updates=["message"]'
 ```
 
-Verify the webhook is set:
+Register bot commands:
+
+```bash
+curl -s -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{"commands": [{"command": "start", "description": "Start the bot"}, {"command": "undo", "description": "Undo the most recent capture"}]}'
+```
+
+Verify the webhook:
 
 ```bash
 curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 ```
 
-The `url` field in the response should match your Worker URL.
+**What you should see:** The `url` field matches your Worker URL.
 
-### Verify
+Send a text message to your bot. You should get a structured confirmation back within 5 seconds — a bold title, body text, tags, and optional linked/corrections lines.
 
-Send a text message to your bot. You should get a structured confirmation back within ~5 seconds — a bold title, body text, tags, and optional linked/corrections lines.
+#### Deploy the Gardener Worker
 
-## 7. Deploy the Gardener Worker
-
-The gardener runs nightly at 02:00 UTC, creating similarity links between notes and detecting thematic clusters via Louvain community detection. It's what turns the database from a note store into a connected knowledge graph.
+Push secrets (same as Option A, Gardener section above), then:
 
 ```bash
-wrangler secret put SUPABASE_URL -c gardener/wrangler.toml
-wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c gardener/wrangler.toml
-
-# Optional — enables entity extraction (proper noun tracking):
-wrangler secret put OPENROUTER_API_KEY -c gardener/wrangler.toml
-
-# Optional — enables Telegram alerts on failure:
-wrangler secret put TELEGRAM_BOT_TOKEN -c gardener/wrangler.toml
-wrangler secret put TELEGRAM_ALERT_CHAT_ID -c gardener/wrangler.toml
-
-# Optional — enables POST /trigger for manual runs:
-wrangler secret put GARDENER_API_KEY -c gardener/wrangler.toml
-
 wrangler deploy -c gardener/wrangler.toml
 ```
 
-### Verify
-
-Trigger a manual run (requires `GARDENER_API_KEY`):
+Verify with a manual trigger (requires `GARDENER_API_KEY`):
 
 ```bash
 curl -X POST "https://contemplace-gardener.<YOUR_SUBDOMAIN>.workers.dev/trigger" \
   -H "Authorization: Bearer <YOUR_GARDENER_API_KEY>"
 ```
 
-### Configuration
+**What you should see:** A JSON response with similarity linking and clustering results. If your corpus is small (< 5 notes), it may report zero links — that's normal.
 
-| Variable | Description |
-|---|---|
-| `GARDENER_SIMILARITY_THRESHOLD` | Cosine similarity gate for `is-similar-to` links (augmented-vs-augmented) |
-| `GARDENER_COSINE_FLOOR` | Minimum similarity for the all-pairs query — gates both linking candidates and graph construction for clustering |
-| `GARDENER_CLUSTER_RESOLUTIONS` | Comma-separated Louvain resolution values (e.g. `1.0,1.5,2.0`). Higher = more granular clusters |
-| `GARDENER_ENTITY_MODEL` | LLM model for entity extraction (default `anthropic/claude-haiku-4-5`). Only used when `OPENROUTER_API_KEY` is set. |
-| `GARDENER_ENTITY_BATCH_SIZE` | Max notes to extract entities from per gardener run (default `15`, `0` = unlimited). Constrained by CF Workers' 50-subrequest-per-invocation limit. |
+#### Deploy the Dashboard API Worker and Pages
 
-Deployed values in `gardener/wrangler.toml` `[vars]`. Code defaults in `gardener/src/config.ts`. Entity extraction is entirely optional — without `OPENROUTER_API_KEY`, the gardener runs similarity linking and clustering only.
-
-## 8. Deploy the Dashboard API Worker and frontend (optional)
-
-The Dashboard API Worker is a read-only JSON API for the `contemplace-dashboard` Cloudflare Pages SPA. It exposes corpus stats, cluster data, and recent captures. No Service Bindings — it's a standalone Worker.
-
-### Generate secrets
+Push secrets (same as Option A, Dashboard section above), then:
 
 ```bash
-openssl rand -hex 32   # → save as DASHBOARD_API_KEY in .dev.vars
-```
-
-The `GITHUB_BACKUP_PAT` is optional. If set, the `/stats` endpoint includes a `backup_last_commit` timestamp showing when the last backup ran. Use a fine-grained Personal Access Token scoped to Contents → Read-only on the backup repository.
-
-### Push secrets and deploy
-
-```bash
-wrangler secret put DASHBOARD_API_KEY -c dashboard-api/wrangler.toml
-wrangler secret put SUPABASE_URL -c dashboard-api/wrangler.toml
-wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c dashboard-api/wrangler.toml
-
-# Optional — enables backup freshness metric in /stats:
-wrangler secret put GITHUB_BACKUP_PAT -c dashboard-api/wrangler.toml
-
 wrangler deploy -c dashboard-api/wrangler.toml
 ```
 
-Note the deployed URL (e.g. `https://contemplace-dashboard-api.your-subdomain.workers.dev`). Save it as `DASHBOARD_API_URL` in `.dev.vars`.
+Note the deployed URL (e.g., `https://contemplace-dashboard-api.your-subdomain.workers.dev`). Save it as `DASHBOARD_API_URL` in `.dev.vars`.
 
-### Create the Pages project and deploy the frontend
+Create the Pages project:
 
 ```bash
 wrangler pages project create contemplace-dashboard
 ```
 
-The frontend SPA reads the API URL from `dashboard/config.js`, which is generated by `deploy.sh` from `.dev.vars`. To deploy it manually:
+Generate `config.js` and deploy:
 
 ```bash
-echo "window.CONTEMPLACE_API_URL = \"${DASHBOARD_API_URL}\";" > dashboard/config.js
+echo "window.CONTEMPLACE_API_URL = \"https://contemplace-dashboard-api.YOUR_SUBDOMAIN.workers.dev\";" > dashboard/config.js
 wrangler pages deploy dashboard/ --project-name contemplace-dashboard --branch main
 ```
 
-`dashboard/config.js` is gitignored — it is never committed. The URL is injected at deploy time.
+`dashboard/config.js` is gitignored — it's generated at deploy time.
 
-### Verify
+**What you should see:** Wrangler prints the Pages URL. Open it in a browser. The dashboard prompts for the `DASHBOARD_API_KEY`. Paste it — it persists in localStorage.
 
-Open the Pages URL in a browser. The dashboard prompts for the `DASHBOARD_API_KEY`. Paste it in — it persists in localStorage.
+## Step 7: Connect MCP clients
 
-## 9. Configure automated backups (optional)
+### Claude Code CLI
 
-A GitHub Actions workflow dumps the full database daily — schema, data, and roles — to a private GitHub repository you control. Git history in that repo provides natural retention with zero maintenance.
+Add to `~/.claude/settings.json` (or your project-level `.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "contemplace": {
+      "type": "http",
+      "url": "https://mcp-contemplace.<your-subdomain>.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-MCP_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+### Claude.ai web
+
+Add a remote MCP server in Claude.ai: Settings → Integrations → Add integration. Enter the URL:
+
+```
+https://mcp-contemplace.<your-subdomain>.workers.dev/mcp
+```
+
+OAuth handles the rest. When the consent page asks for a passphrase, enter your `CONSENT_SECRET`.
+
+### Other MCP clients (Cursor, ChatGPT, Anthropic API, OpenAI Responses API)
+
+OAuth 2.1 (Authorization Code + PKCE) for browser-based clients. Static Bearer token for API/SDK callers. Both auth paths work permanently.
+
+## Step 8: Set up automated backups (optional)
+
+This module is independent of Cloudflare. A GitHub Actions workflow dumps the database daily to a private repo.
 
 ### Create the backup repository
 
-Create a **private** GitHub repository for backups (e.g., `yourname/contemplace-backups`). It can be empty — the workflow creates the initial commit.
+Create a **private** GitHub repository (e.g., `yourname/contemplace-backups`). It can be empty.
 
-### Find your database connection string
+### Get the database connection string
 
 In the Supabase dashboard: Project Settings → Database → Connection string → **Session mode** (port 5432).
 
-The format looks like:
+The format:
 
 ```
 postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
 ```
 
-Use session mode (port 5432), not transaction mode (port 6543). `pg_dump` requires a session-capable connection.
+**Use session mode (port 5432), not transaction mode (port 6543).** `pg_dump` requires a session-capable connection.
 
 ### Create a Personal Access Token
 
-The workflow needs push access to the backup repo. Create a [fine-grained Personal Access Token](https://github.com/settings/personal-access-tokens/new):
+The workflow needs push access to the backup repo. Create a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new):
 
 - **Repository access:** Only the backup repository
 - **Permissions:** Contents → Read and write
 
-### Set secrets and variables
+### Set GitHub Actions secrets
 
 In this repository's Settings → Secrets and variables → Actions:
 
@@ -369,9 +519,9 @@ In this repository's Settings → Secrets and variables → Actions:
 |---|---|---|
 | Secret | `SUPABASE_DB_URL` | The connection string from above |
 | Secret | `BACKUP_PAT` | The Personal Access Token |
-| Variable | `BACKUP_REPO` | `owner/repo` of the backup repository (e.g., `yourname/contemplace-backups`) |
+| Variable | `BACKUP_REPO` | `owner/repo` format (e.g., `yourname/contemplace-backups`) |
 
-Optional — for Telegram failure alerts:
+Optional — Telegram failure alerts:
 
 | Type | Name | Value |
 |---|---|---|
@@ -380,19 +530,12 @@ Optional — for Telegram failure alerts:
 
 ### Verify
 
-Trigger the workflow manually:
-
 ```bash
 gh workflow run backup.yml
-```
-
-Watch the run:
-
-```bash
 gh run watch
 ```
 
-Check the backup repository — you should see three files: `roles.sql`, `schema.sql`, `data.sql`.
+**What you should see:** The workflow completes. Check the backup repository — you should see three files: `roles.sql`, `schema.sql`, `data.sql`.
 
 ### Restore from backup
 
@@ -405,26 +548,16 @@ psql $DB_URL -f schema.sql
 psql $DB_URL -f data.sql
 ```
 
-The `roles.sql` step will show errors on managed Supabase — that's expected, the roles already exist. Schema and data restore cleanly.
-
-Verify: note count matches, `match_notes` and `find_similar_pairs` RPCs work, embeddings are queryable, `capture_profiles` seed data is present.
-
-### Customization
-
-- **Schedule:** Edit the cron expression in `.github/workflows/backup.yml` (default: daily at 04:00 UTC).
-- **Storage target:** The workflow pushes to a GitHub repo by default. To use R2, S3, or another destination, replace the "Push to backup repository" step.
-- **Retention:** Git history handles deduplication — identical dumps produce no new commit. At current scale (~1.4MB per dump), unlimited history is fine.
-
 ## Subsequent deploys
 
-After the first-time setup, you don't need to repeat the secret and KV steps. Use `deploy.sh` for all future deploys — it handles schema migration, typechecking, unit tests, and deploying all four Workers and the Pages frontend in the correct order:
+After the first-time setup, you don't repeat secrets or KV steps. Use the deploy script:
 
 ```bash
 bash scripts/deploy.sh              # full deploy with smoke tests
-bash scripts/deploy.sh --skip-smoke # skip end-to-end smoke tests
+bash scripts/deploy.sh --skip-smoke # skip end-to-end tests
 ```
 
-The script reads secrets from `.dev.vars` and deploys Workers in dependency order (MCP → Telegram → Gardener). It will fail early if KV namespace IDs in `mcp/wrangler.toml` are still placeholders.
+The script reads from `.dev.vars`, deploys in dependency order, and generates `dashboard/config.js` automatically.
 
 ## Tuning capture behavior
 
@@ -438,42 +571,86 @@ The structural contract (JSON schema, field enums, link rules) lives in `SYSTEM_
 
 All Workers emit structured JSON logs. Two ways to see them:
 
-- **Real-time streaming** — `wrangler tail` for the Telegram Worker, `wrangler tail -c mcp/wrangler.toml` for the MCP Worker, `wrangler tail -c gardener/wrangler.toml` for the Gardener, `wrangler tail -c dashboard-api/wrangler.toml` for the Dashboard API. Shows logs as requests come in. Useful for debugging a specific request.
-- **Persistent logs** — in the Cloudflare dashboard, go to Workers & Pages → select the Worker → Logs. Enable "Workers Logs" to store logs for later inspection. Useful when you're not watching in real time.
+- **Real-time:** `wrangler tail` (no flag = Telegram Worker), `wrangler tail -c mcp/wrangler.toml` (MCP), `wrangler tail -c gardener/wrangler.toml` (Gardener), `wrangler tail -c dashboard-api/wrangler.toml` (Dashboard API).
+- **Persistent:** Cloudflare dashboard → Workers & Pages → select Worker → Logs.
 
-Start here when something isn't working — the logs usually tell you exactly what failed.
+Start here when something isn't working.
 
-### "Unauthorized" or "invalid or missing token" when hitting the MCP Worker URL
+### Wrong Supabase key type
 
-The MCP Worker requires authentication on every request. You cannot test it by opening the URL in a browser — that will always fail. Use the curl command from step 5 with your `MCP_API_KEY`, or connect via Claude.ai (OAuth) or Claude Code CLI (static token).
+**Symptom:** Writes silently fail, searches return empty results.
 
-If curl with the correct token still fails: the `MCP_API_KEY` you pushed via `wrangler secret put` doesn't match the token you're sending. Run `wrangler secret put MCP_API_KEY -c mcp/wrangler.toml` again with the correct value.
+**Cause:** You're using the `anon` key instead of the `service_role` key. Both start with `eyJ...`.
+
+**Check:**
+
+```bash
+echo "YOUR_KEY_HERE" | cut -d. -f2 | base64 -d 2>/dev/null
+```
+
+You should see `"role":"service_role"`. If you see `"role":"anon"`, go to the Supabase dashboard → Project Settings → API → scroll to `service_role` → click **Reveal** → use that key instead.
+
+The Workers also catch this at startup and log: `SUPABASE_SERVICE_ROLE_KEY has role "anon" — expected "service_role"`.
+
+### KV namespace ID mismatch
+
+**Symptom:** MCP Worker deploy fails, or OAuth flow doesn't work after deploy.
+
+**Cause:** The KV namespace IDs in `mcp/wrangler.toml` are from a different Cloudflare account.
+
+**Fix:** Create your own KV namespaces (Step 5) and replace the IDs in the file.
+
+### pgvector extension not enabled
+
+**Symptom:** Schema migration fails with a vector-related error.
+
+**Fix:** Enable pgvector in the Supabase dashboard: Database → Extensions → search "vector" → enable. Re-run the migration.
 
 ### Telegram bot doesn't respond
 
 Check in order:
-1. **Is the webhook registered?** Run `getWebhookInfo` (see step 6). The `url` field should match your Worker URL.
-2. **Is the MCP Worker deployed?** The Telegram Worker delegates to it via Service Binding. If the MCP Worker is down, capture silently fails.
-3. **Is your chat ID whitelisted?** Check `ALLOWED_CHAT_IDS`. Messages from non-whitelisted chats are silently ignored.
-4. **Check Worker logs:** `wrangler tail` shows real-time logs from the Telegram Worker.
 
-### `wrangler deploy` fails with KV namespace error
+1. **Webhook registered?** Run `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"`. The `url` field should match your Worker URL.
+2. **MCP Worker deployed?** The Telegram Worker delegates to it via Service Binding. If the MCP Worker isn't deployed, capture silently fails. Deploy order: MCP first, Telegram second.
+3. **Chat ID whitelisted?** Messages from non-whitelisted chat IDs are silently ignored. Check `ALLOWED_CHAT_IDS`.
+4. **Check logs:** `wrangler tail` shows real-time Telegram Worker logs.
 
-The KV namespace ID in `mcp/wrangler.toml` is account-specific. If you cloned the repo, you need to create your own namespace — see step 5 "Create the KV namespace."
+### Photos captured but images don't load
 
-### Writes fail or search always returns empty results
+**Symptom:** Notes are created with `image_url` set, but the URL returns an error.
 
-Most likely you're using the **anon key** instead of the **service role key** for `SUPABASE_SERVICE_ROLE_KEY`. The anon key looks similar (both start with `eyJ...`) but has no write access due to RLS.
+**Cause:** The R2 bucket doesn't have public access enabled, or `R2_PUBLIC_URL` in `wrangler.toml` doesn't match the actual bucket URL.
 
-Verify which key you have:
+**Fix:** Enable public access in Cloudflare dashboard: R2 → `contemplace-images` → Settings → Public access. Copy the public URL and update `R2_PUBLIC_URL` in `wrangler.toml`.
+
+### Dashboard loads but panels show errors
+
+**Symptom:** The dashboard SPA opens, but data panels fail with network errors.
+
+**Cause:** `CORS_ORIGIN` in `dashboard-api/wrangler.toml` doesn't match the Pages URL.
+
+**Fix:** Update `CORS_ORIGIN` to exactly match your dashboard's URL (e.g., `https://contemplace-dashboard.pages.dev`). Redeploy the Dashboard API Worker.
+
+### Dashboard shows blank screen
+
+**Symptom:** Nothing renders at all.
+
+**Cause:** `dashboard/config.js` is missing. The deploy script generates it, but manual deploys skip this step.
+
+**Fix:** Create it manually:
 
 ```bash
-echo "$SUPABASE_SERVICE_ROLE_KEY" | cut -d. -f2 | base64 -d 2>/dev/null
+echo "window.CONTEMPLACE_API_URL = \"https://contemplace-dashboard-api.YOUR_SUBDOMAIN.workers.dev\";" > dashboard/config.js
+wrangler pages deploy dashboard/ --project-name contemplace-dashboard --branch main
 ```
 
-You should see `"role":"service_role"`. If you see `"role":"anon"`, go to the Supabase dashboard → Project Settings → API → scroll to `service_role` → click **Reveal** → copy that key instead.
+### Service Binding target not deployed
 
-The Workers also validate this at startup — if you deploy with the wrong key, the Worker logs will show: `SUPABASE_SERVICE_ROLE_KEY has role "anon" — expected "service_role"`.
+**Symptom:** Telegram messages get "Something went wrong." The Telegram Worker logs show a Service Binding error.
+
+**Cause:** The MCP Worker wasn't deployed before the Telegram Worker.
+
+**Fix:** Deploy the MCP Worker first: `wrangler deploy -c mcp/wrangler.toml`. Then redeploy the Telegram Worker: `wrangler deploy`.
 
 ### `wrangler secret put` or `wrangler deploy` fails with auth error
 
@@ -481,42 +658,108 @@ Run `wrangler login` to re-authenticate with Cloudflare.
 
 ### Schema migration fails
 
-Make sure the Supabase project is linked: `supabase link --project-ref YOUR_REF`. The deploy script uses `supabase db push --linked` which connects via the management API — no direct database port access required.
+Make sure the Supabase project is linked:
 
-## Environment variables reference
-
+```bash
+supabase link --project-ref YOUR_REF -p YOUR_DB_PASSWORD
 ```
-# Telegram Worker — required, no defaults
-TELEGRAM_BOT_TOKEN          # from BotFather
-TELEGRAM_WEBHOOK_SECRET     # openssl rand -hex 32
-SUPABASE_URL                # from Supabase dashboard → Project Settings → API (for dedup only)
-SUPABASE_SERVICE_ROLE_KEY   # from Supabase dashboard → Project Settings → API (for dedup only)
-ALLOWED_CHAT_IDS            # comma-separated Telegram chat IDs
-R2_PUBLIC_URL               # public URL of the R2 bucket (e.g., https://pub-<hash>.r2.dev) — set in wrangler.toml [vars]
 
-# MCP Worker secrets — required
-OPENROUTER_API_KEY          # from openrouter.ai
-MCP_API_KEY                 # openssl rand -hex 32
-CONSENT_SECRET              # openssl rand -hex 16
-SUPABASE_URL                # from Supabase dashboard → Project Settings → API
-SUPABASE_SERVICE_ROLE_KEY   # from Supabase dashboard → Project Settings → API
+Then retry `supabase db push --linked --yes`.
 
-# Gardener Worker secrets (optional)
-TELEGRAM_BOT_TOKEN          # same as capture Worker — enables failure alerts
-TELEGRAM_ALERT_CHAT_ID      # chat ID to receive failure alerts
-GARDENER_API_KEY            # enables POST /trigger endpoint
+## Environment variable reference
 
-# Dashboard API Worker secrets
-DASHBOARD_API_KEY           # openssl rand -hex 32
-GITHUB_BACKUP_PAT           # optional — fine-grained PAT, Contents read-only on backup repo
+### MCP Worker
 
-# Dashboard frontend (set in .dev.vars for deploy.sh to inject into config.js)
-DASHBOARD_API_URL           # deployed Dashboard API Worker URL
+Set secrets with: `wrangler secret put <NAME> -c mcp/wrangler.toml`
 
-# Test-only
-WORKER_URL                  # deployed Telegram Worker URL, for smoke tests
-TELEGRAM_CHAT_ID            # your personal chat ID, for smoke tests
-MCP_WORKER_URL              # deployed MCP Worker URL, for mcp-smoke tests
-GARDENER_WORKER_URL         # deployed Gardener Worker URL, for gardener-integration tests
-DASHBOARD_WORKER_URL        # deployed Dashboard API Worker URL, for dashboard-smoke tests
-```
+| Variable | Required | Source | Description |
+|---|---|---|---|
+| `MCP_API_KEY` | Yes | `openssl rand -hex 32` | Static Bearer token for API access |
+| `CONSENT_SECRET` | Yes | `openssl rand -hex 16` | Passphrase for OAuth consent page |
+| `OPENROUTER_API_KEY` | Yes | [openrouter.ai/keys](https://openrouter.ai/keys) | AI gateway for LLM + embeddings |
+| `SUPABASE_URL` | Yes | Supabase dashboard → Project Settings → API | Database URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Same page → `service_role` (click Reveal) | Database access key |
+
+Configuration vars (set in `mcp/wrangler.toml` `[vars]`, defaults in `mcp/src/config.ts`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `CAPTURE_MODEL` | `anthropic/claude-haiku-4-5` | LLM for capture |
+| `EMBED_MODEL` | `openai/text-embedding-3-small` | Embedding model (1536 dimensions) |
+| `MATCH_THRESHOLD` | `0.35` | Capture-time related-note threshold |
+| `MCP_SEARCH_THRESHOLD` | `0.35` | Default search threshold |
+| `HARD_DELETE_WINDOW_MINUTES` | `11` | Grace window for hard delete vs. soft archive |
+| `RECENT_FRAGMENTS_COUNT` | `5` | Max recent fragments shown to capture LLM |
+| `RECENT_FRAGMENTS_WINDOW_MINUTES` | `60` | Time window for recent fragments |
+| `GARDENING_COOLDOWN_MINUTES` | `5` | Minimum wait between trigger_gardening calls |
+
+### Telegram Worker
+
+Set secrets with: `wrangler secret put <NAME>` (no `-c` flag)
+
+| Variable | Required | Source | Description |
+|---|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | Yes | [@BotFather](https://t.me/BotFather) | Bot API token |
+| `TELEGRAM_WEBHOOK_SECRET` | Yes | `openssl rand -hex 32` | Webhook signature verification |
+| `SUPABASE_URL` | Yes | Supabase dashboard | For dedup checks |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase dashboard | For dedup checks |
+| `ALLOWED_CHAT_IDS` | Yes | Telegram API (`getUpdates`) | Comma-separated numeric chat IDs |
+
+Configuration var (set in `wrangler.toml` `[vars]`):
+
+| Variable | Description |
+|---|---|
+| `R2_PUBLIC_URL` | Public URL of the R2 bucket for photo storage |
+
+### Gardener Worker
+
+Set secrets with: `wrangler secret put <NAME> -c gardener/wrangler.toml`
+
+| Variable | Required | Source | Description |
+|---|---|---|---|
+| `SUPABASE_URL` | Yes | Supabase dashboard | Database URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase dashboard | Database access key |
+| `GARDENER_API_KEY` | No | `openssl rand -hex 32` | Enables POST /trigger endpoint |
+| `OPENROUTER_API_KEY` | No | [openrouter.ai/keys](https://openrouter.ai/keys) | Enables entity extraction |
+| `TELEGRAM_BOT_TOKEN` | No | BotFather | Enables failure alerts |
+| `TELEGRAM_ALERT_CHAT_ID` | No | Telegram API | Chat ID for failure alerts |
+
+Configuration vars (set in `gardener/wrangler.toml` `[vars]`, defaults in `gardener/src/config.ts`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `GARDENER_SIMILARITY_THRESHOLD` | `0.65` | Cosine gate for `is-similar-to` links |
+| `GARDENER_COSINE_FLOOR` | `0.40` | Minimum similarity for all-pairs query |
+| `GARDENER_CLUSTER_RESOLUTIONS` | `1.0,1.5,2.0` | Louvain resolutions (higher = more granular) |
+| `GARDENER_ENTITY_MODEL` | `anthropic/claude-haiku-4-5` | LLM for entity extraction |
+| `GARDENER_ENTITY_BATCH_SIZE` | `15` | Max notes per extraction run (0 = unlimited) |
+
+### Dashboard API Worker
+
+Set secrets with: `wrangler secret put <NAME> -c dashboard-api/wrangler.toml`
+
+| Variable | Required | Source | Description |
+|---|---|---|---|
+| `SUPABASE_URL` | Yes | Supabase dashboard | Database URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase dashboard | Database access key |
+| `DASHBOARD_API_KEY` | Yes | `openssl rand -hex 32` | Bearer token for dashboard auth |
+| `GITHUB_BACKUP_PAT` | No | [GitHub PAT settings](https://github.com/settings/personal-access-tokens/new) | Enables backup freshness in /stats |
+
+Configuration vars (set in `dashboard-api/wrangler.toml` `[vars]`):
+
+| Variable | Description |
+|---|---|
+| `CORS_ORIGIN` | Allowed origin for CORS (must match your Pages URL exactly) |
+| `BACKUP_REPO` | `owner/repo` of backup repository (for freshness check) |
+
+### `.dev.vars`-only variables (not pushed to Cloudflare)
+
+| Variable | Description |
+|---|---|
+| `SUPABASE_DB_PASSWORD` | Only for `supabase link` |
+| `DASHBOARD_API_URL` | Dashboard API Worker URL — deploy.sh injects it into `config.js` |
+| `WORKER_URL` | Telegram Worker URL (smoke tests) |
+| `TELEGRAM_CHAT_ID` | Your chat ID (smoke tests) |
+| `MCP_WORKER_URL` | MCP Worker URL (smoke tests) |
+| `GARDENER_WORKER_URL` | Gardener Worker URL (integration tests) |
+| `DASHBOARD_WORKER_URL` | Dashboard API Worker URL (dashboard smoke tests) |

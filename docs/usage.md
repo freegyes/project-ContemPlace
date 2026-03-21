@@ -256,7 +256,7 @@ Everything comes back: notes with embeddings intact, links, RPC functions, the c
 
 ### Setting it up
 
-The workflow ships with the repo (`.github/workflows/backup.yml`). To enable it: create a private backup repo, set two GitHub secrets and one variable, trigger it once to verify. Full instructions in the [setup guide](setup.md#8-configure-automated-backups-optional).
+The workflow ships with the repo (`.github/workflows/backup.yml`). To enable it: create a private backup repo, set two GitHub secrets and one variable, trigger it once to verify. Full instructions in the [setup guide](setup.md#step-8-set-up-automated-backups-optional).
 
 ---
 

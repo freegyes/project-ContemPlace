@@ -118,8 +118,8 @@ if [[ -z "${DASHBOARD_API_URL:-}" ]]; then
 else
   echo "window.CONTEMPLACE_API_URL = \"${DASHBOARD_API_URL}\";" > dashboard/config.js
   wrangler pages deploy dashboard/ --project-name contemplace-dashboard --branch main
+  echo "   ✓ Dashboard deployed."
 fi
-echo "   ✓ Dashboard deployed."
 echo ""
 
 # ── Step 10: Smoke tests ─────────────────────────────────────────────────────

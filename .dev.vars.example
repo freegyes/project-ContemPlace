@@ -21,7 +21,7 @@ MCP_API_KEY=your_mcp_api_key_here
 # Gardener Worker — generate with: openssl rand -hex 32
 # Enables POST /trigger endpoint for manual runs and smoke tests.
 # SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are shared with the main Worker above.
-# GARDENER_SIMILARITY_THRESHOLD is set in gardener/wrangler.toml [vars] — default 0.70.
+# GARDENER_SIMILARITY_THRESHOLD is set in gardener/wrangler.toml [vars] — default 0.65.
 GARDENER_API_KEY=your_gardener_api_key_here
 
 # OAuth consent page secret — generate with: openssl rand -hex 16
@@ -33,8 +33,13 @@ CONSENT_SECRET=your_consent_secret_here
 OAUTH_KV_ID=your_kv_namespace_id_here
 OAUTH_KV_PREVIEW_ID=your_kv_preview_id_here
 
-# Test-only — not used by the worker itself
+# Dashboard API Worker — generate with: openssl rand -hex 32
+DASHBOARD_API_KEY=your_dashboard_api_key_here
+DASHBOARD_API_URL=https://contemplace-dashboard-api.your-subdomain.workers.dev
+
+# Test-only — not used by the workers themselves
 WORKER_URL=https://contemplace.your-subdomain.workers.dev
 TELEGRAM_CHAT_ID=your_chat_id_here
 MCP_WORKER_URL=https://mcp-contemplace.your-subdomain.workers.dev
 GARDENER_WORKER_URL=https://contemplace-gardener.your-subdomain.workers.dev
+DASHBOARD_WORKER_URL=https://contemplace-dashboard-api.your-subdomain.workers.dev
