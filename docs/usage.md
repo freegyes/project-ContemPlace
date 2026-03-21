@@ -40,6 +40,8 @@ The böhönc example was a photo with a caption. But capture works the same way 
 
 **Any language.** The böhönc note was in English, but it could have been in Hungarian, Japanese, or anything else. The capture agent translates to English for the structured output — title, body, tags — while preserving meaning, tone, and specificity. The translation is logged in the corrections field (e.g., `"hu → en"`). Your original words stay untouched in `raw_input`, in whatever language you used. Embeddings use the English body, keeping the entire retrieval space monolingual. Search queries are in English.
 
+Every capture tracks where it came from — Telegram, an MCP agent, a custom script. The dashboard shows source badges on each fragment, so you can see at a glance how your captures arrive.
+
 ### What makes a good fragment
 
 Anything. A focused thought — one claim, a sentence or three — produces the cleanest result. But the system handles messy input too. A brain dump with three ideas. A stream-of-consciousness paragraph. A single word that means something to you. The capture pipeline structures whatever you send.
@@ -126,7 +128,7 @@ The böhönc story used `search_notes` — the most common query. But there are 
 
 ### "What have I been thinking about..."
 
-The most natural query. You ask an agent about a topic, and it calls `search_notes` behind the scenes. The agent gets back ranked results with body text included — enough to weave into a response without a follow-up call.
+The most natural query. You ask an agent about a topic, and it calls `search_notes` behind the scenes. The agent gets back ranked results with body text included — enough to weave into a response without a follow-up call. You can also filter by tags if you want to narrow the scope — useful when a topic spans multiple domains and you want just the fragments tagged with a specific thread.
 
 You might ask: "What have I captured about learning?" The agent pulls a cluster of fragments — a note about pair programming, one about spaced repetition, a quote about beginner's mind — and synthesizes a response from your own accumulated thinking.
 
@@ -177,6 +179,10 @@ A clustering session follows a natural funnel — each step narrows focus based 
 6. **Boundary search.** For any cluster, the agent can ask "what would this cluster contain if the orientation were different?" and search for those terms at low threshold. Finding nothing is informative — it reveals the framing and assumptions behind the cluster. The absence of expected concepts often says more about your orientation than the presence of captured ones.
 
 Not every session goes through all six steps. Landscape orientation alone is often enough for a check-in. The funnel is there when you want to go deeper.
+
+### The dashboard
+
+Agents describe your graph. The dashboard lets you see it. A dark-themed web interface with three panels: a stats bar showing total notes, links, clusters, and five health indicators (gardener freshness, orphan ratio, cluster coverage, link density, backup recency) as colored dots; a cluster grid where you click any cluster to expand a force-directed graph of its notes and links; and a recent-captures feed with source badges, tags, and image thumbnails. No agent, no prompting — just you browsing your knowledge base visually. Hosted on Cloudflare Pages, authenticated with a single API key.
 
 ---
 
