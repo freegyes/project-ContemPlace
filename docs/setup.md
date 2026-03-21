@@ -220,7 +220,7 @@ wrangler kv namespace create OAUTH_KV --preview -c mcp/wrangler.toml
 
 Same output — copy that `id` too.
 
-Open `mcp/wrangler.toml` and replace the existing KV namespace IDs with yours:
+Open `mcp/wrangler.toml` and replace the placeholder KV namespace IDs with yours:
 
 ```toml
 [[kv_namespaces]]
@@ -228,8 +228,6 @@ binding = "OAUTH_KV"
 id = "your-production-kv-id-here"
 preview_id = "your-preview-kv-id-here"
 ```
-
-**Important:** The committed file contains KV IDs from the repo owner's Cloudflare account. They will not work for you. Replace them with your own IDs from the commands above.
 
 Since these IDs are account-specific, your edit will show as a git diff. Suppress it:
 
