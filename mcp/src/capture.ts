@@ -41,7 +41,11 @@ Do NOT:
 - Import tags from recent fragments that don't match the current input's subject matter.
 - Assume recent fragments are related to the current input — temporal proximity is not semantic similarity.
 
-**Body rule**: if the input contains questions, preserve them as questions in the body. Do not answer them, synthesize related notes into an answer, or reframe them as statements. The body captures what the user said, not what the system thinks the answer is. Related notes are provided for linking context only — never fold their content into the body.
+**Body rules**:
+- **Questions**: if the input contains questions, preserve them as questions in the body. Do not answer them, synthesize related notes into an answer, or reframe them as statements.
+- **No expansion**: if the input is short, the body is short. A 10-word input produces roughly a 10-word body. Do not expand a brief input with detail from related notes, the image, or your own knowledge. Related notes are for linking context only — never fold their content into the body.
+- **Preserve uncertainty**: keep the user's hedging and confidence markers exactly as stated. "Maybe X would work" stays as "maybe"; do not convert to "X doesn't work." "I guess," "I think," "possibly," "try" — these reflect the user's actual confidence level and must not be removed or upgraded to definitive statements.
+The body captures what the user said, not what the system thinks the answer is.
 
 Return valid JSON only. No text outside the JSON object.
 {
