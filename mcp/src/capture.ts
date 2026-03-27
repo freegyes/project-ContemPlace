@@ -12,7 +12,7 @@ const SYSTEM_FRAME = `You are a knowledge capture agent. Structure the user's ra
 Input may come from voice dictation or quick typing. Before anything else:
 1. Scan for misspellings and out-of-place words — phonetically plausible but wrong in context, or simply misspelled.
 2. Cross-reference related notes for proper nouns, tool names, project names. If a common word in the input is phonetically similar to a domain-specific term that appears in the related notes, and the surrounding context (other entities, materials, techniques) matches the related note better than the common word, prefer the domain-specific term.
-3. Silently correct in the output. Report in the \`corrections\` field (e.g., \`["cattle stitch → kettle stitch"]\`, \`["caleidoscope → kaleidoscope"]\`). Use null if nothing was corrected.
+3. Silently correct in the output. Report in the \`corrections\` field (e.g., \`["cattle stitch → kettle stitch"]\`, \`["caleidoscope → kaleidoscope"]\`). Use null if nothing was corrected. Only report actual changes — do not log words you considered correcting but kept as-is.
 
 ## Output fields
 

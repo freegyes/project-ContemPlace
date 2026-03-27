@@ -29,7 +29,7 @@ export async function deleteGardenerSimilarityLinks(db: SupabaseClient): Promise
 export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteForSimilarity[]> {
   const { data, error } = await db
     .from('notes')
-    .select('id, tags, created_at')
+    .select('id, title, tags, created_at')
     .is('archived_at', null)
     .not('embedding', 'is', null);
 
@@ -39,12 +39,14 @@ export async function fetchNotesForSimilarity(db: SupabaseClient): Promise<NoteF
 
   const rows = (data as Array<{
     id: string;
+    title: string;
     tags: string[] | null;
     created_at: string;
   }> | null) ?? [];
 
   return rows.map(row => ({
     id: row.id,
+    title: row.title,
     tags: row.tags ?? [],
     created_at: row.created_at,
   }));

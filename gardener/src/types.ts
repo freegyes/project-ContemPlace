@@ -22,9 +22,10 @@ export interface Env {
 // ── Domain types ─────────────────────────────────────────────────────────────
 
 // A note as fetched for similarity processing — tags for context generation,
-// created_at for gravity calculation.
+// created_at for gravity calculation, title for LLM cluster labeling.
 export interface NoteForSimilarity {
   id: string;
+  title: string;
   tags: string[];
   created_at: string;
 }

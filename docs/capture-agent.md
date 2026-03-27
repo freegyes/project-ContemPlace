@@ -121,7 +121,7 @@ The system prompt instructs the LLM to:
 1. Scan for words that are likely voice transcription errors (wrong homophones, out-of-place words)
 2. Cross-reference proper nouns against the related notes provided as context. If a common word in the input is phonetically similar to a domain-specific term in the related notes, and the surrounding context (entities, materials, techniques) favors the domain term, prefer it.
 3. Silently apply corrections in the title and body
-4. Report all corrections in the `corrections` field as `"garbled → corrected"` pairs
+4. Report all corrections in the `corrections` field as `"garbled → corrected"` pairs. Only report actual changes — do not log words considered but kept as-is.
 
 Corrections appear in the Telegram reply so the user can verify. This makes voice dictation a viable primary input method without requiring the user to proofread.
 
