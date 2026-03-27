@@ -4,7 +4,7 @@ Analyze recent real-world captures against the product's design philosophy. Surf
 
 ## Arguments
 
-$ARGUMENTS — number of recent fragments to analyze, or a tag filter like "tag:bookbinding" (fetches up to 15 matching notes). Default behavior: check memory for the date of the last audit (look for the "Capture audits" section in MEMORY.md). If a prior audit exists, fetch all fragments since that date (up to 50). If no prior audit exists, default to 10. An explicit number overrides the smart default.
+$ARGUMENTS — number of recent fragments to analyze, or a tag filter like "tag:bookbinding" (fetches up to 15 matching notes). Default behavior: all fragments since the last audit date (up to 50). If no prior audit exists, default to 10. An explicit number overrides the smart default.
 
 ## Workflow
 
@@ -12,8 +12,12 @@ $ARGUMENTS — number of recent fragments to analyze, or a tag filter like "tag:
 
 Maximize the first parallel batch. Launch all of these simultaneously — the ethos reads and the data fetches have no dependencies on each other:
 
-**Prior audit context:**
-0. **Check MEMORY.md** for the "Capture audits" section. Note the most recent audit date, sample size, and key findings. This informs both the smart default sample size (all fragments since that date) and the regression check in Phase 6. If no prior audit exists, note that this is the first audit.
+**Prior audit context (do this BEFORE the parallel batch — it determines the sample size):**
+0. **Find the last audit date.** MEMORY.md may be truncated past line 200, so do NOT rely on it being fully loaded. Instead:
+   - Use Glob to find all `audit_*.md` files in the memory directory
+   - Read the most recent one (sorted by filename date) to get: date, sample size, key findings, open recommendations
+   - This determines the smart default: fetch all fragments since that audit date (up to 50)
+   - If no audit files exist, this is the first audit — default to 10
 
 **Ethos reads:**
 1. **Read `docs/philosophy.md`** — the 10 core principles
@@ -30,7 +34,7 @@ curl -s "${SUPABASE_URL}/rest/v1/capture_profiles?name=eq.default&select=capture
 ```
 
 **Fragment data:**
-5. **`list_recent`** with the requested limit to get the sample set
+5. **`list_recent`** with the smart default limit (all since last audit, up to 50) or the explicit argument to get the sample set. Then filter by `created_at` to include only fragments newer than the last audit date. If the argument is an explicit number, use that directly without date filtering.
 
 Do NOT read `docs/decisions.md` in the initial batch — it's 100KB+ historical record of how decisions were made. The current rules are already covered by the documents above plus CLAUDE.md (always in context). If a finding seems to conflict with a design decision and you need to understand *why* a constraint exists before calling it a gap, read the relevant section of decisions.md at that point.
 
@@ -139,9 +143,9 @@ Where reality diverges from the philosophy. For each gap:
 Specific things the system does well, with examples from the sample. Be concrete but brief.
 
 #### Regression check
-Check memory for findings from previous audits. For each prior finding, assess: is this still happening, or did the fix work? Report regressions and resolved issues.
+Use the most recent audit memory file (already read in Phase 1, step 0) for the baseline. For each prior finding, assess: is this still happening, or did the fix work? Report regressions and resolved issues.
 
-If no previous audit memory exists, skip this section and note that this is the first audit.
+If no prior audit file exists, skip this section and note that this is the first audit.
 
 #### Recommendations
 Ordered by impact. For each:
