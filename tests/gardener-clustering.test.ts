@@ -6,7 +6,7 @@ import type { NoteForSimilarity } from '../gardener/src/types';
 
 function makeNote(id: string, tags: string[] = [], daysAgo: number = 0): NoteForSimilarity {
   const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
-  return { id, tags, created_at: date.toISOString() };
+  return { id, title: `Note ${id}`, tags, created_at: date.toISOString() };
 }
 
 type Pair = { note_a: string; note_b: string; similarity: number };

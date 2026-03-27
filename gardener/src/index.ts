@@ -3,6 +3,7 @@ import { createSupabaseClient, deleteGardenerSimilarityLinks, fetchNotesForSimil
 import { loadConfig } from './config';
 import { buildContext } from './similarity';
 import { runClustering, type ClusteringResult } from './clustering';
+import { generateClusterTitles } from './cluster-titles';
 import { extractEntitiesFromNote, resolveEntities, mapNotesToCanonicalEntities } from './entities';
 import { createOpenAIClient } from './ai';
 import { sendAlert } from './alert';
@@ -119,7 +120,23 @@ async function runGardener(env: Env): Promise<GardenerRunResult> {
   try {
     const clustersDeleted = await deleteAllClusters(db);
     const { rows, result: clusterResult } = runClustering(notes, allPairs, config.clusterResolutions);
-    await insertClusters(db, rows);
+
+    // Generate LLM titles for clusters (optional — requires OPENROUTER_API_KEY)
+    let enrichedRows = rows;
+    if (config.entityConfig && rows.length > 0) {
+      try {
+        const noteMap = new Map(notes.map(n => [n.id, n]));
+        const aiClient = createOpenAIClient(config.entityConfig);
+        enrichedRows = await generateClusterTitles(aiClient, config.entityConfig, rows, noteMap);
+        const titled = enrichedRows.filter((r, i) => r.label !== rows[i]!.label).length;
+        console.log(JSON.stringify({ event: 'cluster_titles_generated', titled, total: rows.length }));
+      } catch (titleErr) {
+        console.warn(JSON.stringify({ event: 'cluster_titles_failed', error: String(titleErr) }));
+        // Fall back to tag-based labels — enrichedRows is still the original rows
+      }
+    }
+
+    await insertClusters(db, enrichedRows);
 
     clusteringReport = {
       ...clusterResult,
@@ -144,9 +161,10 @@ async function runGardener(env: Env): Promise<GardenerRunResult> {
   };
 
   // Subrequest budget: CF Workers limit is 50 per invocation.
-  // Similarity + clustering use ~7-9. Entity extraction gets the rest.
-  // Per-run cost: ~9 fixed DB calls + N LLM calls + N note updates = 9 + 2N.
-  // Default batch size 15 → 9 + 30 = 39 subrequests. Under 50 with margin.
+  // Similarity + clustering use ~7-9. Cluster titles add 1 LLM call.
+  // Entity extraction gets the rest.
+  // Per-run cost: ~10 fixed DB calls + 1 LLM (cluster titles) + 2N (entity) = 11 + 2N.
+  // Default batch size 15 → 11 + 30 = 41 subrequests. Under 50 with margin.
   if (config.entityConfig) {
     try {
       const entityConfig = config.entityConfig;
